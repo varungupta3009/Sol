@@ -52,29 +52,9 @@
 - [x] **Repository Sanitization & `.gitignore` Hardening:**
   - Created root [`.gitignore`](file:///Users/vrg/Documents/Sol/.gitignore) strictly excluding `.env`, `/data/`, `/config/`, `/web/`, `/quartz/`, `/logs/`, `_backup_pre_refactor/`, `.DS_Store`, and temporary files.
   - Ensured only declarative infrastructure code (`docker-compose.yml`, `compose/*.yml`, `Caddyfile`, `ports.json`, `.env.example`, `scripts/*.sh`, `coder/*.tf`, `docs/system_state/*.md`, `README.md`) is tracked.
-- [ ] **Manual Step: Initialize Jujutsu (`jj`) & Publish to GitHub:**
-  
-  Run the following commands in terminal when ready to publish:
-
-  ```bash
-  # 1. Initialize a colocated Jujutsu / Git repository
-  jj git init --colocated
-
-  # 2. Inspect status to verify only declarative files are staged (no data/, config/, or .env)
-  jj status
-
-  # 3. Create the initial commit with a descriptive message
-  jj describe -m "feat(infra): initialize Sol declarative home server infrastructure"
-
-  # 4. Add your GitHub remote repository
-  jj git remote add origin git@github.com:<YOUR_GITHUB_USERNAME>/sol.git
-
-  # 5. Create and track the 'main' bookmark on your working commit
-  jj bookmark create main -r @
-
-  # 6. Push to GitHub
-  jj git push --bookmark main --remote origin
-  ```
+- [x] **Jujutsu (`jj`) Initialized & Published to GitHub:**
+  - Created private repository [`varungupta3009/Sol`](https://github.com/varungupta3009/Sol).
+  - Pushed initial commit and `main` bookmark cleanly.
 
   **Everyday Jujutsu Workflow Commands:**
   ```bash
