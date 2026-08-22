@@ -1,0 +1,386 @@
+{
+  "caddy": {
+    "internal_port": 80,
+    "host_port": "80, 443 (TCP/UDP)",
+    "protocol": "HTTP/3, HTTPS",
+    "url": "https://dash.vrg.rocks",
+    "status": "active",
+    "category": "core"
+  },
+  "authentik-server": {
+    "internal_port": 9000,
+    "host_port": "9000, 9443",
+    "protocol": "HTTP, HTTPS",
+    "url": "https://auth.vrg.rocks",
+    "status": "active",
+    "category": "core"
+  },
+  "authentik-postgresql": {
+    "internal_port": 5432,
+    "host_port": null,
+    "protocol": "TCP",
+    "url": null,
+    "status": "active",
+    "category": "core"
+  },
+  "arcane": {
+    "internal_port": 3552,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://arcane.vrg.rocks",
+    "status": "active",
+    "category": "core"
+  },
+  "glance": {
+    "internal_port": 8080,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://dash.vrg.rocks",
+    "status": "active",
+    "category": "monitoring"
+  },
+  "jellyfin": {
+    "internal_port": 8096,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://watch.vrg.rocks",
+    "status": "active",
+    "category": "media"
+  },
+  "jellyfin-metal": {
+    "internal_port": 8097,
+    "host_port": 8097,
+    "protocol": "HTTP",
+    "url": "https://metal.vrg.rocks",
+    "status": "active",
+    "category": "media"
+  },
+  "jellyseerr": {
+    "internal_port": 5055,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://request.vrg.rocks",
+    "status": "active",
+    "category": "media"
+  },
+  "radarr": {
+    "internal_port": 7878,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://radarr.vrg.rocks",
+    "status": "active",
+    "category": "media"
+  },
+  "sonarr": {
+    "internal_port": 8989,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://sonarr.vrg.rocks",
+    "status": "active",
+    "category": "media"
+  },
+  "bazarr": {
+    "internal_port": 6767,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://bazarr.vrg.rocks",
+    "status": "active",
+    "category": "media"
+  },
+  "lidarr": {
+    "internal_port": 8686,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://lidarr.vrg.rocks",
+    "status": "active",
+    "category": "media"
+  },
+  "prowlarr": {
+    "internal_port": 9696,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://prowlarr.vrg.rocks",
+    "status": "active",
+    "category": "media"
+  },
+  "flaresolverr": {
+    "internal_port": 8191,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://flaresolverr.vrg.rocks",
+    "status": "active",
+    "category": "media"
+  },
+  "qbittorrent": {
+    "internal_port": 8080,
+    "host_port": "42069 (TCP/UDP)",
+    "protocol": "HTTP (WebUI) / BitTorrent (Wire)",
+    "url": "https://qb.vrg.rocks",
+    "status": "active",
+    "category": "download"
+  },
+  "cross-seed": {
+    "internal_port": 2468,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://cs.vrg.rocks",
+    "status": "active",
+    "category": "download"
+  },
+  "paperless-webserver": {
+    "internal_port": 8000,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://docs.vrg.rocks",
+    "status": "active",
+    "category": "paperless"
+  },
+  "paperless-broker": {
+    "internal_port": 6379,
+    "host_port": null,
+    "protocol": "Redis",
+    "url": null,
+    "status": "active",
+    "category": "paperless"
+  },
+  "paperless-db": {
+    "internal_port": 5432,
+    "host_port": null,
+    "protocol": "PostgreSQL",
+    "url": null,
+    "status": "active",
+    "category": "paperless"
+  },
+  "ignis": {
+    "internal_port": 8080,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://ignis.vrg.rocks",
+    "status": "active",
+    "category": "knowledge"
+  },
+  "code-server": {
+    "internal_port": 8443,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://code.vrg.rocks",
+    "status": "active",
+    "category": "coding"
+  },
+  "coder": {
+    "internal_port": 7080,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://coder.vrg.rocks",
+    "status": "active",
+    "category": "coding"
+  },
+  "copyparty": {
+    "internal_port": 3923,
+    "host_port": null,
+    "protocol": "HTTP, WebDAV",
+    "url": "https://files.vrg.rocks",
+    "status": "active",
+    "category": "utilities"
+  },
+  "homebox": {
+    "internal_port": 7745,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://inv.vrg.rocks",
+    "status": "active",
+    "category": "utilities"
+  },
+  "ntfy": {
+    "internal_port": 80,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://ntfy.vrg.rocks",
+    "status": "active",
+    "category": "utilities"
+  },
+  "gatus": {
+    "internal_port": 8080,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://status.vrg.rocks",
+    "status": "standby",
+    "category": "monitoring"
+  },
+  "beszel": {
+    "internal_port": 8090,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://beszel.vrg.rocks",
+    "status": "standby",
+    "category": "monitoring"
+  },
+  "beszel-agent": {
+    "internal_port": 45876,
+    "host_port": "45876",
+    "protocol": "TCP",
+    "url": null,
+    "status": "standby",
+    "category": "monitoring"
+  },
+  "dozzle": {
+    "internal_port": 8080,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://dozzle.vrg.rocks",
+    "status": "standby",
+    "category": "monitoring"
+  },
+  "dockge": {
+    "internal_port": 5001,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://dockge.vrg.rocks",
+    "status": "standby",
+    "category": "monitoring"
+  },
+  "uptime-kuma": {
+    "internal_port": 3001,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://kuma.vrg.rocks",
+    "status": "standby",
+    "category": "monitoring"
+  },
+  "homarr": {
+    "internal_port": 7575,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://homarr.vrg.rocks",
+    "status": "standby",
+    "category": "monitoring"
+  },
+  "recyclarr": {
+    "internal_port": null,
+    "host_port": null,
+    "protocol": "CLI / Cron Daemon",
+    "url": null,
+    "status": "standby",
+    "category": "media"
+  },
+  "wizarr": {
+    "internal_port": 5690,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://wizarr.vrg.rocks",
+    "status": "standby",
+    "category": "media"
+  },
+  "unpackerr": {
+    "internal_port": null,
+    "host_port": null,
+    "protocol": "Daemon",
+    "url": null,
+    "status": "standby",
+    "category": "download"
+  },
+  "qbit_manage": {
+    "internal_port": 8181,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://qbm.vrg.rocks",
+    "status": "standby",
+    "category": "download"
+  },
+  "flood": {
+    "internal_port": 3000,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://flood.vrg.rocks",
+    "status": "standby",
+    "category": "download"
+  },
+  "paperless-gotenberg": {
+    "internal_port": 3000,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": null,
+    "status": "standby",
+    "category": "paperless"
+  },
+  "paperless-tika": {
+    "internal_port": 9998,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": null,
+    "status": "standby",
+    "category": "paperless"
+  },
+  "paperless-ai": {
+    "internal_port": 3000,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://paperless-ai.vrg.rocks",
+    "status": "standby",
+    "category": "paperless"
+  },
+  "leafwiki": {
+    "internal_port": 8080,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://leaf.vrg.rocks",
+    "status": "standby",
+    "category": "knowledge"
+  },
+  "kavita": {
+    "internal_port": 5000,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://kavita.vrg.rocks",
+    "status": "standby",
+    "category": "knowledge"
+  },
+  "calibre": {
+    "internal_port": 8080,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://calibre.vrg.rocks",
+    "status": "standby",
+    "category": "knowledge"
+  },
+  "calibre-web": {
+    "internal_port": 8083,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://calibre-web.vrg.rocks",
+    "status": "standby",
+    "category": "knowledge"
+  },
+  "vaultwarden": {
+    "internal_port": 80,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://vault.vrg.rocks",
+    "status": "standby",
+    "category": "utilities"
+  },
+  "n8n": {
+    "internal_port": 5678,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://n8n.vrg.rocks",
+    "status": "standby",
+    "category": "utilities"
+  },
+  "homeassistant": {
+    "internal_port": 8123,
+    "host_port": "8123 (Host Mode)",
+    "protocol": "HTTP",
+    "url": "https://home.vrg.rocks",
+    "status": "standby",
+    "category": "utilities"
+  },
+  "rclone-gui": {
+    "internal_port": 5572,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://rclone.vrg.rocks",
+    "status": "standby",
+    "category": "utilities"
+  }
+}

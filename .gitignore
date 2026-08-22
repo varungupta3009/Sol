@@ -1,0 +1,73 @@
+# ================================================================
+# Sol Home Server - Git & Jujutsu (JJ) Ignore Rules
+# ================================================================
+# This repository tracks ONLY declarative infrastructure code:
+#   - Compose stacks (docker-compose.yml, compose/*.yml)
+#   - Ingress routing rules (Caddyfile, ports.json)
+#   - Environment templates (.env.example)
+#   - Automation scripts (scripts/*.sh)
+#   - Terraform Coder definitions (coder/*.tf)
+#   - System state architecture documentation (docs/system_state/*.md)
+# ================================================================
+
+# ----------------------------------------------------------------
+# 1. SECRETS & ENVIRONMENT VARIABLES
+# ----------------------------------------------------------------
+# Live environment files containing private credentials
+.env
+*.env
+!.env.example
+*.pem
+*.key
+*.crt
+*.cert
+
+# ----------------------------------------------------------------
+# 2. RUNTIME APPLICATION DATA & DATABASES
+# ----------------------------------------------------------------
+# Persistent transactional databases, document archives, media & caches
+/data/
+/config/
+
+# ----------------------------------------------------------------
+# 3. PERSONAL PROJECTS & STATIC WEBSITES
+# ----------------------------------------------------------------
+# Personal frontends & digital garden (Preserved separately / backed up on OneDrive)
+/web/
+/quartz/
+/priv/
+/.hist/
+
+# ----------------------------------------------------------------
+# 4. LOGS, BACKUPS & TEMPORARY ARCHIVES
+# ----------------------------------------------------------------
+/logs/
+*.log
+/docs/archive/
+/_backup_pre_refactor/
+/data/backups/
+
+# ----------------------------------------------------------------
+# 5. OS ARTIFACTS, SOCKETS & SYSTEM TRASH
+# ----------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.sock
+*.tmp
+*.temp
+*.swp
+*~
+
+# ----------------------------------------------------------------
+# 6. NODE & TERRAFORM ARTIFACTS
+# ----------------------------------------------------------------
+node_modules/
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl

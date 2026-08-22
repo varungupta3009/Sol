@@ -1,0 +1,235 @@
+# ================================================================
+# Sol Infrastructure - Media Streaming & *arr PVR Automation
+# ================================================================
+
+services:
+  # ----------------------------------------------------------------
+  # Jellyfin: Hardware-Accelerated Media Streaming Server
+  # ----------------------------------------------------------------
+  jellyfin:
+    container_name: jellyfin
+    image: lscr.io/linuxserver/jellyfin:latest
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/jellyfin:/config
+      - ${DOCKER_DATA_DIR}/media:/media/internal
+      - ${EXTERNAL_DRIVE_00}:/media/external
+      # - ${EXTERNAL_DRIVE_01}:/media/ext01
+      # - ${EXTERNAL_DRIVE_02}:/media/ext02
+    labels:
+      glance.id: jellyfin
+      glance.name: Jellyfin
+      glance.icon: sh:jellyfin
+      glance.url: https://watch.vrg.rocks
+      glance.description: Media Streaming Server
+
+  # ----------------------------------------------------------------
+  # Jellyseerr: Media Discovery & Automated Request Manager
+  # ----------------------------------------------------------------
+  jellyseerr:
+    container_name: jellyseerr
+    image: fallenbagel/jellyseerr:latest
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      LOG_LEVEL: info
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/jellyseerr:/app/config
+    dns:
+      - 8.8.8.8 # Prevents ISP blocking TMDb API lookups
+      - 1.1.1.1
+    labels:
+      glance.id: jellyseerr
+      glance.name: Jellyseerr
+      glance.icon: sh:jellyseerr
+      glance.url: https://request.vrg.rocks
+      glance.description: Media Requests & Discovery
+
+  # ----------------------------------------------------------------
+  # Radarr: Movie Collection Manager & Downloader Coordinator
+  # ----------------------------------------------------------------
+  radarr:
+    container_name: radarr
+    image: lscr.io/linuxserver/radarr:latest
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/radarr:/config
+      - ${DOCKER_DATA_DIR}:/data # Unified root mount for zero-copy APFS atomic hardlinks
+      - ${EXTERNAL_DRIVE_00}:/external
+      # - ${EXTERNAL_DRIVE_01}:/ext01
+    dns:
+      - 1.1.1.1 # Fast Cloudflare DNS (prevents ISP tracker scraping blocks)
+      - 9.9.9.9 # Quad9 secure fallback DNS
+    labels:
+      glance.id: radarr
+      glance.name: Radarr
+      glance.icon: sh:radarr
+      glance.url: https://radarr.vrg.rocks
+      glance.description: Movie Collection Manager
+
+  # ----------------------------------------------------------------
+  # Sonarr: Television Series Tracker & Automated Downloader
+  # ----------------------------------------------------------------
+  sonarr:
+    container_name: sonarr
+    image: lscr.io/linuxserver/sonarr:latest
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/sonarr:/config
+      - ${DOCKER_DATA_DIR}:/data # Unified root mount for zero-copy APFS atomic hardlinks
+      - ${EXTERNAL_DRIVE_00}:/external
+      # - ${EXTERNAL_DRIVE_01}:/ext01
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
+    labels:
+      glance.id: sonarr
+      glance.name: Sonarr
+      glance.icon: sh:sonarr
+      glance.url: https://sonarr.vrg.rocks
+      glance.description: TV Series Tracker & Downloader
+
+  # ----------------------------------------------------------------
+  # Bazarr: Subtitle Search & Synchronization Companion
+  # ----------------------------------------------------------------
+  bazarr:
+    container_name: bazarr
+    image: lscr.io/linuxserver/bazarr:latest
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/bazarr:/config
+      - ${DOCKER_DATA_DIR}:/data
+      - ${EXTERNAL_DRIVE_00}:/external
+      # - ${EXTERNAL_DRIVE_01}:/ext01
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
+    labels:
+      glance.id: bazarr
+      glance.name: Bazarr
+      glance.icon: sh:bazarr
+      glance.url: https://bazarr.vrg.rocks
+      glance.description: Subtitle Search & Sync
+
+  # ----------------------------------------------------------------
+  # Lidarr: Music Discography Manager & Track Downloader
+  # ----------------------------------------------------------------
+  lidarr:
+    container_name: lidarr
+    image: lscr.io/linuxserver/lidarr:latest
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/lidarr:/config
+      - ${DOCKER_DATA_DIR}:/data
+      - ${EXTERNAL_DRIVE_00}:/external
+      # - ${EXTERNAL_DRIVE_01}:/ext01
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
+    labels:
+      glance.id: lidarr
+      glance.name: Lidarr
+      glance.icon: sh:lidarr
+      glance.url: https://lidarr.vrg.rocks
+      glance.description: Music Discography Manager
+
+  # ----------------------------------------------------------------
+  # Prowlarr: Centralized Torrent & Usenet Indexer Proxy
+  # ----------------------------------------------------------------
+  prowlarr:
+    container_name: prowlarr
+    image: lscr.io/linuxserver/prowlarr:latest
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/prowlarr:/config
+    dns:
+      - 1.1.1.1 # Essential for bypassing ISP-level torrent site blocks & timeouts
+      - 9.9.9.9
+    labels:
+      glance.id: prowlarr
+      glance.name: Prowlarr
+      glance.icon: sh:prowlarr
+      glance.url: https://prowlarr.vrg.rocks
+      glance.description: Torrent & Usenet Indexer Proxy
+
+  # ----------------------------------------------------------------
+  # FlareSolverr: Cloudflare Captcha Bypass Service for Prowlarr
+  # ----------------------------------------------------------------
+  flaresolverr:
+    container_name: flaresolverr
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      LOG_LEVEL: info
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
+    labels:
+      glance.id: flaresolverr
+      glance.name: FlareSolverr
+      glance.icon: sh:flaresolverr
+      glance.url: https://flaresolverr.vrg.rocks
+      glance.description: Cloudflare Challenge Solver
+
+  # ----------------------------------------------------------------
+  # Sidelined Media & Automation Helpers (Preserved on Standby)
+  # ----------------------------------------------------------------
+  # recyclarr:
+  #   container_name: recyclarr
+  #   image: ghcr.io/recyclarr/recyclarr:latest
+  #   restart: unless-stopped
+  #   user: "${PUID}:${PGID}"
+  #   environment:
+  #     TZ: ${TZ}
+  #     CRON_SCHEDULE: "@daily"
+  #   volumes:
+  #     - ${DOCKER_CONFIG_DIR}/recyclarr:/config
+  #   labels:
+  #     glance.id: recyclarr
+  #     glance.name: Recyclarr
+  #     glance.icon: sh:recyclarr
+  #     glance.url: https://radarr.vrg.rocks
+  #     glance.description: TRaSH Guides Sync Engine
+
+  # wizarr:
+  #   container_name: wizarr
+  #   image: ghcr.io/wizarrrr/wizarr:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     PUID: ${PUID}
+  #     PGID: ${PGID}
+  #     TZ: ${TZ}
+  #     DISABLE_BUILTIN_AUTH: "false"
+  #   volumes:
+  #     - ${DOCKER_CONFIG_DIR}/wizarr:/data
+  #   labels:
+  #     glance.id: wizarr
+  #     glance.name: Wizarr
+  #     glance.icon: sh:wizarr
+  #     glance.url: https://wizarr.vrg.rocks
+  #     glance.description: Jellyfin User Invitation Portal

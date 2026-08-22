@@ -1,0 +1,148 @@
+# ================================================================
+# Sol Infrastructure - Paperless Document Archival & OCR Engine
+# ================================================================
+
+services:
+  # ----------------------------------------------------------------
+  # Paperless-ngx: Core Web Server, OCR & Document Ingestion
+  # ----------------------------------------------------------------
+  paperless-webserver:
+    container_name: paperless-webserver
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+      paperless-broker:
+        condition: service_healthy
+      # paperless-gotenberg:
+      #   condition: service_started
+      # paperless-tika:
+      #   condition: service_started
+    environment:
+      USERMAP_UID: ${USERMAP_UID:-501}
+      USERMAP_GID: ${USERMAP_GID:-20}
+      PAPERLESS_URL: ${PAPERLESS_URL:-https://docs.vrg.rocks}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+      PAPERLESS_TIME_ZONE: ${PAPERLESS_TIME_ZONE:-Asia/Kolkata}
+      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-eng}
+      PAPERLESS_OCR_LANGUAGES: ${PAPERLESS_OCR_LANGUAGES:-hin kan pan}
+      PAPERLESS_CONSUMER_RECURSIVE: ${PAPERLESS_CONSUMER_RECURSIVE:-true} # Enables recursive scanning of nested intake folders
+      PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: ${PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS:-true} # Auto-tags based on incoming directory name
+      PAPERLESS_FILENAME_DATE_ORDER: ${PAPERLESS_FILENAME_DATE_ORDER:-YMD}
+      PAPERLESS_REDIS: redis://paperless-broker:6379
+      PAPERLESS_DBHOST: paperless-db
+      # M1 Pro Concurrency Tuning (6 Performance + 2 Efficiency Cores):
+      PAPERLESS_WORKER_CONCURRENCY: 2 # Processes 2 documents simultaneously in parallel
+      PAPERLESS_OCR_THREADS: 2 # 2 Tesseract threads per doc (utilizes Performance cores)
+      PAPERLESS_TASK_WORKERS: 2 # Background Celery queue workers
+      PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/scripts/pre-consumption.py # Sanitizes and cleans scans
+      PAPERLESS_POST_CONSUME_SCRIPT: /usr/src/paperless/scripts/ntfy_notify.sh # Dispatches ntfy notification on intake
+      PAPERLESS_APPS: ${PAPERLESS_APPS:-allauth.socialaccount.providers.openid_connect}
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: ${PAPERLESS_SOCIALACCOUNT_PROVIDERS}
+      PAPERLESS_LOGOUT_REDIRECT_URL: ${PAPERLESS_LOGOUT_REDIRECT_URL:-https://auth.vrg.rocks/application/o/paperless-ngx/end-session/}
+      # PAPERLESS_TIKA_ENABLED: 1
+      # PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://paperless-gotenberg:3000
+      # PAPERLESS_TIKA_ENDPOINT: http://paperless-tika:9998
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/paperless:/usr/src/paperless/config
+      - ${DOCKER_DATA_DIR}/paperless/data:/usr/src/paperless/data
+      - ${DOCKER_DATA_DIR}/paperless/media:/usr/src/paperless/media
+      - ${DOCKER_DATA_DIR}/paperless/export:/usr/src/paperless/export
+      - ${DOCKER_DATA_DIR}/paperless/consume:/usr/src/paperless/consume
+      - ${DOCKER_DATA_DIR}/paperless/scripts:/usr/src/paperless/scripts
+    labels:
+      glance.id: paperless
+      glance.name: Paperless
+      glance.icon: sh:paperless-ngx
+      glance.url: https://docs.vrg.rocks
+      glance.description: Document Archival & OCR Engine
+
+  # ----------------------------------------------------------------
+  # Paperless Broker: Redis Task Queue
+  # ----------------------------------------------------------------
+  paperless-broker:
+    container_name: paperless-broker
+    image: docker.io/library/redis:8
+    restart: unless-stopped
+    volumes:
+      - ${DOCKER_DATA_DIR}/paperless/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      glance.name: Redis Queue
+      glance.parent: paperless
+
+  # ----------------------------------------------------------------
+  # Paperless Database: PostgreSQL 17 Relational Store
+  # ----------------------------------------------------------------
+  paperless-db:
+    container_name: paperless-db
+    image: docker.io/library/postgres:17
+    restart: unless-stopped
+    # Database Performance Tuning for Apple Silicon M1 Pro (16GB Unified RAM)
+    # shared_buffers: 256MB dedicated memory cache for fast full-text document searches
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+    environment:
+      POSTGRES_DB: ${PAPERLESS_DB_NAME:-paperless}
+      POSTGRES_USER: ${PAPERLESS_DB_USER:-paperless}
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASS:-paperless}
+    volumes:
+      - ${DOCKER_DATA_DIR}/paperless/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${PAPERLESS_DB_NAME:-paperless} -U ${PAPERLESS_DB_USER:-paperless}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      glance.name: PostgreSQL
+      glance.parent: paperless
+
+  # ----------------------------------------------------------------
+  # Sidelined Paperless Converters & AI (Preserved on Standby)
+  # ----------------------------------------------------------------
+  # paperless-gotenberg:
+  #   container_name: paperless-gotenberg
+  #   image: docker.io/gotenberg/gotenberg:8.20
+  #   command:
+  #     - "gotenberg"
+  #     - "--chromium-disable-javascript=true"
+  #     - "--chromium-allow-list=file:///tmp/.*"
+  #   restart: unless-stopped
+  #   labels:
+  #     glance.name: Gotenberg
+  #     glance.parent: paperless
+
+  # paperless-tika:
+  #   container_name: paperless-tika
+  #   image: docker.io/apache/tika:latest
+  #   restart: unless-stopped
+  #   labels:
+  #     glance.name: Apache Tika
+  #     glance.parent: paperless
+
+  # paperless-ai:
+  #   container_name: paperless-ai
+  #   image: clusterzx/paperless-ai:latest
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ${DOCKER_DATA_DIR}/paperless-ai:/app/data
+  #   labels:
+  #     glance.name: AI Parser
+  #     glance.parent: paperless

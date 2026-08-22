@@ -1,0 +1,166 @@
+# ================================================================
+# Sol Infrastructure - Core Services (Proxy, Auth & Stack Manager)
+# ================================================================
+
+services:
+  # ----------------------------------------------------------------
+  # Caddy: Unified Edge Ingress, Reverse Proxy & Static Web Server
+  # ----------------------------------------------------------------
+  caddy:
+    container_name: caddy
+    image: caddy:latest
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3 (QUIC)
+    volumes:
+      - ${DOCKER_BASE_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DOCKER_DATA_DIR}/caddy:/data
+      - ${DOCKER_CONFIG_DIR}/caddy:/config
+      # Static Frontends & Digital Garden
+      - ${DOCKER_BASE_DIR}/quartz/public:/mind:ro
+      - ${DOCKER_BASE_DIR}/web/fam:/fam:ro
+      - ${DOCKER_BASE_DIR}/web/scan:/scan:ro
+      - ${DOCKER_BASE_DIR}/web/aysynbm:/aysynbm:ro
+    labels:
+      glance.id: caddy
+      glance.name: Caddy
+      glance.icon: sh:caddy
+      glance.url: https://dash.vrg.rocks
+      glance.description: Reverse Proxy & Ingress Gateway
+
+  # ----------------------------------------------------------------
+  # Authentik: Relational PostgreSQL 16 Database
+  # ----------------------------------------------------------------
+  authentik-postgresql:
+    container_name: authentik-postgresql
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    # Database Performance Tuning for Apple Silicon M1 Pro (16GB Unified RAM)
+    # shared_buffers: 256MB dedicated memory cache for fast auth session lookups
+    # work_mem / effective_cache_size: optimizes sorting and OS cache utilization
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+    environment:
+      POSTGRES_DB: ${PG_DB:-authentik}
+      POSTGRES_USER: ${PG_USER:-authentik}
+      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
+    volumes:
+      - ${DOCKER_DATA_DIR}/authentik:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      glance.name: PostgreSQL
+      glance.parent: authentik
+
+  # ----------------------------------------------------------------
+  # Authentik: Identity Provider & SSO Server
+  # ----------------------------------------------------------------
+  authentik-server:
+    container_name: authentik-server
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.5.3}
+    command: server
+    restart: unless-stopped
+    shm_size: 512mb # Prevents Python Gunicorn worker crashes during heavy SSO flows
+    depends_on:
+      authentik-postgresql:
+        condition: service_healthy
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+      AUTHENTIK_WORKERS: 2 # M1 Pro Concurrency: 2 Gunicorn workers optimal for 16GB host RAM
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/authentik/data:/data
+      - ${DOCKER_CONFIG_DIR}/authentik/custom-templates:/templates
+    ports:
+      - "${COMPOSE_PORT_HTTP:-9000}:9000"
+      - "${COMPOSE_PORT_HTTPS:-9443}:9443"
+    labels:
+      glance.id: authentik
+      glance.name: Authentik
+      glance.icon: sh:authentik
+      glance.url: https://auth.vrg.rocks
+      glance.description: Identity & SSO Provider
+
+  # ----------------------------------------------------------------
+  # Authentik: Background Worker & Docker Outpost Agent
+  # ----------------------------------------------------------------
+  authentik-worker:
+    container_name: authentik-worker
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.5.3}
+    command: worker
+    restart: unless-stopped
+    user: root # Required to communicate with /var/run/docker.sock for automated outpost management
+    shm_size: 512mb # Prevents shared memory exhaustion during background sync tasks
+    depends_on:
+      authentik-postgresql:
+        condition: service_healthy
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_CONFIG_DIR}/authentik/data:/data
+      - ${DOCKER_CONFIG_DIR}/authentik/certs:/certs
+      - ${DOCKER_CONFIG_DIR}/authentik/custom-templates:/templates
+    labels:
+      glance.name: Worker
+      glance.parent: authentik
+
+  # ----------------------------------------------------------------
+  # Arcane: Modern Docker Stack & Container Manager with OIDC
+  # ----------------------------------------------------------------
+  arcane:
+    container_name: arcane
+    image: ghcr.io/getarcaneapp/arcane:latest
+    restart: unless-stopped
+    environment:
+      APP_URL: https://arcane.vrg.rocks
+      PUID: ${PUID}
+      PGID: ${PGID}
+      ENCRYPTION_KEY: ${ARCANE_ENCRYPTION_KEY}
+      JWT_SECRET: ${ARCANE_JWT_SECRET}
+      LOG_LEVEL: debug
+      LOG_JSON: "false"
+      OIDC_ENABLED: "true"
+      OIDC_CLIENT_ID: ${ARCANE_OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${ARCANE_OIDC_CLIENT_SECRET}
+      OIDC_ISSUER_URL: ${ARCANE_OIDC_ISSUER_URL}
+      OIDC_PROVIDER_NAME: ${ARCANE_OIDC_PROVIDER_NAME:-authentik}
+      OIDC_SCOPES: "openid email profile"
+      OIDC_MERGE_ACCOUNTS: "true"
+      DATABASE_URL: file:data/arcane.db?_pragma=journal_mode(WAL)&_pragma=busy_timeout(2500)&_txlock=immediate
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_DATA_DIR}/arcane:/app/data
+    labels:
+      glance.id: arcane
+      glance.name: Arcane
+      glance.icon: sh:arcane
+      glance.url: https://arcane.vrg.rocks
+      glance.description: Modern Docker Management

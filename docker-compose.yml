@@ -1,0 +1,20 @@
+# ================================================================
+# Sol Home Server - Master Compose Orchestrator
+# ================================================================
+# All modular sub-stacks are organized under ./compose/ and loaded
+# natively via Docker Compose V2 'include:'.
+#
+# All user-configurable variables and secrets are centralized in '.env'.
+# ================================================================
+
+name: sol
+
+include:
+  - compose/core.yml
+  - compose/monitoring.yml
+  - compose/media.yml
+  - compose/download.yml
+  - compose/paperless.yml
+  - compose/knowledge.yml
+  - compose/coding.yml
+  - compose/utilities.yml

@@ -1,0 +1,463 @@
+# ================================================================
+# Sol Ingress Gateway - Master Caddyfile (*.vrg.rocks)
+# ================================================================
+# Host: Apple Silicon M1 Pro (macOS / OrbStack)
+# Reverse Proxy: Caddy v2 with HTTP/3 (QUIC) & Let's Encrypt TLS
+# Auth Middleware: Authentik Forward Auth & Native OIDC
+# ================================================================
+
+# ----------------------------------------------------------------
+# Global Options
+# ----------------------------------------------------------------
+{
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
+
+# ----------------------------------------------------------------
+# Reusable Snippets
+# ----------------------------------------------------------------
+
+# Text & Asset Compression
+(optimize) {
+	encode zstd gzip
+}
+
+# Baseline Security Headers
+(security_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		-Server
+	}
+}
+
+# Authentik Forward-Auth Middleware
+(authentik) {
+	forward_auth authentik-server:9000 {
+		uri /outpost.goauthentik.io/auth/caddy
+		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+		trusted_proxies private_ranges
+	}
+}
+
+# Static Website Engine (Handles routing, clean URLs, compression & error fallbacks)
+(static_site) {
+	import optimize
+	import security_headers
+	try_files {path} {path}.html {path}/ =404
+	file_server
+	handle_errors {
+		rewrite * /{err.status_code}.html
+		file_server
+	}
+}
+
+# ================================================================
+# 1. CORE INFRASTRUCTURE (compose/core.yml)
+# ================================================================
+
+# Authentik SSO & Identity Provider
+auth.vrg.rocks {
+	import optimize
+	import security_headers
+	reverse_proxy http://authentik-server:9000
+}
+
+# Arcane Docker Management
+arcane.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://arcane:3552
+}
+
+# Physical Router Gateway
+router.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://192.168.50.1
+}
+
+# ================================================================
+# 2. MONITORING & DASHBOARDS (compose/monitoring.yml)
+# ================================================================
+
+# Glance Server Homepage
+dash.vrg.rocks {
+	import optimize
+	import security_headers
+	reverse_proxy http://glance:8080
+}
+
+# Sol Vanity Redirect
+sol.vrg.rocks {
+	redir https://dash.vrg.rocks/sol 302
+}
+
+# Gatus Service Health Status Page
+status.vrg.rocks {
+	import optimize
+	import security_headers
+	reverse_proxy http://gatus:8080
+}
+
+# Uptime Kuma Health Monitor
+kuma.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://uptime-kuma:3001
+}
+
+# Beszel System Metrics Hub
+beszel.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://beszel:8090
+}
+
+# Dozzle Live Container Logs
+dozzle.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://dozzle:8080
+}
+
+# Dockge Compose Manager
+dockge.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://dockge:5001
+}
+
+# Homarr Dashboard
+homarr.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://homarr:7575
+}
+
+# ================================================================
+# 3. MEDIA & SERVARR SUITE (compose/media.yml)
+# ================================================================
+
+# Jellyfin Media Streaming Server (Optimized streaming buffers; native direct-play bypass)
+watch.vrg.rocks, jellyfin.vrg.rocks {
+	import security_headers
+	reverse_proxy http://jellyfin:8096 {
+		transport http {
+			read_buffer 32768
+			write_buffer 32768
+			keepalive 120s
+		}
+	}
+}
+
+# Jellyfin Native Metal Instance (macOS Bare-Metal VideoToolbox on host port 8097)
+metal.vrg.rocks {
+	import security_headers
+	reverse_proxy http://host.docker.internal:8097 {
+		transport http {
+			read_buffer 32768
+			write_buffer 32768
+			keepalive 120s
+		}
+	}
+}
+
+# Jellyseerr Media Discovery & Requests
+request.vrg.rocks, jellyseerr.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://jellyseerr:5055
+}
+
+# Radarr Movie Manager
+radarr.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://radarr:7878
+}
+
+# Sonarr TV Series Manager
+sonarr.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://sonarr:8989
+}
+
+# Bazarr Subtitle Sync
+bazarr.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://bazarr:6767
+}
+
+# Lidarr Music Manager
+lidarr.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://lidarr:8686
+}
+
+# Prowlarr Indexer Proxy
+prowlarr.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://prowlarr:9696
+}
+
+# FlareSolverr Cloudflare Proxy
+flaresolverr.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://flaresolverr:8191
+}
+
+# Wizarr User Invitation Portal
+wizarr.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://wizarr:5690
+}
+
+# ================================================================
+# 4. DOWNLOAD PIPELINE (compose/download.yml)
+# ================================================================
+
+# qBittorrent Web UI
+qb.vrg.rocks, qbittorrent.vrg.rocks {
+	import optimize
+	import security_headers
+	reverse_proxy http://qbittorrent:8080
+}
+
+# Cross-Seed Multi-Tracker Daemon
+cs.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://cross-seed:2468
+}
+
+# qBit Manage Tag & Category Automation
+qbm.vrg.rocks, qbit_manage.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://qbit_manage:8181
+}
+
+# Flood Web Interface
+flood.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://flood:3000
+}
+
+# ================================================================
+# 5. DOCUMENT & OCR ENGINE (compose/paperless.yml)
+# ================================================================
+
+# Paperless-ngx (Protected via Native OpenID Connect to Authentik)
+docs.vrg.rocks, paperless.vrg.rocks {
+	import optimize
+	import security_headers
+	reverse_proxy http://paperless-webserver:8000
+}
+
+# Paperless-AI Helper
+paperless-ai.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://paperless-ai:3000
+}
+
+# ================================================================
+# 6. KNOWLEDGE & NOTES (compose/knowledge.yml)
+# ================================================================
+
+# Ignis Obsidian Vault Sync
+ignis.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://ignis:8080
+}
+
+# LeafWiki Markdown Digital Notes
+leaf.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://leafwiki:8080
+}
+
+# Kavita Manga & E-Book Reader
+kavita.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://kavita:5000
+}
+
+# Calibre Desktop Library
+calibre.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://calibre:8080
+}
+
+# Calibre-Web E-Book Catalog & OPDS
+calibre-web.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://calibre-web:8083
+}
+
+# ================================================================
+# 7. DEVELOPER WORKSPACES (compose/coding.yml)
+# ================================================================
+
+# code-server Browser VS Code IDE
+code.vrg.rocks {
+	import optimize
+	import security_headers
+	reverse_proxy http://code-server:8443
+}
+
+# Coder v2 Cloud Development Environments
+coder.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://coder:7080
+}
+
+# ================================================================
+# 8. STORAGE LOGISTICS & UTILITIES (compose/utilities.yml)
+# ================================================================
+
+# Copyparty High-Speed File Server & WebDAV
+files.vrg.rocks, copyparty.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://copyparty:3923
+}
+
+# Homebox Physical Inventory Manager (with dynamic CORS support for /scan PWA)
+inv.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+
+	@allowed_origins header Origin *
+	header @allowed_origins {
+		Access-Control-Allow-Origin "{http.request.header.Origin}"
+		Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+		Access-Control-Allow-Headers "Origin, Content-Type, Authorization, Accept"
+		Access-Control-Allow-Credentials true
+	}
+
+	@options {
+		method OPTIONS
+		header Origin *
+	}
+	respond @options 204
+
+	reverse_proxy http://homebox:7745
+}
+
+# ntfy Push Notification Service
+ntfy.vrg.rocks {
+	import optimize
+	import security_headers
+	reverse_proxy http://ntfy:80
+}
+
+# Vaultwarden Password Manager
+vault.vrg.rocks, pass.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://vaultwarden:80
+}
+
+# n8n Workflow Automation
+n8n.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://n8n:5678
+}
+
+# Home Assistant (Bridged to Mac Host via OrbStack host.docker.internal)
+home.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://host.docker.internal:8123
+}
+
+# Rclone GUI Manager
+rclone.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://rclone-gui:5572
+}
+
+# ================================================================
+# 9. STATIC WEB APPLICATIONS (Local Mounts)
+# ================================================================
+
+# Quartz Digital Garden
+mind.vrg.rocks {
+	import authentik
+	root * /mind
+	import static_site
+}
+
+# Family Data Vault
+fam.vrg.rocks {
+	import authentik
+	root * /fam
+	import static_site
+}
+
+# Homebox Mobile Barcode Scanner PWA
+scan.vrg.rocks {
+	import authentik
+	root * /scan
+	import static_site
+}
+
+# Async Bookmark Manager
+aysynbm.vrg.rocks {
+	root * /aysynbm
+	import static_site
+}

@@ -1,0 +1,101 @@
+# ================================================================
+# Sol Infrastructure - Knowledge Management & Digital Notes
+# ================================================================
+
+services:
+  # ----------------------------------------------------------------
+  # Ignis: Obsidian Vault Synchronization & Note Manager
+  # ----------------------------------------------------------------
+  ignis:
+    container_name: ignis
+    image: nobbe/ignis:latest
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+    volumes:
+      - ${DOCKER_DATA_DIR}/ignis/vaults:/vaults
+      - ${DOCKER_DATA_DIR}/ignis/data:/app/data
+      - ${DOCKER_DATA_DIR}/ignis/obsidian:/app/obsidian-app
+    labels:
+      glance.id: ignis
+      glance.name: Ignis
+      glance.icon: sh:obsidian
+      glance.url: https://ignis.vrg.rocks
+      glance.description: Obsidian Vault Synchronization
+
+  # ----------------------------------------------------------------
+  # Sidelined Knowledge & E-Book Services (Preserved on Standby)
+  # ----------------------------------------------------------------
+  # leafwiki:
+  #   container_name: leafwiki
+  #   image: ghcr.io/perber/leafwiki:latest
+  #   restart: unless-stopped
+  #   user: "${PUID}:${PGID}"
+  #   environment:
+  #     LEAFWIKI_JWT_SECRET: ${CORE_PASSWORD}
+  #     LEAFWIKI_ADMIN_PASSWORD: ${CORE_PASSWORD}
+  #     LEAFWIKI_ALLOW_INSECURE: "true"
+  #   volumes:
+  #     - ${DOCKER_DATA_DIR}/leafwiki:/app/data
+  #   labels:
+  #     glance.id: leafwiki
+  #     glance.name: LeafWiki
+  #     glance.icon: sh:leafwiki
+  #     glance.url: https://leaf.vrg.rocks
+  #     glance.description: Markdown Digital Garden
+
+  # kavita:
+  #   container_name: kavita
+  #   image: lscr.io/linuxserver/kavita:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     PUID: ${PUID}
+  #     PGID: ${PGID}
+  #     TZ: ${TZ}
+  #   volumes:
+  #     - ${DOCKER_CONFIG_DIR}/kavita:/config
+  #     - ${DOCKER_DATA_DIR}:/data
+  #   labels:
+  #     glance.id: kavita
+  #     glance.name: Kavita
+  #     glance.icon: sh:kavita
+  #     glance.url: https://kavita.vrg.rocks
+  #     glance.description: Digital Book & Manga Reader
+
+  # calibre:
+  #   container_name: calibre
+  #   image: lscr.io/linuxserver/calibre:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     PUID: ${PUID}
+  #     PGID: ${PGID}
+  #     TZ: ${TZ}
+  #   volumes:
+  #     - ${DOCKER_CONFIG_DIR}/calibre:/config
+  #     - ${DOCKER_DATA_DIR}/media/books:/books
+  #   labels:
+  #     glance.id: calibre
+  #     glance.name: Calibre
+  #     glance.icon: sh:calibre
+  #     glance.url: https://calibre.vrg.rocks
+  #     glance.description: E-Book Desktop VM
+
+  # calibre-web:
+  #   container_name: calibre-web
+  #   image: lscr.io/linuxserver/calibre-web:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     PUID: ${PUID}
+  #     PGID: ${PGID}
+  #     TZ: ${TZ}
+  #     OAUTHLIB_RELAX_TOKEN_SCOPE: 1
+  #   volumes:
+  #     - ${DOCKER_CONFIG_DIR}/calibre-web:/config
+  #     - ${DOCKER_DATA_DIR}/media/books:/books
+  #   labels:
+  #     glance.id: calibre-web
+  #     glance.name: Calibre-Web
+  #     glance.icon: sh:calibre
+  #     glance.url: https://calibre-web.vrg.rocks
+  #     glance.description: Web E-Book Reader
