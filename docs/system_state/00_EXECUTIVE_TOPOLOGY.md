@@ -41,7 +41,7 @@
 +----------------------+  +----------------------+  +----------------------+
 | Media & Automation   |  | Docs & Knowledge     |  | Workspaces & Storage |
 | - Jellyfin (:8096)   |  | - Paperless (:8000)  |  | - Code-Server (:8443)|
-| - Jellyseerr (:5055) |  | - Redis Broker (:6379|  | - Coder Server(:7080)|
+| - Seerr (:5055)      |  | - Redis Broker (:6379|  | - Coder Server(:7080)|
 | - Radarr (:7878)     |  | - PostgreSQL 17 (DB) |  | - Copyparty (:3923)  |
 | - Sonarr (:8989)     |  | - Homebox (:7745)    |  | - ntfy Push (:80)    |
 | - Bazarr (:6767)     |  | - Ignis (:8080)      |  | - Arcane (:3552)     |
@@ -72,7 +72,7 @@
    - **Prowlarr** manages indexer health, leveraging **FlareSolverr** for Cloudflare captcha bypass.
    - **Radarr**, **Sonarr**, **Lidarr**, and **Bazarr** coordinate metadata, downloads, subtitle synchronization, and file renaming.
    - **Jellyfin** serves hardware-accelerated streams natively to LAN TVs and remote clients.
-   - **Jellyseerr** handles user requests, TMDb discovery, and automated *arr ingestion.
+   - **Seerr** handles user requests, TMDb discovery, and automated *arr ingestion.
 
 4. **Document Archival & Information Capture (`Paperless-ngx`):**
    - Dedicated document pipeline with Redis broker (`paperless-broker`) and PostgreSQL 17 database (`paperless-db`).
@@ -106,7 +106,7 @@
 ├── compose/                              # MODULAR DOMAIN COMPOSE STACKS
 │   ├── core.yml                          # Ingress & Identity (Caddy, Authentik, Arcane)
 │   ├── monitoring.yml                    # Dashboards & Metrics (Glance, [Beszel, Kuma, Homarr])
-│   ├── media.yml                         # Media & *arr Suite (Jellyfin, Jellyseerr, Radarr, etc.)
+│   ├── media.yml                         # Media & *arr Suite (Jellyfin, Seerr, Radarr, etc.)
 │   ├── download.yml                      # Ingestion (qBittorrent, Cross-Seed, [qbit_manage, flood])
 │   ├── paperless.yml                     # Dedicated Document Stack (Web, Broker, DB, [Gotenberg, Tika, AI])
 │   ├── knowledge.yml                     # Digital Notes & Reading (Ignis, [LeafWiki, Kavita, Calibre])
@@ -130,7 +130,7 @@
 │
 ├── config/                               # PERSISTENT CONFIGURATION DIRECTORIES
 │   ├── authentik/, bazarr/, caddy/, code-server/, coder/, copyparty/, cross-seed/
-│   ├── glance/, jellyfin/, jellyseerr/, lidarr/, ntfy/, paperless/, prowlarr/
+│   ├── glance/, jellyfin/, seerr/, lidarr/, ntfy/, paperless/, prowlarr/
 │   ├── qbittorrent/, radarr/, rclone/, sonarr/
 │   └── [inactive]: authelia/, calibre/, calibre-web/, flood/, homarr/, homeassistant/, kavita/, n8n/, overseerr/, plex/, qbit_manage/, readarr/, syncthing/, vaultwarden/, wizarr/
 │
@@ -170,7 +170,7 @@ The table below catalogs every network port across Sol, spanning exposed host po
 | *Bridge Only* | `bazarr` | `6767` | TCP | `bazarr.vrg.rocks` | Authentik (Forward Auth) | **Active** |
 | *Bridge Only* | `lidarr` | `8686` | TCP | `lidarr.vrg.rocks` | Authentik (Forward Auth) | **Active** |
 | *Bridge Only* | `prowlarr` | `9696` | TCP | `prowlarr.vrg.rocks` | Authentik (Forward Auth) | **Active** |
-| *Bridge Only* | `jellyseerr` | `5055` | TCP | `request.vrg.rocks`, `jellyseerr.vrg.rocks` | Authentik (Forward Auth) | **Active** |
+| *Bridge Only* | `seerr` | `5055` | TCP | `request.vrg.rocks`, `seerr.vrg.rocks`, `jellyseerr.vrg.rocks` | Authentik (Forward Auth) | **Active** |
 | *Bridge Only* | `flaresolverr` | `8191` | TCP | `flaresolverr.vrg.rocks` | Direct Internal API | **Active** |
 | *Bridge Only* | `qbittorrent` | `8080` | TCP | `qb.vrg.rocks`, `qbittorrent.vrg.rocks` | qBittorrent Native | **Active** |
 | *Bridge Only* | `cross-seed` | `2468` | TCP | `cs.vrg.rocks` | Authentik (Forward Auth) | **Active** |

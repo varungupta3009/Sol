@@ -176,12 +176,12 @@ metal.vrg.rocks {
 	}
 }
 
-# Jellyseerr Media Discovery & Requests
-request.vrg.rocks, jellyseerr.vrg.rocks {
+# Seerr Media Discovery & Requests
+request.vrg.rocks, jellyseerr.vrg.rocks, seerr.vrg.rocks {
 	import optimize
 	import security_headers
 	import authentik
-	reverse_proxy http://jellyseerr:5055
+	reverse_proxy http://seerr:5055
 }
 
 # Radarr Movie Manager

@@ -54,7 +54,7 @@ This document formalizes the architectural refactoring of the **Sol** home serve
 ├── compose/                              # MODULAR DOMAIN STACKS
 │   ├── core.yml                          # Ingress & Identity (Caddy, Authentik, Arcane)
 │   ├── monitoring.yml                    # Dashboards & Metrics (Glance, [Beszel, Kuma, Homarr])
-│   ├── media.yml                         # Media & *arr Suite (Jellyfin, Jellyseerr, Radarr, Sonarr, etc.)
+│   ├── media.yml                         # Media & *arr Suite (Jellyfin, Seerr, Radarr, Sonarr, etc.)
 │   ├── download.yml                      # Ingestion (qBittorrent, Cross-Seed, [qbit_manage, flood])
 │   ├── paperless.yml                     # Dedicated Document Stack (Web, Broker, DB, [Gotenberg, Tika, AI])
 │   ├── knowledge.yml                     # Digital Notes & Reading (Ignis, [LeafWiki, Kavita, Calibre])
@@ -92,7 +92,7 @@ This document formalizes the architectural refactoring of the **Sol** home serve
 | :--- | :--- | :--- | :--- |
 | **`core.yml`** | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `arcane` | None | Core edge routing, authentication, and Docker management. |
 | **`monitoring.yml`** | `glance` | `dozzle`, `beszel`, `beszel-agent`, `dockge`, `uptime-kuma`, `homarr` | System health overview, metrics, and homelab dashboards. |
-| **`media.yml`** | `jellyfin`, `jellyseerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `flaresolverr` | `wizarr` | Video/music streaming, automated metadata ingestion, and requests. |
+| **`media.yml`** | `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `flaresolverr` | `wizarr` | Video/music streaming, automated metadata ingestion, and requests. |
 | **`download.yml`** | `qbittorrent`, `cross-seed` | `qbit_manage`, `flood` | High-throughput BitTorrent client and cross-seed daemon. |
 | **`paperless.yml`** | `paperless-webserver`, `paperless-broker`, `paperless-db` | `paperless-gotenberg`, `paperless-tika`, `paperless-ai` | Complete document OCR, indexing, and archival engine. |
 | **`knowledge.yml`** | `ignis` | `leafwiki`, `kavita`, `calibre`, `calibre-web` | Obsidian note synchronization, digital gardens, and e-books. |

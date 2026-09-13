@@ -11,7 +11,7 @@ Over the lifecycle of **Sol**, the server architecture has transitioned through 
 
 1. **Edge Routing & Ingress:** Shifted from `Nginx Proxy Manager` (GUI-driven) to `Caddy v2` (declarative, automatic HTTPS, HTTP/3, and embedded file serving).
 2. **Authentication & Identity:** Shifted from `Authelia` to `Authentik` (delivering unified OIDC, LDAP, customizable outpost templates, and Caddy forward-auth).
-3. **Media & Requests:** Shifted from `Plex` + `Overseerr` to `Jellyfin` + `Jellyseerr` (100% open-source, local playback freedom, zero cloud account dependencies).
+3. **Media & Requests:** Shifted from `Plex` + `Overseerr` to `Jellyfin` + `Seerr` (formerly `Jellyseerr`) (100% open-source, local playback freedom, zero cloud account dependencies).
 4. **File Logistics & Storage:** Shifted from `File Browser` to `Copyparty` (delivering ultra-high-speed multi-user WebDAV, audio streaming, and deduplication).
 5. **Dashboard & Administration:** Shifted from `Homarr` + `Dockge` to `Glance` (ultra-lightweight YAML dashboard) + `Arcane` (modern Docker stack manager with OIDC).
 6. **Digital Notes & PKM:** Shifted from bulky VNC-based `Obsidian` containers to `Quartz` (high-performance static digital garden) and `Ignis`.
@@ -188,7 +188,7 @@ These services were fully decommissioned and archived into `docker-compose-archi
 | **`authelia` & `authelia-redis`** | `authelia/authelia:latest` | `9091` (Internal), `6379` | **`Authentik`** (`ghcr.io/goauthentik/server`) | Authentik provides superior OIDC support, user management UI, LDAP integration, and flexible Caddy outpost integration. |
 | **`nginx-proxy-manager`** | `jc21/nginx-proxy-manager:latest` | `80:80`, `443:443`, `81:81` | **`Caddy v2`** (`caddy:latest`) | Caddy eliminated GUI-based proxy fragility, offering declarative text configuration, native HTTP/3, and automatic TLS lifecycle management. |
 | **`plex`** | `plexinc/pms-docker:latest` | `32400:32400`, `32469:32469` | **`Jellyfin`** (`lscr.io/linuxserver/jellyfin`) | Jellyfin is 100% open-source, requires no external account authentication, supports free hardware transcoding, and avoids telemetry. |
-| **`overseerr`** | `sctx/overseerr:latest` | `5050:5055` | **`Jellyseerr`** (`fallenbagel/jellyseerr`) | Migrated to Jellyseerr for native Jellyfin media server integration and library synchronization. |
+| **`overseerr` / `jellyseerr`** | `fallenbagel/jellyseerr:latest` | `5055` | **`Seerr`** (`ghcr.io/seerr-team/seerr`) | Upstream unification of Overseerr & Jellyseerr into Seerr. |
 | **`readarr`** | `lscr.io/linuxserver/readarr:develop` | `8787:8787` | *Paused / Inactive* | Sidelined along with Calibre during e-book workflow restructuring. |
 | **`filebrowser`** | `filebrowser/filebrowser:s6` | `9876:80` | **`Copyparty`** (`copyparty/ac:latest`) | Copyparty offers vastly higher file upload throughput, native WebDAV, audio streaming, and advanced permission flags. |
 | **`obsidian-remote`** | `ghcr.io/sytone/obsidian-remote:latest` | `12080`, `12443` | **`Ignis`** + **`Quartz`** | Web-based Obsidian VNC was resource-heavy; replaced by static Quartz publishing and Ignis vault synchronization. |

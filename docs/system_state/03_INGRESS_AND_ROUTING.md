@@ -68,9 +68,9 @@ Caddy serves as the single unified ingress gateway for the entire Sol home serve
 | **`arcane.vrg.rocks`** | `http://arcane:3552` | `zstd/gzip` | Authentik (Forward & OIDC)| Docker stack and container management |
 | **`jellyfin.vrg.rocks`** | `http://jellyfin:8096` | *(Bypassed)* | Jellyfin Native Auth | Primary media streaming UI & API |
 | **`watch.vrg.rocks`** | `http://jellyfin:8096` | *(Bypassed)* | Jellyfin Native Auth | Friendly alias for Jellyfin media streaming |
-| **`metal.vrg.rocks`** | `http://host.docker.internal:8097`| *(Bypassed)* | Jellyfin Native Auth | Native Apple Silicon VideoToolbox Jellyfin Metal |
-| **`jellyseerr.vrg.rocks`**| `http://jellyseerr:5055` | `zstd/gzip` | Authentik (Forward Auth) | Media discovery & request manager |
-| **`request.vrg.rocks`** | `http://jellyseerr:5055` | `zstd/gzip` | Authentik (Forward Auth) | Friendly alias for Jellyseerr requests |
+| **`seerr.vrg.rocks`** | `http://seerr:5055` | `zstd/gzip` | Authentik (Forward Auth) | Seerr media discovery & requests |
+| **`request.vrg.rocks`** | `http://seerr:5055` | `zstd/gzip` | Authentik (Forward Auth) | Friendly alias for Seerr requests |
+| **`jellyseerr.vrg.rocks`**| `http://seerr:5055` | `zstd/gzip` | Authentik (Forward Auth) | Legacy alias for Seerr requests |
 | **`radarr.vrg.rocks`** | `http://radarr:7878` | `zstd/gzip` | Authentik (Forward Auth) | Movie automation & collection manager |
 | **`sonarr.vrg.rocks`** | `http://sonarr:8989` | `zstd/gzip` | Authentik (Forward Auth) | TV series automation & tracker |
 | **`prowlarr.vrg.rocks`** | `http://prowlarr:9696` | `zstd/gzip` | Authentik (Forward Auth) | Torrent & Usenet indexer manager |
@@ -141,7 +141,7 @@ Caddy serves as the single unified ingress gateway for the entire Sol home serve
   |   |    Radarr (:7878) / Sonarr (:8989) / Lidarr (:8686)                   |   |
   |   |        ^                                                              |   |
   |   |        | (User Media Requests)                                        |   |
-  |   |    Jellyseerr (:5055) [DNS: 8.8.8.8, 1.1.1.1]                         |   |
+  |   |    Seerr (:5055) [DNS: 8.8.8.8, 1.1.1.1]                              |   |
   |   |        |                                                              |   |
   |   |        v (Library Sync)                                               |   |
   |   |    Jellyfin (:8096)                                                   |   |
@@ -159,8 +159,8 @@ Caddy serves as the single unified ingress gateway for the entire Sol home serve
 1. **OrbStack Host Access (`host.docker.internal`):**
    - Enables Caddy and containerized services to access host-bound services (e.g. Home Assistant on `8123`) without fragile IP hardcoding.
 2. **ISP DNS Filtering Bypass (`8.8.8.8`, `1.1.1.1`):**
-   - Local Indian ISPs frequently throttle or block TMDb (The Movie Database) API endpoints required by Jellyseerr and *arr apps.
-   - Jellyseerr explicitly overrides Docker default DNS with Google (`8.8.8.8`) and Cloudflare (`1.1.1.1`) resolvers in compose.
+   - Local Indian ISPs frequently throttle or block TMDb (The Movie Database) API endpoints required by Seerr and *arr apps.
+   - Seerr explicitly overrides Docker default DNS with Google (`8.8.8.8`) and Cloudflare (`1.1.1.1`) resolvers in compose.
 
 ### CORS & Preflight Rule Architecture (`inv.vrg.rocks`)
 For Homebox inventory access via the PWA mobile scanner (`https://scan.vrg.rocks`), Caddy injects dynamic CORS headers:

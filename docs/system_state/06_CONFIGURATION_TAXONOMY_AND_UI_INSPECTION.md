@@ -23,7 +23,7 @@ To prepare for deep architectural and performance optimizations, the Sol ecosyst
           ---------------------------------                         ---------------------------------
           - Caddy (Caddyfile)                                       - Authentik (PostgreSQL 16)
           - Glance (glance.yml)                                     - Jellyfin (SQLite + Admin UI)
-          - Cross-Seed (config.js)                                  - Jellyseerr (SQLite + Settings)
+          - Cross-Seed (config.js)                                  - Seerr (SQLite + Settings)
           - Copyparty (copyparty.conf)                              - Radarr (SQLite + TRaSH Formats)
           - ntfy (server.yml)                                       - Sonarr (SQLite + Quality Profiles)
           - qBittorrent (qBittorrent.conf)                          - Prowlarr (SQLite + Indexers)
@@ -80,8 +80,8 @@ These services store their critical operational logic (rules, profiles, custom s
 
 ---
 
-### 3. Jellyseerr (`request.vrg.rocks` / `http://localhost:5055`)
-* **Storage Engine:** SQLite (`config/jellyseerr/db/jellyseerr.db`) + `settings.json`
+### 3. Seerr (`request.vrg.rocks` / `http://localhost:5055`)
+* **Storage Engine:** SQLite (`config/seerr/db/db.sqlite3`) + `settings.json`
 * **Why Browser Inspection is Essential:**
   - **Radarr & Sonarr Integrations:** Audit server API connections, default root folder paths (`/data/media/movies` vs `/external`), and quality profile assignments (4K vs 1080p).
   - **User Request Rules:** Verify user request quotas, auto-approval rules, and notification dispatch webhooks.
@@ -167,7 +167,7 @@ To conduct an efficient and thorough review, we will explore the browser interfa
 |  Focus: Outpost health, SSO flows, container status, and dashboard monitors.      |
 |                                                                                   |
 |  [ BATCH 2: MEDIA STREAMING & REQUEST PIPELINE ]                                  |
-|  Targets: Jellyfin (watch.vrg.rocks), Jellyseerr (request.vrg.rocks)              |
+|  Targets: Jellyfin (watch.vrg.rocks), Seerr (request.vrg.rocks)                  |
 |  Focus: Hardware acceleration, playback rules, library scrapers, request quotas.  |
 |                                                                                   |
 |  [ BATCH 3: THE SERVARR AUTOMATION & INDEXING ENGINE ]                            |

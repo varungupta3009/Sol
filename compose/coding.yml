@@ -21,6 +21,7 @@ services:
     volumes:
       - ${DOCKER_CONFIG_DIR}/code-server:/config
       - ${DOCKER_BASE_DIR}:/Server
+      - /Users/vrg/Documents:/Documents
     labels:
       glance.id: code-server
       glance.name: Code Server

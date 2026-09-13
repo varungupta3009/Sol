@@ -71,7 +71,7 @@ Sol is a single-node home server running on an 8-core Apple Silicon M1 Pro Mac. 
 +----------------------+  +----------------------+  +----------------------+
 | Media & Automation   |  | Docs & Knowledge     |  | Workspaces & Storage |
 | - Jellyfin (:8096)   |  | - Paperless (:8000)  |  | - Code-Server (:8443)|
-| - Jellyseerr (:5055) |  | - Redis Broker (:6379|  | - Coder Server(:7080)|
+| - Seerr (:5055)      |  | - Redis Broker (:6379|  | - Coder Server(:7080)|
 | - Radarr (:7878)     |  | - PostgreSQL 17 (DB) |  | - Copyparty (:3923)  |
 | - Sonarr (:8989)     |  | - Homebox (:7745)    |  | - ntfy Push (:80)    |
 | - Bazarr (:6767)     |  | - Ignis (:8080)      |  | - Arcane (:3552)     |
@@ -101,7 +101,7 @@ The server is split into 8 focused compose files in [`compose/`](compose):
 ### 3. Media & Servarr (`compose/media.yml`)
 * **[Jellyfin (Containerized)](https://jellyfin.org/):** Main media streaming server for movies, shows, and music (`watch.vrg.rocks`, port 8096).
 * **[Jellyfin Metal (Native macOS)](https://jellyfin.org/):** Native host instance with Apple Silicon VideoToolbox acceleration for hardware 4K transcoding and HDR tone mapping (`metal.vrg.rocks`, port 8097).
-* **[Jellyseerr](https://github.com/Fallenbagel/jellyseerr):** Request management and discovery portal connected to Sonarr/Radarr.
+* **[Seerr](https://github.com/seerr-team/seerr):** Request management and discovery portal connected to Sonarr/Radarr.
 * **[Radarr](https://radarr.video/):** Movie collection manager and downloader coordinator.
 * **[Sonarr](https://sonarr.tv/):** TV series tracker and downloader coordinator.
 * **[Bazarr](https://www.bazarr.media/):** Subtitle downloader for movies and TV shows.
@@ -165,7 +165,7 @@ Because both paths live on the same APFS container mount, moving or hardlinking 
 ├── compose/                              # Domain Compose stacks
 │   ├── core.yml                          # Caddy, Authentik, Arcane
 │   ├── monitoring.yml                    # Glance, metrics
-│   ├── media.yml                         # Jellyfin, Jellyseerr, Servarr suite
+│   ├── media.yml                         # Jellyfin, Seerr, Servarr suite
 │   ├── download.yml                      # qBittorrent, Cross-Seed
 │   ├── paperless.yml                     # Paperless-ngx, Redis, Postgres 17
 │   ├── knowledge.yml                     # Ignis notes sync
@@ -209,7 +209,7 @@ Because both paths live on the same APFS container mount, moving or hardlinking 
 | *Bridge Only* | `arcane` | `3552` | TCP | `arcane.vrg.rocks` | Authentik (Forward & OIDC)| **Active** |
 | *Bridge Only* | `jellyfin` | `8096` | TCP | `watch.vrg.rocks`, `jellyfin.vrg.rocks`| Jellyfin Native Auth | **Active (Container)** |
 | **`8097`** | `jellyfin (Metal)` | `8097` | TCP | `metal.vrg.rocks` | Jellyfin Native Auth | **Active (Native Metal)** |
-| *Bridge Only* | `jellyseerr` | `5055` | TCP | `request.vrg.rocks` | Authentik (Forward Auth) | **Active** |
+| *Bridge Only* | `seerr` | `5055` | TCP | `request.vrg.rocks` | Authentik (Forward Auth) | **Active** |
 | *Bridge Only* | `radarr` | `7878` | TCP | `radarr.vrg.rocks` | Authentik (Forward Auth) | **Active** |
 | *Bridge Only* | `sonarr` | `8989` | TCP | `sonarr.vrg.rocks` | Authentik (Forward Auth) | **Active** |
 | *Bridge Only* | `bazarr` | `6767` | TCP | `bazarr.vrg.rocks` | Authentik (Forward Auth) | **Active** |

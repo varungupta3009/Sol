@@ -55,7 +55,7 @@
     "status": "active",
     "category": "media"
   },
-  "jellyseerr": {
+  "seerr": {
     "internal_port": 5055,
     "host_port": null,
     "protocol": "HTTP",

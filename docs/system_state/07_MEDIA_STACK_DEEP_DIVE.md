@@ -1,6 +1,6 @@
 # 07. Media & Ingestion Stack: Deep Architectural Audit & State Documentation
 
-> **Scope:** Full live API and configuration audit of the entire Sol media ecosystem (Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Jellyseerr, and qBittorrent).  
+> **Scope:** Full live API and configuration audit of the entire Sol media ecosystem (Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Seerr, and qBittorrent).  
 > **Host:** Apple Silicon M1 Pro macOS (OrbStack / Docker Engine)  
 > **Audit Date:** August 2026 (Live API Rescan)  
 > **Mode:** Read-Only State Inspection & Optimization Roadmap  
@@ -14,7 +14,7 @@
                                     |
                                     v
                      +-----------------------------+
-                     |         Jellyseerr          | (https://request.vrg.rocks)
+                     |            Seerr            | (https://request.vrg.rocks)
                      |   (Discovery & Approvals)   |
                      +--------------+--------------+
                                     |
@@ -144,8 +144,8 @@
 
 ---
 
-### 🎯 6. Jellyseerr (`http://jellyseerr:5055` / `https://request.vrg.rocks`)
-* **Core Version:** `2.7.3`
+### 🎯 6. Seerr (`http://seerr:5055` / `https://request.vrg.rocks` / `https://seerr.vrg.rocks`)
+* **Core Version:** `3.5.0`
 * **Service Integrations:**
   - **Radarr:** `http://radarr:7878`, Profile: `VRG HQ (UHD/FHD)`, Path: `/data/media/movies`, `preventSearch: true`.
   - **Sonarr:** `http://sonarr:8989`, Profile: `Ultra-HD`, Path: `/data/media/tv`, `preventSearch: true`.

@@ -18,7 +18,7 @@
    - [glance](#glance)
 3. [Media Streaming & Automation Suite](#3-media-streaming--automation-suite)
    - [jellyfin](#jellyfin)
-   - [jellyseerr](#jellyseerr)
+   - [seerr](#seerr)
    - [radarr](#radarr)
    - [sonarr](#sonarr)
    - [bazarr](#bazarr)
@@ -256,16 +256,18 @@ volumes:
 
 ---
 
-### `jellyseerr`
+### `seerr`
 *Request management and media discovery platform for Jellyfin.*
 
 | Specification | Configuration |
 | :--- | :--- |
-| **Container Name** | `jellyseerr` |
-| **Base Image** | `fallenbagel/jellyseerr:latest` |
+| **Container Name** | `seerr` |
+| **Base Image** | `ghcr.io/seerr-team/seerr:latest` |
+| **Init Process** | `init: true` |
 | **Restart Policy** | `unless-stopped` |
 | **DNS Overrides** | `8.8.8.8`, `1.1.1.1` (Prevents ISP DNS filtering on TMDb API endpoints) |
-| **Internal Port** | `5055/tcp` (Routed via Caddy at `https://request.vrg.rocks` and `https://jellyseerr.vrg.rocks`) |
+| **Network Aliases**| `jellyseerr` (Internal backward-compatible routing) |
+| **Internal Port** | `5055/tcp` (Routed via Caddy at `https://request.vrg.rocks`, `https://seerr.vrg.rocks`, and `https://jellyseerr.vrg.rocks`) |
 
 ```yaml
 # Environment Configuration
@@ -274,9 +276,9 @@ LOG_LEVEL: "info"
 
 # Mount Hierarchy
 volumes:
-  - /Users/vrg/Documents/Sol/config/jellyseerr:/app/config          # SQLite database and settings
+  - /Users/vrg/Documents/Sol/config/seerr:/app/config              # SQLite database and settings
 ```
-* **Glance Metadata:** ID: `jellyseerr`, Name: `Jellyseerr`, Icon: `sh:jellyseerr`, URL: `https://request.vrg.rocks`, Description: `Request Movies & Shows`
+* **Glance Metadata:** ID: `seerr`, Name: `Seerr`, Icon: `sh:seerr`, URL: `https://request.vrg.rocks`, Description: `Request Movies & Shows`
 
 ---
 
