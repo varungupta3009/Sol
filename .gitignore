@@ -27,7 +27,10 @@
 # ----------------------------------------------------------------
 # Persistent transactional databases, document archives, media & caches
 /data/
-/config/
+/config/*
+!/config/rclone/
+/config/rclone/*
+!/config/rclone/filter.txt.example
 
 # ----------------------------------------------------------------
 # 3. PERSONAL PROJECTS & STATIC WEBSITES
@@ -64,9 +67,11 @@ Thumbs.db
 *~
 
 # ----------------------------------------------------------------
-# 6. NODE & TERRAFORM ARTIFACTS
+# 6. NODE, PYTHON & TERRAFORM ARTIFACTS
 # ----------------------------------------------------------------
 node_modules/
+__pycache__/
+*.py[cod]
 .terraform/
 *.tfstate
 *.tfstate.*

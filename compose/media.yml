@@ -188,11 +188,38 @@ services:
       glance.description: Torrent & Usenet Indexer Proxy
 
   # ----------------------------------------------------------------
-  # FlareSolverr: Cloudflare Captcha Bypass Service for Prowlarr
+  # Byparr: Modern Cloudflare Turnstile Bypass Service for Prowlarr
+  # (Drop-in replacement for FlareSolverr on port 8191; aliases flaresolverr
+  # so existing Prowlarr indexer proxy settings work with zero changes)
+  # ----------------------------------------------------------------
+  byparr:
+    container_name: byparr
+    image: ghcr.io/thephaseless/byparr:latest
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      LOG_LEVEL: info
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
+    networks:
+      default:
+        aliases:
+          - flaresolverr
+    labels:
+      glance.id: byparr
+      glance.name: Byparr
+      glance.icon: sh:flaresolverr
+      glance.url: https://byparr.vrg.rocks
+      glance.description: Cloudflare Turnstile Solver
+
+  # ----------------------------------------------------------------
+  # Standby Media & Automation Helpers (Launch via: docker compose --profile standby up -d <service>)
   # ----------------------------------------------------------------
   flaresolverr:
     container_name: flaresolverr
     image: ghcr.io/flaresolverr/flaresolverr:latest
+    profiles: ["standby"]
     restart: unless-stopped
     environment:
       TZ: ${TZ}
@@ -205,42 +232,41 @@ services:
       glance.name: FlareSolverr
       glance.icon: sh:flaresolverr
       glance.url: https://flaresolverr.vrg.rocks
-      glance.description: Cloudflare Challenge Solver
+      glance.description: Legacy Cloudflare Challenge Solver (Standby)
 
-  # ----------------------------------------------------------------
-  # Sidelined Media & Automation Helpers (Preserved on Standby)
-  # ----------------------------------------------------------------
-  # recyclarr:
-  #   container_name: recyclarr
-  #   image: ghcr.io/recyclarr/recyclarr:latest
-  #   restart: unless-stopped
-  #   user: "${PUID}:${PGID}"
-  #   environment:
-  #     TZ: ${TZ}
-  #     CRON_SCHEDULE: "@daily"
-  #   volumes:
-  #     - ${DOCKER_CONFIG_DIR}/recyclarr:/config
-  #   labels:
-  #     glance.id: recyclarr
-  #     glance.name: Recyclarr
-  #     glance.icon: sh:recyclarr
-  #     glance.url: https://radarr.vrg.rocks
-  #     glance.description: TRaSH Guides Sync Engine
+  recyclarr:
+    container_name: recyclarr
+    image: ghcr.io/recyclarr/recyclarr:latest
+    profiles: ["standby"]
+    restart: unless-stopped
+    user: "${PUID}:${PGID}"
+    environment:
+      TZ: ${TZ}
+      CRON_SCHEDULE: "@daily"
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/recyclarr:/config
+    labels:
+      glance.id: recyclarr
+      glance.name: Recyclarr
+      glance.icon: sh:recyclarr
+      glance.url: https://radarr.vrg.rocks
+      glance.description: TRaSH Guides Sync Engine
 
-  # wizarr:
-  #   container_name: wizarr
-  #   image: ghcr.io/wizarrrr/wizarr:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     PUID: ${PUID}
-  #     PGID: ${PGID}
-  #     TZ: ${TZ}
-  #     DISABLE_BUILTIN_AUTH: "false"
-  #   volumes:
-  #     - ${DOCKER_CONFIG_DIR}/wizarr:/data
-  #   labels:
-  #     glance.id: wizarr
-  #     glance.name: Wizarr
-  #     glance.icon: sh:wizarr
-  #     glance.url: https://wizarr.vrg.rocks
-  #     glance.description: Jellyfin User Invitation Portal
+  wizarr:
+    container_name: wizarr
+    image: ghcr.io/wizarrrr/wizarr:latest
+    profiles: ["standby"]
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+      DISABLE_BUILTIN_AUTH: "false"
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/wizarr:/data
+    labels:
+      glance.id: wizarr
+      glance.name: Wizarr
+      glance.icon: sh:wizarr
+      glance.url: https://wizarr.vrg.rocks
+      glance.description: Jellyfin User Invitation Portal

@@ -15,12 +15,12 @@ services:
       LD_PRELOAD: /usr/lib/libmimalloc-secure.so.NOPE
       PYTHONUNBUFFERED: 1
     volumes:
-      - ${DOCKER_CONFIG_DIR}/copyparty:/cfg:z
-      - ${DOCKER_DATA_DIR}/copyparty:/w/copyparty:z
-      - ${DOCKER_DATA_DIR}/media:/w/media:z
-      - ${DOCKER_DATA_DIR}/torrents:/w/torrents:z
-      - ${EXTERNAL_DRIVE_00}:/w/external:z
-      # - ${EXTERNAL_DRIVE_01}:/w/ext01:z
+      - ${DOCKER_CONFIG_DIR}/copyparty:/cfg
+      - ${DOCKER_DATA_DIR}/copyparty:/w/copyparty
+      - ${DOCKER_DATA_DIR}/media:/w/media
+      - ${DOCKER_DATA_DIR}/torrents:/w/torrents
+      - ${EXTERNAL_DRIVE_00}:/w/external
+      # - ${EXTERNAL_DRIVE_01}:/w/ext01
     stop_grace_period: 15s
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q 127.0.0.1:3923/?reset=/._"]
@@ -34,27 +34,6 @@ services:
       glance.icon: sh:copyparty
       glance.url: https://files.vrg.rocks
       glance.description: File Server & WebDAV
-
-  # ----------------------------------------------------------------
-  # Homebox: Home Asset & Physical Inventory Management
-  # ----------------------------------------------------------------
-  # homebox:
-  #   container_name: homebox
-  #   image: ghcr.io/sysadminsmedia/homebox:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     HBOX_LOG_LEVEL: info
-  #     HBOX_LOG_FORMAT: text
-  #     HBOX_WEB_MAX_FILE_UPLOAD: 10
-  #     HBOX_OPTIONS_ALLOW_ANALYTICS: "false"
-  #   volumes:
-  #     - ${DOCKER_DATA_DIR}/homebox:/data/
-  #   labels:
-  #     glance.id: homebox
-  #     glance.name: Homebox
-  #     glance.icon: sh:homebox
-  #     glance.url: https://inv.vrg.rocks
-  #     glance.description: Home Inventory Management
 
   # ----------------------------------------------------------------
   # ntfy: HTTP-Based Pub/Sub Push Notification Service
@@ -86,96 +65,120 @@ services:
       glance.description: Push Notification Service
 
   # ----------------------------------------------------------------
-  # Sidelined Utilities & Automation (Preserved on Standby)
+  # Standby Utilities & Automation (Launch via: docker compose --profile standby up -d <service>)
   # ----------------------------------------------------------------
-  # vaultwarden:
-  #   container_name: vaultwarden
-  #   image: vaultwarden/server:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     DOMAIN: https://vault.vrg.rocks
-  #   volumes:
-  #     - ${DOCKER_CONFIG_DIR}/vaultwarden:/data/
-  #   labels:
-  #     glance.id: vaultwarden
-  #     glance.name: Vaultwarden
-  #     glance.icon: auto-invert sh:vaultwarden
-  #     glance.url: https://vault.vrg.rocks
-  #     glance.description: Bitwarden-Compatible Password Manager
+  homebox:
+    container_name: homebox
+    image: ghcr.io/sysadminsmedia/homebox:latest
+    profiles: ["standby"]
+    restart: unless-stopped
+    environment:
+      HBOX_LOG_LEVEL: info
+      HBOX_LOG_FORMAT: text
+      HBOX_WEB_MAX_FILE_UPLOAD: 10
+      HBOX_OPTIONS_ALLOW_ANALYTICS: "false"
+    volumes:
+      - ${DOCKER_DATA_DIR}/homebox:/data/
+    labels:
+      glance.id: homebox
+      glance.name: Homebox
+      glance.icon: sh:homebox
+      glance.url: https://inv.vrg.rocks
+      glance.description: Home Inventory Management (Standby - Pending DB Repair)
 
-  # n8n:
-  #   container_name: n8n
-  #   image: docker.n8n.io/n8nio/n8n
-  #   restart: unless-stopped
-  #   user: "${PUID}:${PGID}"
-  #   environment:
-  #     N8N_HOST: ${N8N_SUBDOMAIN:-n8n}.${N8N_DOMAIN_NAME:-vrg.rocks}
-  #     N8N_PORT: 5678
-  #     N8N_PROTOCOL: https
-  #     N8N_RUNNERS_ENABLED: "true"
-  #     NODE_ENV: production
-  #     WEBHOOK_URL: https://${N8N_SUBDOMAIN:-n8n}.${N8N_DOMAIN_NAME:-vrg.rocks}/
-  #     GENERIC_TIMEZONE: ${TZ}
-  #     TZ: ${TZ}
-  #   volumes:
-  #     - ${DOCKER_CONFIG_DIR}/n8n:/home/node/.n8n
-  #     - ${DOCKER_DATA_DIR}/n8n:/files
-  #   labels:
-  #     glance.id: n8n
-  #     glance.name: n8n
-  #     glance.icon: sh:n8n
-  #     glance.url: https://n8n.vrg.rocks
-  #     glance.description: Workflow Automation Platform
+  vaultwarden:
+    container_name: vaultwarden
+    image: vaultwarden/server:latest
+    profiles: ["standby"]
+    restart: unless-stopped
+    environment:
+      DOMAIN: https://vault.vrg.rocks
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/vaultwarden:/data/
+    labels:
+      glance.id: vaultwarden
+      glance.name: Vaultwarden
+      glance.icon: auto-invert sh:vaultwarden
+      glance.url: https://vault.vrg.rocks
+      glance.description: Bitwarden-Compatible Password Manager
 
-  # homeassistant:
-  #   container_name: homeassistant
-  #   image: ghcr.io/home-assistant/home-assistant:stable
-  #   restart: unless-stopped
-  #   privileged: true
-  #   network_mode: host
-  #   volumes:
-  #     - ${DOCKER_CONFIG_DIR}/homeassistant:/config
-  #     - /etc/localtime:/etc/localtime:ro
-  #     - /run/dbus:/run/dbus:ro
-  #   labels:
-  #     glance.id: homeassistant
-  #     glance.name: Home Assistant
-  #     glance.icon: sh:home-assistant
-  #     glance.url: https://home.vrg.rocks
-  #     glance.description: Smart Home Automation Hub
+  n8n:
+    container_name: n8n
+    image: docker.n8n.io/n8nio/n8n
+    profiles: ["standby"]
+    restart: unless-stopped
+    user: "${PUID}:${PGID}"
+    environment:
+      N8N_HOST: ${N8N_SUBDOMAIN:-n8n}.${N8N_DOMAIN_NAME:-vrg.rocks}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: https
+      N8N_RUNNERS_ENABLED: "true"
+      NODE_ENV: production
+      WEBHOOK_URL: https://${N8N_SUBDOMAIN:-n8n}.${N8N_DOMAIN_NAME:-vrg.rocks}/
+      GENERIC_TIMEZONE: ${TZ}
+      TZ: ${TZ}
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/n8n:/home/node/.n8n
+      - ${DOCKER_DATA_DIR}/n8n:/files
+    labels:
+      glance.id: n8n
+      glance.name: n8n
+      glance.icon: sh:n8n
+      glance.url: https://n8n.vrg.rocks
+      glance.description: Workflow Automation Platform
 
-  # rclone:
-  #   container_name: rclone
-  #   image: rclone/rclone:latest
-  #   restart: "no"
-  #   user: "${PUID}:${PGID}"
-  #   volumes:
-  #     - ${DOCKER_CONFIG_DIR}/rclone:/config/rclone
-  #     - ${DOCKER_BASE_DIR}:/source:ro
-  #     - ${DOCKER_LOGS_DIR}:/logs
-  #   ports:
-  #     - "53682:53682"
-  #   labels:
-  #     glance.name: Sync Worker
-  #     glance.parent: rclone-gui
+  homeassistant:
+    container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    profiles: ["standby"]
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    labels:
+      glance.id: homeassistant
+      glance.name: Home Assistant
+      glance.icon: sh:home-assistant
+      glance.url: https://home.vrg.rocks
+      glance.description: Smart Home Automation Hub
 
-  # rclone-gui:
-  #   container_name: rclone-gui
-  #   image: rclone/rclone:latest
-  #   command: >
-  #     rcd 
-  #     --rc-web-gui 
-  #     --rc-addr :5572 
-  #     --rc-user admin
-  #     --rc-pass admin
-  #   restart: unless-stopped
-  #   user: "${PUID}:${PGID}"
-  #   volumes:
-  #     - ${DOCKER_CONFIG_DIR}/rclone:/config/rclone
-  #     - ${DOCKER_BASE_DIR}:/source:ro
-  #   labels:
-  #     glance.id: rclone-gui
-  #     glance.name: Rclone GUI
-  #     glance.icon: sh:rclone
-  #     glance.url: https://rclone.vrg.rocks
-  #     glance.description: Cloud Storage & Sync Management
+  rclone:
+    container_name: rclone
+    image: rclone/rclone:latest
+    profiles: ["ops", "standby"]
+    restart: "no"
+    user: "${PUID}:${PGID}"
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/rclone:/config/rclone
+      - ${DOCKER_BASE_DIR}:/source:ro
+      - ${DOCKER_LOGS_DIR}:/logs
+    ports:
+      - "127.0.0.1:53682:53682"
+    labels:
+      glance.name: Sync Worker
+      glance.parent: rclone-gui
+
+  rclone-gui:
+    container_name: rclone-gui
+    image: rclone/rclone:latest
+    profiles: ["standby"]
+    command: >
+      rcd
+      --rc-web-gui
+      --rc-addr :5572
+      --rc-user ${RCLONE_GUI_USER:-admin}
+      --rc-pass ${CORE_PASSWORD:-admin}
+    restart: unless-stopped
+    user: "${PUID}:${PGID}"
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/rclone:/config/rclone
+      - ${DOCKER_BASE_DIR}:/source:ro
+    labels:
+      glance.id: rclone-gui
+      glance.name: Rclone GUI
+      glance.icon: sh:rclone
+      glance.url: https://rclone.vrg.rocks
+      glance.description: Cloud Storage & Sync Management

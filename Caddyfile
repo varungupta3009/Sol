@@ -93,6 +93,7 @@ router.vrg.rocks {
 dash.vrg.rocks {
 	import optimize
 	import security_headers
+	import authentik
 	reverse_proxy http://glance:8080
 }
 
@@ -101,52 +102,47 @@ sol.vrg.rocks {
 	redir https://dash.vrg.rocks/sol 302
 }
 
-# Gatus Service Health Status Page
-status.vrg.rocks {
-	import optimize
-	import security_headers
-	reverse_proxy http://gatus:8080
-}
-
-# Uptime Kuma Health Monitor
-kuma.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://uptime-kuma:3001
-}
-
-# Beszel System Metrics Hub
-beszel.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://beszel:8090
-}
-
-# Dozzle Live Container Logs
-dozzle.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://dozzle:8080
-}
-
-# Dockge Compose Manager
-dockge.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://dockge:5001
-}
-
-# Homarr Dashboard
-homarr.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://homarr:7575
-}
+# --- Standby Monitoring Routes (Uncomment when launching with --profile standby) ---
+# status.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	reverse_proxy http://gatus:8080
+# }
+#
+# kuma.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://uptime-kuma:3001
+# }
+#
+# beszel.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://beszel:8090
+# }
+#
+# dozzle.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://dozzle:8080
+# }
+#
+# dockge.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://dockge:5001
+# }
+#
+# homarr.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://homarr:7575
+# }
 
 # ================================================================
 # 3. MEDIA & SERVARR SUITE (compose/media.yml)
@@ -224,27 +220,29 @@ prowlarr.vrg.rocks {
 	reverse_proxy http://prowlarr:9696
 }
 
-# FlareSolverr Cloudflare Proxy
-flaresolverr.vrg.rocks {
+# Byparr / FlareSolverr Cloudflare Turnstile Proxy
+byparr.vrg.rocks, flaresolverr.vrg.rocks {
 	import optimize
 	import security_headers
 	import authentik
-	reverse_proxy http://flaresolverr:8191
+	reverse_proxy http://byparr:8191
 }
 
-# Wizarr User Invitation Portal
-wizarr.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://wizarr:5690
-}
+# --- Standby Media Routes (Uncomment when launching with --profile standby) ---
+# wizarr.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://wizarr:5690
+# }
 
 # ================================================================
 # 4. DOWNLOAD PIPELINE (compose/download.yml)
 # ================================================================
 
 # qBittorrent Web UI
+# Note: Authentik Forward Auth is intentionally omitted here because the Android
+# mobile torrent client connects directly to qb.vrg.rocks and cannot follow SSO redirects.
 qb.vrg.rocks, qbittorrent.vrg.rocks {
 	import optimize
 	import security_headers
@@ -259,21 +257,20 @@ cs.vrg.rocks {
 	reverse_proxy http://cross-seed:2468
 }
 
-# qBit Manage Tag & Category Automation
-qbm.vrg.rocks, qbit_manage.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://qbit_manage:8181
-}
-
-# Flood Web Interface
-flood.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://flood:3000
-}
+# --- Standby Download Routes (Uncomment when launching with --profile standby) ---
+# qbm.vrg.rocks, qbit_manage.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://qbit_manage:8181
+# }
+#
+# flood.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://flood:3000
+# }
 
 # ================================================================
 # 5. DOCUMENT & OCR ENGINE (compose/paperless.yml)
@@ -286,13 +283,13 @@ docs.vrg.rocks, paperless.vrg.rocks {
 	reverse_proxy http://paperless-webserver:8000
 }
 
-# Paperless-AI Helper
-paperless-ai.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://paperless-ai:3000
-}
+# --- Standby Paperless Routes (Uncomment when launching with --profile standby) ---
+# paperless-ai.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://paperless-ai:3000
+# }
 
 # ================================================================
 # 6. KNOWLEDGE & NOTES (compose/knowledge.yml)
@@ -306,46 +303,44 @@ ignis.vrg.rocks {
 	reverse_proxy http://ignis:8080
 }
 
-# LeafWiki Markdown Digital Notes
-leaf.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://leafwiki:8080
-}
-
-# Kavita Manga & E-Book Reader
-kavita.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://kavita:5000
-}
-
-# Calibre Desktop Library
-calibre.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://calibre:8080
-}
-
-# Calibre-Web E-Book Catalog & OPDS
-calibre-web.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://calibre-web:8083
-}
+# --- Standby Knowledge Routes (Uncomment when launching with --profile standby) ---
+# leaf.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://leafwiki:8080
+# }
+#
+# kavita.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://kavita:5000
+# }
+#
+# calibre.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://calibre:8080
+# }
+#
+# calibre-web.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://calibre-web:8083
+# }
 
 # ================================================================
 # 7. DEVELOPER WORKSPACES (compose/coding.yml)
 # ================================================================
 
-# code-server Browser VS Code IDE
+# code-server Browser VS Code IDE (Gated by Authentik SSO + code-server password)
 code.vrg.rocks {
 	import optimize
 	import security_headers
+	import authentik
 	reverse_proxy http://code-server:8443
 }
 
@@ -369,29 +364,6 @@ files.vrg.rocks, copyparty.vrg.rocks {
 	reverse_proxy http://copyparty:3923
 }
 
-# Homebox Physical Inventory Manager (with dynamic CORS support for /scan PWA)
-inv.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-
-	@allowed_origins header Origin *
-	header @allowed_origins {
-		Access-Control-Allow-Origin "{http.request.header.Origin}"
-		Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
-		Access-Control-Allow-Headers "Origin, Content-Type, Authorization, Accept"
-		Access-Control-Allow-Credentials true
-	}
-
-	@options {
-		method OPTIONS
-		header Origin *
-	}
-	respond @options 204
-
-	reverse_proxy http://homebox:7745
-}
-
 # ntfy Push Notification Service
 ntfy.vrg.rocks {
 	import optimize
@@ -399,37 +371,59 @@ ntfy.vrg.rocks {
 	reverse_proxy http://ntfy:80
 }
 
-# Vaultwarden Password Manager
-vault.vrg.rocks, pass.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://vaultwarden:80
-}
-
-# n8n Workflow Automation
-n8n.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://n8n:5678
-}
-
+# --- Standby Utility Routes (Uncomment when launching with --profile standby) ---
 # Home Assistant (Bridged to Mac Host via OrbStack host.docker.internal)
-home.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://host.docker.internal:8123
-}
-
-# Rclone GUI Manager
-rclone.vrg.rocks {
-	import optimize
-	import security_headers
-	import authentik
-	reverse_proxy http://rclone-gui:5572
-}
+# home.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://host.docker.internal:8123
+# }
+#
+# Homebox Physical Inventory Manager (CORS restricted strictly to https://scan.vrg.rocks)
+# inv.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+#
+# 	@allowed_origins header Origin https://scan.vrg.rocks
+# 	header @allowed_origins {
+# 		Access-Control-Allow-Origin "https://scan.vrg.rocks"
+# 		Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+# 		Access-Control-Allow-Headers "Origin, Content-Type, Authorization, Accept"
+# 		Access-Control-Allow-Credentials true
+# 		Vary Origin
+# 	}
+#
+# 	@options {
+# 		method OPTIONS
+# 		header Origin https://scan.vrg.rocks
+# 	}
+# 	respond @options 204
+#
+# 	reverse_proxy http://homebox:7745
+# }
+#
+# vault.vrg.rocks, pass.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://vaultwarden:80
+# }
+#
+# n8n.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://n8n:5678
+# }
+#
+# rclone.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import authentik
+# 	reverse_proxy http://rclone-gui:5572
+# }
 
 # ================================================================
 # 9. STATIC WEB APPLICATIONS (Local Mounts)

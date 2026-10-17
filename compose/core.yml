@@ -8,7 +8,7 @@ services:
   # ----------------------------------------------------------------
   caddy:
     container_name: caddy
-    image: caddy:latest
+    image: caddy:${CADDY_TAG:-2}
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -90,13 +90,14 @@ services:
       AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-      AUTHENTIK_WORKERS: 2 # M1 Pro Concurrency: 2 Gunicorn workers optimal for 16GB host RAM
+      AUTHENTIK_WEB__WORKERS: 2 # M1 Pro Concurrency: 2 Gunicorn web workers (upstream nested env var)
     volumes:
       - ${DOCKER_CONFIG_DIR}/authentik/data:/data
       - ${DOCKER_CONFIG_DIR}/authentik/custom-templates:/templates
     ports:
-      - "${COMPOSE_PORT_HTTP:-9000}:9000"
-      - "${COMPOSE_PORT_HTTPS:-9443}:9443"
+      # Bound to loopback only; external and LAN traffic enters through Caddy (auth.vrg.rocks)
+      - "127.0.0.1:${COMPOSE_PORT_HTTP:-9000}:9000"
+      - "127.0.0.1:${COMPOSE_PORT_HTTPS:-9443}:9443"
     labels:
       glance.id: authentik
       glance.name: Authentik
@@ -105,14 +106,15 @@ services:
       glance.description: Identity & SSO Provider
 
   # ----------------------------------------------------------------
-  # Authentik: Background Worker & Docker Outpost Agent
+  # Authentik: Background Worker
   # ----------------------------------------------------------------
   authentik-worker:
     container_name: authentik-worker
     image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.5.3}
     command: worker
     restart: unless-stopped
-    user: root # Required to communicate with /var/run/docker.sock for automated outpost management
+    # Note: Caddy uses the embedded outpost on authentik-server:9000, so root and
+    # /var/run/docker.sock are omitted to avoid host-root privilege exposure.
     shm_size: 512mb # Prevents shared memory exhaustion during background sync tasks
     depends_on:
       authentik-postgresql:
@@ -124,7 +126,6 @@ services:
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - ${DOCKER_CONFIG_DIR}/authentik/data:/data
       - ${DOCKER_CONFIG_DIR}/authentik/certs:/certs
       - ${DOCKER_CONFIG_DIR}/authentik/custom-templates:/templates
@@ -137,7 +138,7 @@ services:
   # ----------------------------------------------------------------
   arcane:
     container_name: arcane
-    image: ghcr.io/getarcaneapp/arcane:latest
+    image: ghcr.io/getarcaneapp/arcane:${ARCANE_TAG:-latest}
     restart: unless-stopped
     environment:
       APP_URL: https://arcane.vrg.rocks
@@ -145,7 +146,7 @@ services:
       PGID: ${PGID}
       ENCRYPTION_KEY: ${ARCANE_ENCRYPTION_KEY}
       JWT_SECRET: ${ARCANE_JWT_SECRET}
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       LOG_JSON: "false"
       OIDC_ENABLED: "true"
       OIDC_CLIENT_ID: ${ARCANE_OIDC_CLIENT_ID}

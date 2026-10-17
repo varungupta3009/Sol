@@ -9,9 +9,17 @@
   },
   "authentik-server": {
     "internal_port": 9000,
-    "host_port": "9000, 9443",
+    "host_port": "127.0.0.1:9000, 127.0.0.1:9443",
     "protocol": "HTTP, HTTPS",
     "url": "https://auth.vrg.rocks",
+    "status": "active",
+    "category": "core"
+  },
+  "authentik-worker": {
+    "internal_port": null,
+    "host_port": null,
+    "protocol": "Worker Daemon",
+    "url": null,
     "status": "active",
     "category": "core"
   },
@@ -103,11 +111,11 @@
     "status": "active",
     "category": "media"
   },
-  "flaresolverr": {
+  "byparr": {
     "internal_port": 8191,
     "host_port": null,
     "protocol": "HTTP",
-    "url": "https://flaresolverr.vrg.rocks",
+    "url": "https://byparr.vrg.rocks",
     "status": "active",
     "category": "media"
   },
@@ -183,14 +191,6 @@
     "status": "active",
     "category": "utilities"
   },
-  "homebox": {
-    "internal_port": 7745,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://inv.vrg.rocks",
-    "status": "active",
-    "category": "utilities"
-  },
   "ntfy": {
     "internal_port": 80,
     "host_port": null,
@@ -199,12 +199,31 @@
     "status": "active",
     "category": "utilities"
   },
+  "homebox": {
+    "internal_port": 7745,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://inv.vrg.rocks",
+    "status": "standby",
+    "profile": "standby",
+    "category": "utilities"
+  },
+  "flaresolverr": {
+    "internal_port": 8191,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://flaresolverr.vrg.rocks",
+    "status": "standby",
+    "profile": "standby",
+    "category": "media"
+  },
   "gatus": {
     "internal_port": 8080,
     "host_port": null,
     "protocol": "HTTP",
     "url": "https://status.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "monitoring"
   },
   "beszel": {
@@ -213,6 +232,7 @@
     "protocol": "HTTP",
     "url": "https://beszel.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "monitoring"
   },
   "beszel-agent": {
@@ -221,6 +241,7 @@
     "protocol": "TCP",
     "url": null,
     "status": "standby",
+    "profile": "standby",
     "category": "monitoring"
   },
   "dozzle": {
@@ -229,6 +250,7 @@
     "protocol": "HTTP",
     "url": "https://dozzle.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "monitoring"
   },
   "dockge": {
@@ -237,6 +259,7 @@
     "protocol": "HTTP",
     "url": "https://dockge.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "monitoring"
   },
   "uptime-kuma": {
@@ -245,6 +268,7 @@
     "protocol": "HTTP",
     "url": "https://kuma.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "monitoring"
   },
   "homarr": {
@@ -253,6 +277,7 @@
     "protocol": "HTTP",
     "url": "https://homarr.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "monitoring"
   },
   "recyclarr": {
@@ -261,6 +286,7 @@
     "protocol": "CLI / Cron Daemon",
     "url": null,
     "status": "standby",
+    "profile": "standby",
     "category": "media"
   },
   "wizarr": {
@@ -269,6 +295,7 @@
     "protocol": "HTTP",
     "url": "https://wizarr.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "media"
   },
   "unpackerr": {
@@ -277,6 +304,7 @@
     "protocol": "Daemon",
     "url": null,
     "status": "standby",
+    "profile": "standby",
     "category": "download"
   },
   "qbit_manage": {
@@ -285,6 +313,7 @@
     "protocol": "HTTP",
     "url": "https://qbm.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "download"
   },
   "flood": {
@@ -293,6 +322,7 @@
     "protocol": "HTTP",
     "url": "https://flood.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "download"
   },
   "paperless-gotenberg": {
@@ -301,6 +331,7 @@
     "protocol": "HTTP",
     "url": null,
     "status": "standby",
+    "profile": "standby",
     "category": "paperless"
   },
   "paperless-tika": {
@@ -309,6 +340,7 @@
     "protocol": "HTTP",
     "url": null,
     "status": "standby",
+    "profile": "standby",
     "category": "paperless"
   },
   "paperless-ai": {
@@ -317,6 +349,7 @@
     "protocol": "HTTP",
     "url": "https://paperless-ai.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "paperless"
   },
   "leafwiki": {
@@ -325,6 +358,7 @@
     "protocol": "HTTP",
     "url": "https://leaf.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "knowledge"
   },
   "kavita": {
@@ -333,6 +367,7 @@
     "protocol": "HTTP",
     "url": "https://kavita.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "knowledge"
   },
   "calibre": {
@@ -341,6 +376,7 @@
     "protocol": "HTTP",
     "url": "https://calibre.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "knowledge"
   },
   "calibre-web": {
@@ -349,6 +385,7 @@
     "protocol": "HTTP",
     "url": "https://calibre-web.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "knowledge"
   },
   "vaultwarden": {
@@ -357,6 +394,7 @@
     "protocol": "HTTP",
     "url": "https://vault.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "utilities"
   },
   "n8n": {
@@ -365,6 +403,7 @@
     "protocol": "HTTP",
     "url": "https://n8n.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "utilities"
   },
   "homeassistant": {
@@ -373,6 +412,16 @@
     "protocol": "HTTP",
     "url": "https://home.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
+    "category": "utilities"
+  },
+  "rclone": {
+    "internal_port": 53682,
+    "host_port": "127.0.0.1:53682",
+    "protocol": "CLI / OAuth Redirect",
+    "url": null,
+    "status": "standby",
+    "profile": "ops, standby",
     "category": "utilities"
   },
   "rclone-gui": {
@@ -381,6 +430,7 @@
     "protocol": "HTTP",
     "url": "https://rclone.vrg.rocks",
     "status": "standby",
+    "profile": "standby",
     "category": "utilities"
   }
 }

@@ -1,0 +1,77 @@
+# ================================================================
+# Sol Home Server - Rclone Cloud Backup Filter Rules
+# ================================================================
+# Copy this template to './config/rclone/filter.txt'.
+# Evaluated top-to-bottom by rclone (first matching rule wins).
+# ================================================================
+
+# ----------------------------------------------------------------
+# 1. OS & Filesystem Metadata Exclusions
+# ----------------------------------------------------------------
+- .DS_Store
+- ._*
+- .Spotlight-V100/**
+- .Trashes/**
+- *.tmp
+- *.temp
+- *.swp
+- *.sock
+
+# ----------------------------------------------------------------
+# 2. Live Database Cluster & WAL Lock Exclusions
+# ----------------------------------------------------------------
+# Live PostgreSQL data directories are excluded because scripts/backup.sh
+# generates consistent logical dumps in data/backups/*.sql.gz.
+- data/authentik/**
+- data/paperless/db/**
+- data/paperless/redis/**
+
+# Live SQLite Write-Ahead Logs (-wal) and Shared Memory (-shm) files
+# are excluded because scripts/backup.sh creates atomic online snapshots
+# via 'sqlite3 .backup' in data/backups/sqlite/ before rclone runs.
+- **/*-wal
+- **/*-shm
+
+# ----------------------------------------------------------------
+# 3. Ephemeral Caches, Logs & Transcode Buffers
+# ----------------------------------------------------------------
+- logs/**
+- *.log
+- config/jellyfin/cache/**
+- config/jellyfin/data/transcodes/**
+- config/jellyfin_metal/cache/**
+- config/jellyfin_metal/log/**
+- config/**/logs/**
+- config/**/MediaCover/**
+- config/prowlarr/Definitions/**
+- data/ntfy/var/cache/**
+
+# ----------------------------------------------------------------
+# 4. Priority Inclusions (Preshows, Database Dumps & Torrent Metafiles)
+# ----------------------------------------------------------------
++ data/backups/**
++ data/media/preshows/**
++ data/torrents/**/*.torrent
++ data/torrents/**/*.fastresume
++ config/qbittorrent/**/*.torrent
++ config/qbittorrent/**/*.fastresume
++ config/cross-seed/torrent_cache/**
+
+# ----------------------------------------------------------------
+# 5. Bulk Media & Torrent Payload Exclusions
+# ----------------------------------------------------------------
+- data/media/**
+- data/torrents/**
+
+# ----------------------------------------------------------------
+# 6. Legacy & Build Exclusions
+# ----------------------------------------------------------------
+- _backup_pre_refactor/**
+- docs/archive/**
+- node_modules/**
+- .terraform/**
+
+# ----------------------------------------------------------------
+# 7. Default Rule: Include All Remaining Config, State & Repo Files
+# ----------------------------------------------------------------
++ **
