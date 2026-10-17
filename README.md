@@ -124,7 +124,7 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 ### 2. Monitoring and Dashboards ([`compose/monitoring.yml`](compose/monitoring.yml))
 
-- **[Glance](https://github.com/glanceapp/glance):** Home dashboard with container status from the read-only Docker socket (`dash.vrg.rocks`, behind Authentik).
+- **[Glance](https://github.com/glanceapp/glance):** Declarative 3-page command center ([`config/glance/config/glance.yml`](config/glance/config/glance.yml)) with custom Catppuccin Mocha / GM3 theme presets ([`config/glance/assets/user.css`](config/glance/assets/user.css)), internal Docker bridge health monitors, `custom-api` telemetry for Jellyfin, Jellyfin Metal, Seerr, Radarr, Sonarr, Prowlarr, and Paperless-ngx, live Docker socket container status, and `/media/panopticon` 22TB drive telemetry (`dash.vrg.rocks`, `sol.vrg.rocks`).
 - *Standby:* Gatus, Dozzle, Beszel, Beszel Agent, Dockge, Uptime Kuma, Homarr.
 
 ### 3. Media and Servarr ([`compose/media.yml`](compose/media.yml))
@@ -235,8 +235,14 @@ Linux `link(2)` fails with `EXDEV` across two different mount points, even when 
 │   └── utilities.yml                     # Copyparty, ntfy | standby: Homebox, Vaultwarden, n8n, HA, Rclone
 │
 ├── config/
+│   ├── glance/
+│   │   ├── assets/
+│   │   │   ├── sol.svg                   # Tracked Glance favicon and logo
+│   │   │   └── user.css                  # Tracked Catppuccin Mocha / GM3 stylesheet
+│   │   └── config/
+│   │       └── glance.yml                # Tracked 3-page declarative Glance dashboard
 │   └── rclone/
-│       └── filter.txt.example            # Tracked rclone filter template (only tracked file under config/)
+│       └── filter.txt.example            # Tracked rclone filter template
 │
 ├── scripts/                              # Automation scripts
 │   ├── backup.sh                         # pg_dump + SQLite snapshots + rclone sync with --backup-dir

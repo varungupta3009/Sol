@@ -27,10 +27,12 @@ Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to
 - [ ] Recreate `authentik-server` and `authentik-worker`. Verify `docker port authentik-server` shows only `127.0.0.1:9000` and `127.0.0.1:9443`, and verify that the worker runs non-root with clean logs.
 - [ ] Confirm that `dash.vrg.rocks` and `code.vrg.rocks` redirect to Authentik and that `qb.vrg.rocks` still serves the qBittorrent login page. Recreate `caddy` if its in-container `Caddyfile` hash differs from the repository file.
 
-### D. Byparr Cutover ([Task 4](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-4-byparr-cutover-verification))
+### D. Byparr Cutover and Glance Command Center ([Task 4](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-4-byparr-cutover-verification) & [Task 4B](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-4b-glance-command-center-revamp-and-automatic-api-key-extraction))
 - [ ] `docker stop flaresolverr && docker rm flaresolverr`, then `docker compose up -d byparr`.
 - [ ] From `prowlarr`, confirm that `flaresolverr` resolves to the Byparr IP only and that `POST http://flaresolverr:8191/v1` returns `"status":"ok"`.
 - [ ] Run Prowlarr `indexer/testall` and test Cloudflare-protected indexers in the UI.
+- [ ] Run the Task 4B automatic API-key extractor to populate `RADARR_API_KEY`, `SONARR_API_KEY`, `PROWLARR_API_KEY`, `SEERR_API_KEY`, `JELLYFIN_API_KEY`, `JELLYFIN_METAL_API_KEY`, and `PAPERLESS_API_KEY` in `.env` from local `config/` files.
+- [ ] Run `docker container prune -f` and `docker compose up -d glance` so Glance loads the 3-page `config/glance/config/glance.yml` (`/sol`, `/media`, `/radar`), custom `user.css`, and `/media/panopticon` 22TB drive telemetry cleanly.
 
 ### E. `/downloads` to `/data/torrents` Live Cutover ([Task 5](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-5-unifying-downloads-and-data-qbittorrent-cross-seed-arr))
 - [ ] Run `./scripts/test_cross_seed.sh` and record the `/external`, `/downloads`, and `/data` hardlink results.

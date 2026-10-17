@@ -12,9 +12,18 @@ services:
     restart: unless-stopped
     environment:
       TZ: ${TZ:-Asia/Kolkata}
+      JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:-}
+      JELLYFIN_METAL_API_KEY: ${JELLYFIN_METAL_API_KEY:-}
+      SEERR_API_KEY: ${SEERR_API_KEY:-}
+      RADARR_API_KEY: ${RADARR_API_KEY:-}
+      SONARR_API_KEY: ${SONARR_API_KEY:-}
+      PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
+      PAPERLESS_API_KEY: ${PAPERLESS_API_KEY:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
       - ${DOCKER_CONFIG_DIR}/glance/config:/app/config
       - ${DOCKER_CONFIG_DIR}/glance/assets:/app/assets
+      - ${EXTERNAL_DRIVE_00}:/media/panopticon:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/localtime:/etc/localtime:ro
     labels:

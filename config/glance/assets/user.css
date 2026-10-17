@@ -1,0 +1,115 @@
+/* ==========================================================================
+   Sol Home Server — Glance Custom Stylesheet (/assets/user.css)
+   Theme: Catppuccin Mocha / GM3 Dark Tokens
+   Typography: Titillium Web (UI & Headings) + JetBrains Mono (Telemetry)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Titillium+Web:wght@400;600;700&display=swap');
+
+:root {
+  --font-sans: 'Titillium Web', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --border-radius: 0.75rem;
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-sans);
+  letter-spacing: 0.01em;
+}
+
+/* Monospace telemetry, metrics, response times, and badges */
+code,
+pre,
+.sol-mono,
+.monitor-site-response-time,
+.server-stats-item,
+.docker-container-status,
+.markets-widget-price,
+.markets-widget-change,
+.clock-time {
+  font-family: var(--font-mono) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Widget header refinement */
+.widget-header {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Subtle GM3-inspired surface elevation & hover transitions on widget cards */
+.widget-content {
+  border-radius: var(--border-radius);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.widget-content:hover {
+  border-color: hsla(var(--color-primary), 0.35);
+}
+
+/* Custom API Telemetry Grid & Badges */
+.sol-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.sol-stat-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.sol-stat-card {
+  background: hsla(var(--color-text-base), 0.03);
+  border: 1px solid var(--color-widget-content-border);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.5rem;
+}
+
+.sol-stat-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.sol-stat-label {
+  font-size: var(--font-size-h6);
+  color: var(--color-text-subdue);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-top: 0.2rem;
+}
+
+.sol-badge {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-tiny);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-widget-content-border);
+  background: var(--color-background);
+}
+
+.sol-hint {
+  font-size: var(--font-size-h5);
+  color: var(--color-text-subdue);
+  padding: 0.5rem 0.25rem;
+  text-align: center;
+}
+
+/* Ultrawide display responsiveness */
+@media (min-width: 2200px) {
+  .content-bounds-wide {
+    max-width: 2160px;
+  }
+}

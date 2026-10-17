@@ -1,0 +1,1133 @@
+# ==============================================================================
+# Sol Home Server — Declarative Glance Command Center (v0.8+)
+# ==============================================================================
+# Host: Apple MacBook Pro (14-inch, 2021) • Apple M1 Pro (8C / 16GB RAM)
+# Storage: 500GB Internal NVMe + 22TB WD Elements (PANOPTICON)
+# Ingress: https://dash.vrg.rocks & https://sol.vrg.rocks (-> /sol)
+# ==============================================================================
+
+server:
+  assets-path: /app/assets
+
+branding:
+  logo-url: /assets/sol.svg
+  favicon-url: /assets/sol.svg
+  app-name: "Sol // Command Center"
+  app-icon-url: /assets/sol.svg
+  custom-footer: '<p class="size-h6 color-subdue">Sol Home Server • Apple M1 Pro (8C / 16GB) + 22TB PANOPTICON • Therapist for Thinking Sand</p>'
+
+theme:
+  custom-css-file: /assets/user.css
+  default-preset: sol-catppuccin-mocha
+  presets:
+    sol-catppuccin-mocha:
+      background-color: 240 21 15
+      contrast-multiplier: 1.2
+      primary-color: 267 84 81
+      positive-color: 115 54 76
+      negative-color: 347 87 68
+    sol-gm3-obsidian:
+      background-color: 220 20 8
+      contrast-multiplier: 1.25
+      primary-color: 215 90 75
+      positive-color: 142 65 65
+      negative-color: 355 85 68
+    sol-imax-amber:
+      background-color: 225 18 9
+      contrast-multiplier: 1.25
+      primary-color: 38 95 65
+      positive-color: 145 63 62
+      negative-color: 354 84 66
+    sol-cockpit-ecam:
+      background-color: 210 25 9
+      contrast-multiplier: 1.25
+      primary-color: 188 86 64
+      positive-color: 135 68 62
+      negative-color: 36 95 62
+
+pages:
+  # ============================================================================
+  # PAGE 1: SOL — INFRASTRUCTURE & OPERATIONS DECK (/sol)
+  # ============================================================================
+  # Note: First page in `pages:` serves `/` and `slug: sol` matches Caddy's
+  # `sol.vrg.rocks -> https://dash.vrg.rocks/sol` 302 redirect.
+  - name: Sol
+    slug: sol
+    width: wide
+    show-mobile-header: true
+    columns:
+      # ------------------------------------------------------------------------
+      # Left Column: World Clocks, Bengaluru Telemetry, Host Stats & Vault
+      # ------------------------------------------------------------------------
+      - size: small
+        widgets:
+          - type: clock
+            title: World Flight Deck
+            hour-format: 24h
+            timezones:
+              - timezone: Asia/Kolkata
+                label: "Bengaluru (BLR / Home)"
+              - timezone: America/Los_Angeles
+                label: "Mountain View (MTV)"
+              - timezone: UTC
+                label: "Zulu / Aviation UTC"
+              - timezone: Europe/London
+                label: "London (LHR / West End)"
+
+          - type: weather
+            title: Bengaluru Telemetry
+            location: Bengaluru, India
+            units: metric
+            hour-format: 24h
+
+          - type: server-stats
+            title: M1 Pro Host & Storage
+            servers:
+              - type: local
+                name: "Sol (M1 Pro • 8C / 16GB)"
+                hide-mountpoints-by-default: true
+                mountpoints:
+                  "/":
+                    name: "OrbStack VM"
+                    hide: false
+                  "/media/panopticon":
+                    name: "PANOPTICON (22TB)"
+                    hide: false
+
+          - type: custom-api
+            title: Paperless-ngx Vault
+            title-url: https://docs.vrg.rocks
+            cache: 10m
+            options:
+              api-key: ${PAPERLESS_API_KEY}
+            template: |
+              {{ $apiKey := .Options.StringOr "api-key" "" }}
+              {{ if eq $apiKey "" }}
+                <div class="sol-hint">
+                  Set <code>PAPERLESS_API_KEY</code> in <code>.env</code> to display live document and OCR counts from <code>paperless-webserver:8000</code>.
+                </div>
+              {{ else }}
+                {{ $resp := newRequest "http://paperless-webserver:8000/api/statistics/"
+                    | withHeader "Authorization" (concat "Token " $apiKey)
+                    | withHeader "Accept" "application/json; version=6"
+                    | getResponse }}
+                {{ if eq $resp.Response.StatusCode 200 }}
+                  <div class="sol-stat-grid">
+                    <div class="sol-stat-card">
+                      <div class="sol-stat-value color-primary">{{ $resp.JSON.Int "documents_total" | formatNumber }}</div>
+                      <div class="sol-stat-label">Total Docs</div>
+                    </div>
+                    <div class="sol-stat-card">
+                      <div class="sol-stat-value {{ if gt ($resp.JSON.Int "documents_inbox") 0 }}color-negative{{ else }}color-positive{{ end }}">
+                        {{ $resp.JSON.Int "documents_inbox" | formatNumber }}
+                      </div>
+                      <div class="sol-stat-label">Inbox Queue</div>
+                    </div>
+                    <div class="sol-stat-card">
+                      <div class="sol-stat-value">{{ $resp.JSON.Int "character_count" | formatApproxNumber }}</div>
+                      <div class="sol-stat-label">OCR Chars</div>
+                    </div>
+                  </div>
+                {{ else }}
+                  <div class="sol-hint">Paperless API returned HTTP {{ $resp.Response.StatusCode }}</div>
+                {{ end }}
+              {{ end }}
+
+          - type: calendar
+            title: Calendar
+            first-day-of-week: monday
+
+      # ------------------------------------------------------------------------
+      # Center Column: Bang Search, Service Mesh Monitors & Complete Directory
+      # ------------------------------------------------------------------------
+      - size: full
+        widgets:
+          - type: search
+            title: Command & Bang Bar
+            search-engine: google
+            autofocus: true
+            new-tab: true
+            bangs:
+              - title: Jellyfin Container
+                shortcut: "!jf"
+                url: https://media.vrg.rocks/web/index.html#!/search.html?query={QUERY}
+              - title: Jellyfin Metal
+                shortcut: "!metal"
+                url: https://metal.vrg.rocks/web/index.html#!/search.html?query={QUERY}
+              - title: Seerr Media Requests
+                shortcut: "!req"
+                url: https://request.vrg.rocks/search?query={QUERY}
+              - title: Radarr Add Movie
+                shortcut: "!rad"
+                url: https://radarr.vrg.rocks/add/new?term={QUERY}
+              - title: Sonarr Add Series
+                shortcut: "!son"
+                url: https://sonarr.vrg.rocks/add/new?term={QUERY}
+              - title: Prowlarr Indexer Search
+                shortcut: "!prowl"
+                url: https://prowlarr.vrg.rocks/search?query={QUERY}
+              - title: Paperless-ngx Documents
+                shortcut: "!docs"
+                url: https://docs.vrg.rocks/documents?title_content={QUERY}
+              - title: Letterboxd Film Lookup
+                shortcut: "!lb"
+                url: https://letterboxd.com/search/{QUERY}/
+              - title: IMDb Search
+                shortcut: "!imdb"
+                url: https://www.imdb.com/find/?q={QUERY}
+              - title: TMDB Search
+                shortcut: "!tmdb"
+                url: https://www.themoviedb.org/search?query={QUERY}
+              - title: Blu-ray.com 4K UHD Search
+                shortcut: "!blu"
+                url: https://www.blu-ray.com/search/?quicksearch=1&quicksearch_keyword={QUERY}
+              - title: YouTube
+                shortcut: "!yt"
+                url: https://www.youtube.com/results?search_query={QUERY}
+              - title: GitHub
+                shortcut: "!gh"
+                url: https://github.com/search?q={QUERY}
+              - title: MDN Web Docs
+                shortcut: "!mdn"
+                url: https://developer.mozilla.org/en-US/search?q={QUERY}
+              - title: Can I Use
+                shortcut: "!caniuse"
+                url: https://caniuse.com/?search={QUERY}
+              - title: Flightradar24 Live Tracker
+                shortcut: "!fr24"
+                url: https://www.flightradar24.com/{QUERY}
+
+          - type: monitor
+            title: Core Ingress, Identity, Docs & Static Web Apps
+            cache: 1m
+            style: compact
+            sites:
+              - title: Authentik SSO
+                url: https://auth.vrg.rocks
+                check-url: http://authentik-server:9000/-/health/live/
+                icon: si:authentik
+              - title: Arcane Docker Ops
+                url: https://arcane.vrg.rocks
+                check-url: http://arcane:3552
+                icon: si:docker
+              - title: Code-Server IDE
+                url: https://code.vrg.rocks
+                check-url: http://code-server:8443/healthz
+                icon: si:visualstudiocode
+              - title: Paperless-ngx
+                url: https://docs.vrg.rocks
+                check-url: http://paperless-webserver:8000
+                icon: si:paperlessngx
+              - title: Stirling-PDF
+                url: https://pdf.vrg.rocks
+                check-url: http://stirling-pdf:8080/api/v1/info/status
+                icon: si:adobeacrobatreader
+              - title: ChangeDetection
+                url: https://cd.vrg.rocks
+                check-url: http://changedetection:5000
+                icon: si:rss
+              - title: CopyParty
+                url: https://files.vrg.rocks
+                check-url: http://copyparty:3923
+                icon: si:files
+              - title: Syncthing
+                url: https://sync.vrg.rocks
+                check-url: http://syncthing:8384/rest/noauth/health
+                icon: si:syncthing
+              - title: PairDrop LAN
+                url: https://drop.vrg.rocks
+                check-url: http://pairdrop:3000
+                icon: si:airplayaudio
+              - title: OpenSpeedTest
+                url: https://speed.vrg.rocks
+                check-url: http://openspeedtest:3000
+                icon: si:speedtest
+              - title: Quartz Garden (/mind)
+                url: https://vrg.rocks/mind/
+                icon: si:obsidian
+              - title: Family Vault (/fam)
+                url: https://vrg.rocks/fam/
+                icon: si:googlephotos
+              - title: Homebox Scanner (/scan)
+                url: https://scan.vrg.rocks
+                icon: si:pwa
+              - title: AYSYNBM (/aysynbm)
+                url: https://vrg.rocks/aysynbm/
+                icon: si:html5
+
+          - type: monitor
+            title: Media, PVR & Acquisition Mesh
+            cache: 1m
+            style: compact
+            sites:
+              - title: Jellyfin Container
+                url: https://media.vrg.rocks
+                check-url: http://jellyfin:8096/health
+                icon: si:jellyfin
+              - title: Jellyfin Metal (Native)
+                url: https://metal.vrg.rocks
+                check-url: http://host.docker.internal:8097/health
+                icon: si:apple
+              - title: Seerr Requests
+                url: https://request.vrg.rocks
+                check-url: http://seerr:5055/api/v1/status
+                icon: si:themoviedatabase
+              - title: Radarr Movies
+                url: https://radarr.vrg.rocks
+                check-url: http://radarr:7878/ping
+                icon: si:radarr
+              - title: Sonarr TV
+                url: https://sonarr.vrg.rocks
+                check-url: http://sonarr:8989/ping
+                icon: si:sonarr
+              - title: Prowlarr Indexers
+                url: https://prowlarr.vrg.rocks
+                check-url: http://prowlarr:9696/ping
+                icon: si:prowlarr
+              - title: Bazarr Subtitles
+                url: https://bazarr.vrg.rocks
+                check-url: http://bazarr:6767/ping
+                icon: si:subtitles
+              - title: qBittorrent
+                url: https://qb.vrg.rocks
+                check-url: http://qbittorrent:8080
+                icon: si:qbittorrent
+              - title: QUI Interface
+                url: https://qui.vrg.rocks
+                check-url: http://qui:7476
+                icon: si:bittorrent
+              - title: Byparr Turnstile Solver
+                url: https://byparr.vrg.rocks
+                check-url: http://byparr:8191
+                icon: si:cloudflare
+
+          - type: bookmarks
+            title: Sol Service Directory & Standby Catalog
+            groups:
+              - title: Core, LAN & Dev
+                color: 267 84 81
+                links:
+                  - title: Authentik IdP
+                    url: https://auth.vrg.rocks
+                    icon: si:authentik
+                  - title: Arcane Docker UI
+                    url: https://arcane.vrg.rocks
+                    icon: si:docker
+                  - title: Glance Dashboard
+                    url: https://dash.vrg.rocks
+                    icon: /assets/sol.svg
+                  - title: Code-Server IDE
+                    url: https://code.vrg.rocks
+                    icon: si:visualstudiocode
+                  - title: Home Gateway Router
+                    url: https://router.vrg.rocks
+                    icon: si:openwrt
+                  - title: Home Assistant
+                    url: https://home.vrg.rocks
+                    icon: si:homeassistant
+                  - title: Cloud Manager
+                    url: https://cm.vrg.rocks
+                    icon: si:cloudflare
+              - title: Media & Acquisition
+                color: 38 95 65
+                links:
+                  - title: Jellyfin Container
+                    url: https://media.vrg.rocks
+                    icon: si:jellyfin
+                  - title: Jellyfin Metal (8097)
+                    url: https://metal.vrg.rocks
+                    icon: si:apple
+                  - title: Seerr Requests
+                    url: https://request.vrg.rocks
+                    icon: si:themoviedatabase
+                  - title: Radarr (Movies)
+                    url: https://radarr.vrg.rocks
+                    icon: si:radarr
+                  - title: Sonarr (TV)
+                    url: https://sonarr.vrg.rocks
+                    icon: si:sonarr
+                  - title: Prowlarr (Indexers)
+                    url: https://prowlarr.vrg.rocks
+                    icon: si:prowlarr
+                  - title: Bazarr (Subtitles)
+                    url: https://bazarr.vrg.rocks
+                    icon: si:subtitles
+                  - title: qBittorrent (WebUI)
+                    url: https://qb.vrg.rocks
+                    icon: si:qbittorrent
+                  - title: QUI (Alt WebUI)
+                    url: https://qui.vrg.rocks
+                    icon: si:bittorrent
+                  - title: Byparr Solver
+                    url: https://byparr.vrg.rocks
+                    icon: si:cloudflare
+              - title: Docs, Files & Static Apps
+                color: 188 86 64
+                links:
+                  - title: Paperless-ngx Vault
+                    url: https://docs.vrg.rocks
+                    icon: si:paperlessngx
+                  - title: Stirling-PDF Suite
+                    url: https://pdf.vrg.rocks
+                    icon: si:adobeacrobatreader
+                  - title: CopyParty File Server
+                    url: https://files.vrg.rocks
+                    icon: si:files
+                  - title: Syncthing Mesh
+                    url: https://sync.vrg.rocks
+                    icon: si:syncthing
+                  - title: PairDrop LAN Share
+                    url: https://drop.vrg.rocks
+                    icon: si:airplayaudio
+                  - title: ChangeDetection.io
+                    url: https://cd.vrg.rocks
+                    icon: si:rss
+                  - title: OpenSpeedTest
+                    url: https://speed.vrg.rocks
+                    icon: si:speedtest
+                  - title: Quartz Digital Garden
+                    url: https://vrg.rocks/mind/
+                    icon: si:obsidian
+                  - title: Family Vault
+                    url: https://vrg.rocks/fam/
+                    icon: si:googlephotos
+                  - title: Homebox Scanner PWA
+                    url: https://scan.vrg.rocks
+                    icon: si:pwa
+                  - title: AYSYNBM
+                    url: https://vrg.rocks/aysynbm/
+                    icon: si:html5
+              - title: Standby Fleet (--profile standby)
+                color: 220 15 62
+                links:
+                  - title: Audiobookshelf (audio)
+                    url: https://audio.vrg.rocks
+                    icon: si:audiobookshelf
+                  - title: Calibre-Web (books)
+                    url: https://books.vrg.rocks
+                    icon: si:calibreweb
+                  - title: Komga Comics (comics)
+                    url: https://comics.vrg.rocks
+                    icon: si:komga
+                  - title: Navidrome Music (music)
+                    url: https://music.vrg.rocks
+                    icon: si:navidrome
+                  - title: Tautulli Analytics (stats)
+                    url: https://stats.vrg.rocks
+                    icon: si:tautulli
+                  - title: ErsatzTV Channels (tv)
+                    url: https://tv.vrg.rocks
+                    icon: si:livewire
+                  - title: Hoarder Bookmarks (links)
+                    url: https://links.vrg.rocks
+                    icon: si:bookmark
+                  - title: FreshRSS Reader (rss)
+                    url: https://rss.vrg.rocks
+                    icon: si:freshrss
+                  - title: Mealie Recipes (recipes)
+                    url: https://recipes.vrg.rocks
+                    icon: si:mealie
+                  - title: Homebox Inventory (items)
+                    url: https://items.vrg.rocks
+                    icon: si:box
+                  - title: Excalidraw Canvas (draw)
+                    url: https://draw.vrg.rocks
+                    icon: si:excalidraw
+                  - title: IT-Tools Suite (tools)
+                    url: https://tools.vrg.rocks
+                    icon: si:serverless
+                  - title: CyberChef Swiss Knife (chef)
+                    url: https://chef.vrg.rocks
+                    icon: si:Gnuprivacyguard
+                  - title: Coder Workspaces (coder)
+                    url: https://coder.vrg.rocks
+                    icon: si:coder
+                  - title: Uptime Kuma (status)
+                    url: https://status.vrg.rocks
+                    icon: si:uptimekuma
+                  - title: Beszel Hub (monitor)
+                    url: https://monitor.vrg.rocks
+                    icon: si:grafana
+
+      # ------------------------------------------------------------------------
+      # Right Column: Live Docker Socket Fleet & Ops Scratchpad
+      # ------------------------------------------------------------------------
+      - size: small
+        widgets:
+          - type: docker-containers
+            title: Active Docker Fleet
+            sock-path: /var/run/docker.sock
+            running-only: false
+            format-container-names: true
+            hide-by-default: false
+
+          - type: to-do
+            title: Sol Ops Scratchpad
+            id: sol-ops-todo
+
+  # ============================================================================
+  # PAGE 2: CINEMA & MEDIA — 22TB PANOPTICON & IMAX PIPELINE (/media)
+  # ============================================================================
+  - name: Cinema & Media
+    slug: media
+    width: wide
+    show-mobile-header: true
+    columns:
+      # ------------------------------------------------------------------------
+      # Left Column: Dual Jellyfin Telemetry, Seerr Queue & Prowlarr Health
+      # ------------------------------------------------------------------------
+      - size: small
+        widgets:
+          - type: group
+            widgets:
+              - type: custom-api
+                title: Jellyfin Container
+                title-url: https://media.vrg.rocks
+                cache: 2m
+                options:
+                  api-key: ${JELLYFIN_API_KEY}
+                template: |
+                  {{ $apiKey := .Options.StringOr "api-key" "" }}
+                  {{ $pub := newRequest "http://jellyfin:8096/System/Info/Public" | getResponse }}
+                  {{ if eq $pub.Response.StatusCode 200 }}
+                    <div class="flex justify-between items-center margin-bottom-10">
+                      <span class="size-h5 color-highlight">{{ $pub.JSON.String "ServerName" }}</span>
+                      <span class="sol-badge sol-badge--ok">v{{ $pub.JSON.String "Version" }}</span>
+                    </div>
+                  {{ end }}
+                  {{ if eq $apiKey "" }}
+                    <div class="sol-hint">
+                      Set <code>JELLYFIN_API_KEY</code> in <code>.env</code> for live library counts and active stream telemetry.
+                    </div>
+                  {{ else }}
+                    {{ $counts := newRequest "http://jellyfin:8096/Items/Counts"
+                        | withHeader "X-Emby-Token" $apiKey
+                        | getResponse }}
+                    {{ $sessions := newRequest "http://jellyfin:8096/Sessions"
+                        | withHeader "X-Emby-Token" $apiKey
+                        | getResponse }}
+                    {{ if eq $counts.Response.StatusCode 200 }}
+                      <div class="sol-stat-grid">
+                        <div class="sol-stat-card">
+                          <div class="sol-stat-value color-primary">{{ $counts.JSON.Int "MovieCount" | formatNumber }}</div>
+                          <div class="sol-stat-label">Movies</div>
+                        </div>
+                        <div class="sol-stat-card">
+                          <div class="sol-stat-value">{{ $counts.JSON.Int "SeriesCount" | formatNumber }}</div>
+                          <div class="sol-stat-label">Series</div>
+                        </div>
+                        <div class="sol-stat-card">
+                          <div class="sol-stat-value">{{ $counts.JSON.Int "EpisodeCount" | formatNumber }}</div>
+                          <div class="sol-stat-label">Episodes</div>
+                        </div>
+                      </div>
+                    {{ end }}
+                    {{ if eq $sessions.Response.StatusCode 200 }}
+                      {{ $activeStreams := $sessions.JSON.Array "#(NowPlayingItem.Name!=)" }}
+                      <div class="margin-top-10 size-h6 color-subdue">
+                        Active Streams: <strong class="color-highlight">{{ len $activeStreams }}</strong>
+                      </div>
+                      {{ range $activeStreams }}
+                        <div class="margin-top-6 size-h6">
+                          <span class="sol-badge sol-badge--info">{{ .String "Client" }}</span>
+                          <strong class="color-highlight">{{ .String "NowPlayingItem.Name" }}</strong>
+                          <span class="color-subdue">({{ .String "UserName" }})</span>
+                        </div>
+                      {{ end }}
+                    {{ end }}
+                  {{ end }}
+
+              - type: custom-api
+                title: Jellyfin Metal
+                title-url: https://metal.vrg.rocks
+                cache: 2m
+                options:
+                  api-key: ${JELLYFIN_METAL_API_KEY}
+                template: |
+                  {{ $apiKey := .Options.StringOr "api-key" "" }}
+                  {{ $pub := newRequest "http://host.docker.internal:8097/System/Info/Public" | getResponse }}
+                  {{ if eq $pub.Response.StatusCode 200 }}
+                    <div class="flex justify-between items-center margin-bottom-10">
+                      <span class="size-h5 color-highlight">{{ $pub.JSON.String "ServerName" }} (Apple VideoToolbox)</span>
+                      <span class="sol-badge sol-badge--ok">v{{ $pub.JSON.String "Version" }}</span>
+                    </div>
+                  {{ else }}
+                    <div class="sol-hint">Native macOS daemon on <code>host.docker.internal:8097</code> is offline.</div>
+                  {{ end }}
+                  {{ if ne $apiKey "" }}
+                    {{ $counts := newRequest "http://host.docker.internal:8097/Items/Counts"
+                        | withHeader "X-Emby-Token" $apiKey
+                        | getResponse }}
+                    {{ if eq $counts.Response.StatusCode 200 }}
+                      <div class="sol-stat-grid">
+                        <div class="sol-stat-card">
+                          <div class="sol-stat-value color-primary">{{ $counts.JSON.Int "MovieCount" | formatNumber }}</div>
+                          <div class="sol-stat-label">Movies</div>
+                        </div>
+                        <div class="sol-stat-card">
+                          <div class="sol-stat-value">{{ $counts.JSON.Int "SeriesCount" | formatNumber }}</div>
+                          <div class="sol-stat-label">Series</div>
+                        </div>
+                        <div class="sol-stat-card">
+                          <div class="sol-stat-value">{{ $counts.JSON.Int "EpisodeCount" | formatNumber }}</div>
+                          <div class="sol-stat-label">Episodes</div>
+                        </div>
+                      </div>
+                    {{ end }}
+                  {{ else }}
+                    <div class="sol-hint">
+                      Optional: Set <code>JELLYFIN_METAL_API_KEY</code> in <code>.env</code> for native Metal library counts.
+                    </div>
+                  {{ end }}
+
+          - type: custom-api
+            title: Seerr Media Requests
+            title-url: https://request.vrg.rocks
+            cache: 2m
+            options:
+              api-key: ${SEERR_API_KEY}
+            template: |
+              {{ $apiKey := .Options.StringOr "api-key" "" }}
+              {{ if eq $apiKey "" }}
+                <div class="sol-hint">
+                  Set <code>SEERR_API_KEY</code> in <code>.env</code> (from <code>config/seerr/settings.json</code>) to view request queue counts.
+                </div>
+              {{ else }}
+                {{ $resp := newRequest "http://seerr:5055/api/v1/request/count"
+                    | withHeader "X-Api-Key" $apiKey
+                    | getResponse }}
+                {{ if eq $resp.Response.StatusCode 200 }}
+                  <div class="sol-stat-grid">
+                    <div class="sol-stat-card">
+                      <div class="sol-stat-value color-primary">{{ $resp.JSON.Int "pending" }}</div>
+                      <div class="sol-stat-label">Pending</div>
+                    </div>
+                    <div class="sol-stat-card">
+                      <div class="sol-stat-value">{{ $resp.JSON.Int "processing" }}</div>
+                      <div class="sol-stat-label">Processing</div>
+                    </div>
+                    <div class="sol-stat-card">
+                      <div class="sol-stat-value color-positive">{{ $resp.JSON.Int "available" }}</div>
+                      <div class="sol-stat-label">Available</div>
+                    </div>
+                  </div>
+                {{ else }}
+                  <div class="sol-hint">Seerr API returned HTTP {{ $resp.Response.StatusCode }}</div>
+                {{ end }}
+              {{ end }}
+
+          - type: custom-api
+            title: Prowlarr Indexers & Byparr
+            title-url: https://prowlarr.vrg.rocks
+            cache: 5m
+            options:
+              api-key: ${PROWLARR_API_KEY}
+            template: |
+              {{ $apiKey := .Options.StringOr "api-key" "" }}
+              {{ if eq $apiKey "" }}
+                <div class="sol-hint">
+                  Set <code>PROWLARR_API_KEY</code> in <code>.env</code> (from <code>config/prowlarr/config.xml</code>) to monitor indexer health.
+                </div>
+              {{ else }}
+                {{ $indexers := newRequest "http://prowlarr:9696/api/v1/indexer"
+                    | withHeader "X-Api-Key" $apiKey
+                    | getResponse }}
+                {{ $health := newRequest "http://prowlarr:9696/api/v1/health"
+                    | withHeader "X-Api-Key" $apiKey
+                    | getResponse }}
+                {{ if eq $indexers.Response.StatusCode 200 }}
+                  {{ $all := $indexers.JSON.Array "" }}
+                  {{ $enabled := $indexers.JSON.Array "#(enable==true)#" }}
+                  {{ $issues := $health.JSON.Array "" }}
+                  <div class="sol-stat-grid">
+                    <div class="sol-stat-card">
+                      <div class="sol-stat-value color-positive">{{ len $enabled }}</div>
+                      <div class="sol-stat-label">Enabled</div>
+                    </div>
+                    <div class="sol-stat-card">
+                      <div class="sol-stat-value">{{ len $all }}</div>
+                      <div class="sol-stat-label">Total</div>
+                    </div>
+                    <div class="sol-stat-card">
+                      <div class="sol-stat-value {{ if gt (len $issues) 0 }}color-negative{{ else }}color-positive{{ end }}">
+                        {{ len $issues }}
+                      </div>
+                      <div class="sol-stat-label">Alerts</div>
+                    </div>
+                  </div>
+                  {{ range $issues }}
+                    <div class="margin-top-8 size-h6 color-negative">• {{ .String "message" }}</div>
+                  {{ end }}
+                {{ else }}
+                  <div class="sol-hint">Prowlarr API returned HTTP {{ $indexers.Response.StatusCode }}</div>
+                {{ end }}
+              {{ end }}
+
+          - type: bookmarks
+            title: Cinema, IMAX & A/V Reference
+            groups:
+              - title: Film Craft & Databases
+                color: 38 95 65
+                links:
+                  - title: Letterboxd
+                    url: https://letterboxd.com/
+                    icon: si:letterboxd
+                  - title: Criterion Collection
+                    url: https://www.criterion.com/
+                    icon: si:themoviedatabase
+                  - title: Caps-a-Holic (4K UHD Frame Diffs)
+                    url: https://caps-a-holic.com/
+                    icon: si:bluray
+                  - title: Blu-ray.com 4K Calendar
+                    url: https://www.blu-ray.com/movies/releasedates.php?4k=1
+                    icon: si:bluray
+                  - title: American Cinematographer
+                    url: https://theasc.com/
+                    icon: si:sony
+                  - title: Box Office Mojo
+                    url: https://www.boxofficemojo.com/
+                    icon: si:imdb
+              - title: PVR Quality & Calibration
+                color: 267 84 81
+                links:
+                  - title: TRaSH Guides (Radarr & Sonarr)
+                    url: https://trash-guides.info/
+                    icon: si:readthedocs
+                  - title: Subdl Subtitles
+                    url: https://subdl.com/
+                    icon: si:subtitles
+                  - title: OpenSubtitles
+                    url: https://www.opensubtitles.com/
+                    icon: si:subtitles
+
+      # ------------------------------------------------------------------------
+      # Center Column: Radarr/Sonarr Split Telemetry, Cinema Essays & Subreddits
+      # ------------------------------------------------------------------------
+      - size: full
+        widgets:
+          - type: split-column
+            widgets:
+              - type: custom-api
+                title: Radarr Cinema Queue & Calendar
+                title-url: https://radarr.vrg.rocks
+                cache: 2m
+                options:
+                  api-key: ${RADARR_API_KEY}
+                template: |
+                  {{ $apiKey := .Options.StringOr "api-key" "" }}
+                  {{ if eq $apiKey "" }}
+                    <div class="sol-hint">
+                      Set <code>RADARR_API_KEY</code> in <code>.env</code> (from <code>config/radarr/config.xml</code>) to view movie queue and upcoming releases.
+                    </div>
+                  {{ else }}
+                    {{ $queue := newRequest "http://radarr:7878/api/v3/queue"
+                        | withParameter "includeMovie" "true"
+                        | withHeader "X-Api-Key" $apiKey
+                        | getResponse }}
+                    {{ $cal := newRequest "http://radarr:7878/api/v3/calendar"
+                        | withParameter "start" (now | formatTime "DateOnly")
+                        | withParameter "end" (offsetNow "720h" | formatTime "DateOnly")
+                        | withParameter "unmonitored" "false"
+                        | withHeader "X-Api-Key" $apiKey
+                        | getResponse }}
+                    {{ if eq $queue.Response.StatusCode 200 }}
+                      <div class="flex justify-between items-center margin-bottom-10">
+                        <span class="size-h6 color-subdue">Active Downloads</span>
+                        <span class="sol-badge {{ if gt ($queue.JSON.Int "totalRecords") 0 }}sol-badge--info{{ else }}sol-badge--ok{{ end }}">
+                          {{ $queue.JSON.Int "totalRecords" }} in queue
+                        </span>
+                      </div>
+                      {{ range $queue.JSON.Array "records" }}
+                        <div class="margin-bottom-6 size-h6">
+                          <strong class="color-highlight">{{ .String "title" }}</strong>
+                          <span class="color-subdue">({{ .String "status" }} • {{ .String "timeleft" }})</span>
+                        </div>
+                      {{ end }}
+                    {{ end }}
+                    {{ if eq $cal.Response.StatusCode 200 }}
+                      <div class="size-h6 color-subdue margin-top-10 margin-bottom-6">Upcoming Monitored Releases (30d)</div>
+                      <ul class="list list-with-separator">
+                        {{ range $cal.JSON.Array "" }}
+                          <li>
+                            <div class="flex justify-between items-center">
+                              <span class="color-highlight">{{ .String "title" }} ({{ .Int "year" }})</span>
+                              <span class="size-h6 color-subdue">{{ .String "status" }}</span>
+                            </div>
+                          </li>
+                        {{ else }}
+                          <li class="size-h6 color-subdue">No monitored movies scheduled in the next 30 days.</li>
+                        {{ end }}
+                      </ul>
+                    {{ end }}
+                  {{ end }}
+
+              - type: custom-api
+                title: Sonarr Series Queue & Airings
+                title-url: https://sonarr.vrg.rocks
+                cache: 2m
+                options:
+                  api-key: ${SONARR_API_KEY}
+                template: |
+                  {{ $apiKey := .Options.StringOr "api-key" "" }}
+                  {{ if eq $apiKey "" }}
+                    <div class="sol-hint">
+                      Set <code>SONARR_API_KEY</code> in <code>.env</code> (from <code>config/sonarr/config.xml</code>) to view series queue and upcoming episodes.
+                    </div>
+                  {{ else }}
+                    {{ $queue := newRequest "http://sonarr:8989/api/v3/queue"
+                        | withParameter "includeSeries" "true"
+                        | withParameter "includeEpisode" "true"
+                        | withHeader "X-Api-Key" $apiKey
+                        | getResponse }}
+                    {{ $cal := newRequest "http://sonarr:8989/api/v3/calendar"
+                        | withParameter "start" (now | formatTime "DateOnly")
+                        | withParameter "end" (offsetNow "168h" | formatTime "DateOnly")
+                        | withParameter "unmonitored" "false"
+                        | withParameter "includeSeries" "true"
+                        | withHeader "X-Api-Key" $apiKey
+                        | getResponse }}
+                    {{ if eq $queue.Response.StatusCode 200 }}
+                      <div class="flex justify-between items-center margin-bottom-10">
+                        <span class="size-h6 color-subdue">Active Downloads</span>
+                        <span class="sol-badge {{ if gt ($queue.JSON.Int "totalRecords") 0 }}sol-badge--info{{ else }}sol-badge--ok{{ end }}">
+                          {{ $queue.JSON.Int "totalRecords" }} in queue
+                        </span>
+                      </div>
+                      {{ range $queue.JSON.Array "records" }}
+                        <div class="margin-bottom-6 size-h6">
+                          <strong class="color-highlight">{{ .String "series.title" }}</strong>
+                          <span class="color-subdue">S{{ printf "%02d" (.Int "episode.seasonNumber") }}E{{ printf "%02d" (.Int "episode.episodeNumber") }} • {{ .String "timeleft" }}</span>
+                        </div>
+                      {{ end }}
+                    {{ end }}
+                    {{ if eq $cal.Response.StatusCode 200 }}
+                      <div class="size-h6 color-subdue margin-top-10 margin-bottom-6">Upcoming Episodes (Next 7d)</div>
+                      <ul class="list list-with-separator">
+                        {{ range $cal.JSON.Array "" }}
+                          <li>
+                            <div class="flex justify-between items-center">
+                              <span class="color-highlight">{{ .String "series.title" }} — S{{ printf "%02d" (.Int "seasonNumber") }}E{{ printf "%02d" (.Int "episodeNumber") }}</span>
+                              <span class="size-h6 color-subdue">{{ .String "title" }}</span>
+                            </div>
+                          </li>
+                        {{ else }}
+                          <li class="size-h6 color-subdue">No monitored episodes airing in the next 7 days.</li>
+                        {{ end }}
+                      </ul>
+                    {{ end }}
+                  {{ end }}
+
+          - type: videos
+            title: Visual Essays, Cinematography, VFX, OLED Calibration & Taskmaster
+            style: grid-cards
+            collapse-after-rows: 2
+            channels:
+              - UCjFqcJQXGZ6T6sxyFB-5i6A # Every Frame a Painting
+              - UCUyvQV2JsICeLZP4c_h40kA # Thomas Flight
+              - UCSpFnDQr88xCZ80N-X7t0nQ # Corridor Crew
+              - UCT5C7yaO3RVuOgwP8JVAujQ # Taskmaster
+              - UCcCYOO2uYPnG-21WDOWdwew # HDTVTest (Vincent Teoh — OLED, Dolby Vision, HDR)
+              - UCrTNhL_yO3tPTdQ5XgmmWjA # RedLetterMedia
+              - UCEOXxzW2vU0P-0THehuIIeg # Captain Disillusion
+              - UCRcgy6GzDeccI7dkbbBna3Q # LEMMiNO
+
+          - type: group
+            widgets:
+              - type: reddit
+                subreddit: imax
+                show-thumbnails: true
+                sort-by: hot
+              - type: reddit
+                subreddit: criterion
+                show-thumbnails: true
+                sort-by: hot
+              - type: reddit
+                subreddit: 4kbluray
+                show-thumbnails: true
+                sort-by: hot
+              - type: reddit
+                subreddit: TrueFilm
+                show-thumbnails: false
+                sort-by: hot
+              - type: reddit
+                subreddit: hometheater
+                show-thumbnails: true
+                sort-by: hot
+              - type: reddit
+                subreddit: Taskmaster
+                show-thumbnails: true
+                sort-by: hot
+
+      # ------------------------------------------------------------------------
+      # Right Column: Film Industry Dispatches & Media Stack Upstream Releases
+      # ------------------------------------------------------------------------
+      - size: small
+        widgets:
+          - type: rss
+            title: Cinema & Self-Hosted Dispatches
+            style: detailed-list
+            limit: 12
+            collapse-after: 5
+            feeds:
+              - url: https://www.indiewire.com/feed/
+                title: IndieWire
+              - url: https://selfh.st/rss/
+                title: selfh.st
+
+          - type: releases
+            title: Media Stack Upstream Releases
+            token: ${GITHUB_TOKEN}
+            show-source-icon: true
+            collapse-after: 6
+            repositories:
+              - jellyfin/jellyfin
+              - fallenbagel/jellyseerr
+              - Radarr/Radarr
+              - Sonarr/Sonarr
+              - Prowlarr/Prowlarr
+              - morpheus65535/bazarr
+              - qbittorrent/qBittorrent
+              - cross-seed/cross-seed
+              - ThePhaseless/Byparr
+
+  # ============================================================================
+  # PAGE 3: ENGINEERING & RADAR — PANTHEON, WEB INTERNALS & FLIGHT DECK (/radar)
+  # ============================================================================
+  - name: Engineering & Radar
+    slug: radar
+    width: wide
+    show-mobile-header: true
+    columns:
+      # ------------------------------------------------------------------------
+      # Left Column: The Pantheon, Compiler-First Stack & Sol Git Repository
+      # ------------------------------------------------------------------------
+      - size: small
+        widgets:
+          - type: bookmarks
+            title: The Pantheon & Flight Deck
+            groups:
+              - title: Interactive Explainers
+                color: 267 84 81
+                links:
+                  - title: Bartosz Ciechanowski
+                    url: https://ciechanow.ski/
+                    icon: si:webgl
+                  - title: Sam Rose (samwho.dev)
+                    url: https://samwho.dev/
+                    icon: si:d3dotjs
+                  - title: Nicky Case (Explorable Explanations)
+                    url: https://ncase.me/
+                    icon: si:html5
+                  - title: Bret Victor (Worrydream)
+                    url: http://worrydream.com/
+                    icon: si:apple
+                  - title: Red Blob Games (Amit Patel)
+                    url: https://www.redblobgames.com/
+                    icon: si:svg
+                  - title: The Pudding
+                    url: https://pudding.cool/
+                    icon: si:observable
+              - title: UI Craft & CSS Mastery
+                color: 188 86 64
+                links:
+                  - title: Ahmad Shadeed (ishadeed)
+                    url: https://ishadeed.com/
+                    icon: si:css3
+                  - title: Rauno Freiberg
+                    url: https://rauno.me/
+                    icon: si:vercel
+                  - title: Emil Kowalski
+                    url: https://emilkowal.ski/
+                    icon: si:framer
+                  - title: Josh W. Comeau
+                    url: https://www.joshwcomeau.com/
+                    icon: si:cssmodules
+                  - title: Modern Font Stacks
+                    url: https://modernfontstacks.com/
+                    icon: si:googlefonts
+              - title: Compiler-First Web Stack
+                color: 115 54 76
+                links:
+                  - title: Svelte 5 & SvelteKit 2
+                    url: https://svelte.dev/docs
+                    icon: si:svelte
+                  - title: Astro Docs
+                    url: https://docs.astro.build/
+                    icon: si:astro
+                  - title: Bun Runtime
+                    url: https://bun.sh/docs
+                    icon: si:bun
+                  - title: Hono Web Framework
+                    url: https://hono.dev/
+                    icon: si:cloudflareworkers
+                  - title: Datastar Hypermedia
+                    url: https://data-star.dev/
+                    icon: si:htmx
+                  - title: PocketBase Backend
+                    url: https://pocketbase.io/docs/
+                    icon: si:sqlite
+                  - title: Jujutsu VCS (jj)
+                    url: https://jj-vcs.github.io/jj/latest/
+                    icon: si:git
+              - title: Airbus & Flight Deck Systems
+                color: 38 95 65
+                links:
+                  - title: Flightradar24 (Bengaluru VOBL)
+                    url: https://www.flightradar24.com/13.20,77.71/9
+                    icon: si:flightaware
+                  - title: SkyVector Aeronautical Charts
+                    url: https://skyvector.com/
+                    icon: si:openstreetmap
+                  - title: SimBrief Flight Dispatch
+                    url: https://dispatch.simbrief.com/
+                    icon: si:airbus
+                  - title: FlyByWire A32NX / A380X Docs
+                    url: https://docs.flybywiresim.com/
+                    icon: si:airbus
+                  - title: SmartCockpit Airbus FCOM Reference
+                    url: https://www.smartcockpit.com/aircrafts-models.html
+                    icon: si:airbus
+
+          - type: repository
+            repository: varungupta3009/Sol
+            token: ${GITHUB_TOKEN}
+            pull-requests-limit: 3
+            issues-limit: 3
+            commits-limit: 5
+
+          - type: releases
+            title: Stack & Core Infra Releases
+            token: ${GITHUB_TOKEN}
+            show-source-icon: true
+            collapse-after: 7
+            repositories:
+              - glanceapp/glance
+              - caddyserver/caddy
+              - goauthentik/authentik
+              - paperless-ngx/paperless-ngx
+              - sveltejs/svelte
+              - withastro/astro
+              - oven-sh/bun
+              - pocketbase/pocketbase
+              - jj-vcs/jj
+              - ghostty-org/ghostty
+              - zellij-org/zellij
+              - syncthing/syncthing
+              - rclone/rclone
+
+      # ------------------------------------------------------------------------
+      # Center Column: Pantheon RSS, Browser Engine Internals & Engineering Video
+      # ------------------------------------------------------------------------
+      - size: full
+        widgets:
+          - type: group
+            widgets:
+              - type: rss
+                title: Pantheon & Web Craft
+                style: detailed-list
+                limit: 15
+                collapse-after: 6
+                feeds:
+                  - url: https://ciechanow.ski/atom.xml
+                    title: Bartosz Ciechanowski
+                  - url: https://samwho.dev/rss.xml
+                    title: Sam Rose (samwho)
+                  - url: https://ishadeed.com/feed.xml
+                    title: Ahmad Shadeed
+                  - url: https://jakearchibald.com/posts.rss
+                    title: Jake Archibald
+                  - url: https://chriscoyier.net/feed/
+                    title: Chris Coyier
+                  - url: https://simonwillison.net/atom/everything/
+                    title: Simon Willison
+
+              - type: rss
+                title: Browser Internals & Compiler Stack
+                style: detailed-list
+                limit: 15
+                collapse-after: 6
+                feeds:
+                  - url: https://v8.dev/blog.atom
+                    title: V8 Engine Blog
+                  - url: https://developer.chrome.com/static/blog/feed.xml
+                    title: Chrome for Developers
+                  - url: https://web.dev/feed.xml
+                    title: web.dev
+                  - url: https://svelte.dev/blog/rss.xml
+                    title: Svelte Blog
+                  - url: https://astro.build/rss.xml
+                    title: Astro Blog
+                  - url: https://bun.sh/rss.xml
+                    title: Bun Blog
+
+              - type: rss
+                title: Systems, Linux & Homelab
+                style: detailed-list
+                limit: 15
+                collapse-after: 6
+                feeds:
+                  - url: https://selfh.st/rss/
+                    title: selfh.st
+                  - url: https://lwn.net/headlines/rss
+                    title: LWN.net
+                  - url: https://www.phoronix.com/rss.php
+                    title: Phoronix
+                  - url: https://feeds.arstechnica.com/arstechnica/index
+                    title: Ars Technica
+
+          - type: videos
+            title: Systems Engineering, Airbus Flight Deck & Deep Science
+            style: grid-cards
+            collapse-after-rows: 2
+            channels:
+              - UCR-DXc1voovS8nhAvccRZhg # Jeff Geerling
+              - UCwpHKudUkP5tNgmMdexB3ow # Mentour Pilot (Commercial Aviation & Airbus Systems)
+              - UCy0tKL1T7wFoYcxCe0xjN6Q # Technology Connections
+              - UCHnyfMqiRRG1u-2MsSQLbXA # Veritasium
+              - UCYO_jab_esuFRV4b17AJtAw # 3Blue1Brown
+              - UC1LpsuAUaKoMzzJSEt5WImw # Asianometry
+              - UCsBjURrPoezykLs9EqgamOA # Fireship
+              - UC9PBzalIcEQCsiIkq36PyUA # Digital Foundry
+
+      # ------------------------------------------------------------------------
+      # Right Column: Hacker News, Lobste.rs & Engineering/Aviation Subreddits
+      # ------------------------------------------------------------------------
+      - size: small
+        widgets:
+          - type: hacker-news
+            title: Hacker News
+            limit: 12
+            collapse-after: 5
+            sort-by: top
+
+          - type: lobste-rs
+            title: Lobste.rs
+            limit: 10
+            collapse-after: 5
+
+          - type: group
+            widgets:
+              - type: reddit
+                subreddit: selfhosted
+                show-thumbnails: true
+                sort-by: hot
+              - type: reddit
+                subreddit: homelab
+                show-thumbnails: true
+                sort-by: hot
+              - type: reddit
+                subreddit: sveltejs
+                show-thumbnails: false
+                sort-by: hot
+              - type: reddit
+                subreddit: golang
+                show-thumbnails: false
+                sort-by: hot
+              - type: reddit
+                subreddit: aviation
+                show-thumbnails: true
+                sort-by: hot
+              - type: reddit
+                subreddit: flightsim
+                show-thumbnails: true
+                sort-by: hot

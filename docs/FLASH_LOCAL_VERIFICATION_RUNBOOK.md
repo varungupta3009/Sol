@@ -36,7 +36,8 @@ flowchart TD
     T1 --> T2["Task 2: Rclone filter and backup pipeline"]
     T2 --> T3["Task 3: Authentik worker and loopback ports"]
     T3 --> T4["Task 4: Byparr cutover"]
-    T4 --> R["Checkpoint R: Full stack reconcile (24 active containers)"]
+    T4 --> T4B["Task 4B: Glance Command Center API keys and container prune"]
+    T4B --> R["Checkpoint R: Full stack reconcile (24 active containers)"]
     R --> T5["Task 5: /downloads to /data inspection and optional cutover"]
     T5 --> T6["Task 6 (optional): paperless-db postgres:17 to postgres:17-alpine"]
     T5 --> T7["Task 7 (optional): homebox SQLite repair"]
@@ -78,10 +79,16 @@ if [ -d .jj ]; then jj st; jj git fetch; jj log -r 'main@origin' --no-graph -n 1
 `GATE`:
 
 - If `jj st` or `git status --short` shows tracked local edits, **STOP**. Varun must decide whether to keep or rebase them.
-- If the tree is clean, apply the update:
+- Before pulling, archive any existing untracked `config/glance/config/glance.yml` or `config/glance/assets/user.css` so Git/JJ can check out the newly tracked declarative Glance configuration without an untracked-file collision:
 
 ```bash
 source /tmp/sol_rb.sh
+mkdir -p ./data/backups/preflight/glance_pre_pull
+if [ -d config/glance ]; then
+  cp -Rp config/glance ./data/backups/preflight/glance_pre_pull/
+  rm -f config/glance/config/glance.yml config/glance/assets/user.css config/glance/assets/sol.svg
+  echo "Archived pre-pull config/glance to ./data/backups/preflight/glance_pre_pull/"
+fi
 if [ -d .jj ]; then jj new main@origin; else git pull --ff-only origin main; fi
 ```
 
@@ -90,13 +97,15 @@ if [ -d .jj ]; then jj new main@origin; else git pull --ff-only origin main; fi
 ```bash
 source /tmp/sol_rb.sh
 test -f config/rclone/filter.txt.example && echo "OK filter.txt.example"
+test -f config/glance/config/glance.yml && echo "OK glance.yml"
+test -f config/glance/assets/user.css && echo "OK glance user.css"
 grep -q 'thephaseless/byparr' compose/media.yml && echo "OK byparr"
 test ! -f coder/default.tf && echo "OK default.tf removed"
 grep -q '127.0.0.1:${COMPOSE_PORT_HTTP:-9000}:9000' compose/core.yml && echo "OK authentik loopback"
 grep -q 'PAPERLESS_DBPASS' compose/paperless.yml && echo "OK paperless DBPASS"
 ```
 
-`EXPECT`: five `OK` lines. `GATE`: if any line is missing, **STOP** (the pull did not land the upgrade).
+`EXPECT`: seven `OK` lines. `GATE`: if any line is missing, **STOP** (the pull did not land the upgrade).
 
 ### 0.4 Record the current container state
 
@@ -611,6 +620,144 @@ docker compose stop byparr && docker compose rm -f byparr
 docker compose --profile standby up -d flaresolverr
 docker exec prowlarr getent hosts flaresolverr
 ```
+
+---
+
+## Task 4B: Glance Command Center Revamp and Automatic API Key Extraction
+
+The repository now tracks a 3-page declarative Glance configuration (`config/glance/config/glance.yml`), custom Catppuccin Mocha / GM3 stylesheet (`config/glance/assets/user.css`), and brand icon (`config/glance/assets/sol.svg`).
+
+1. **Page 1 (`Sol`, `slug: sol`):** Serves both `https://dash.vrg.rocks/` and `https://sol.vrg.rocks` (`-> https://dash.vrg.rocks/sol`). Includes 4-zone World Flight Deck clocks (`Asia/Kolkata`, `America/Los_Angeles`, `UTC`, `Europe/London`), Bengaluru weather, M1 Pro `server-stats` (`OrbStack VM` + `/media/panopticon` 22TB WD Elements), Paperless-ngx vault telemetry, `!bang` search bar (`!jf`, `!metal`, `!req`, `!rad`, `!son`, `!prowl`, `!docs`, `!lb`, `!imdb`, `!blu`, `!fr24`), internal Docker bridge health monitors, complete active + standby service directory, live `docker-containers` status (`running-only: false`), and an ops scratchpad.
+2. **Page 2 (`Cinema & Media`, `slug: media`):** Dual Jellyfin (`jellyfin:8096` + native macOS `host.docker.internal:8097` Apple VideoToolbox) library & active stream telemetry, Seerr request counts, Prowlarr indexer health, split-column Radarr & Sonarr active download queues and upcoming release calendars, Cinema/VFX/OLED YouTube channels (`Every Frame a Painting`, `Thomas Flight`, `Corridor Crew`, `Taskmaster`, `HDTVTest`, `RedLetterMedia`, `Captain Disillusion`, `LEMMiNO`), `r/imax` / `r/criterion` / `r/4kbluray` / `r/TrueFilm` / `r/hometheater` / `r/Taskmaster` feeds, and media stack GitHub releases.
+3. **Page 3 (`Engineering & Radar`, `slug: radar`):** The Pantheon of interactive explainers (`Bartosz Ciechanowski`, `Sam Rose`, `Ahmad Shadeed`, `Nicky Case`, `Bret Victor`), Browser Engine Internals & Compiler-First Web Stack (`V8`, `Chrome`, `web.dev`, `Svelte`, `Astro`, `Bun`, `Datastar`, `PocketBase`, `jj`), Airbus Flight Deck resources, `varungupta3009/Sol` repository widget, Hacker News, Lobste.rs, and engineering/aviation video & subreddit feeds.
+
+### 4B.1 Automatically extract local API keys into `.env`
+
+All `custom-api` widgets in `glance.yml` degrade gracefully when their `.env` key is empty, but extracting the keys from the local `config/` files lights up every telemetry card immediately without manual UI copying. Run this idempotent extractor (it never prints secret values to stdout):
+
+```bash
+source /tmp/sol_rb.sh
+python3 - <<'PY'
+import json, pathlib, re, sqlite3
+
+env_path = pathlib.Path(".env")
+env_text = env_path.read_text()
+
+def set_env(key: str, val: str) -> str:
+    global env_text
+    if not val:
+        return "skipped (not found locally)"
+    pat = re.compile(rf"^{re.escape(key)}=(.*)$", re.M)
+    m = pat.search(env_text)
+    if m:
+        cur = m.group(1).strip().strip("'\"")
+        if cur and not cur.startswith("your_"):
+            return "kept existing non-empty value"
+        env_text = pat.sub(f"{key}={val}", env_text)
+        return "updated existing key"
+    env_text = env_text.rstrip("\n") + f"\n{key}={val}\n"
+    return "appended key"
+
+def xml_key(p: str) -> str:
+    f = pathlib.Path(p)
+    if not f.exists():
+        return ""
+    m = re.search(r"<ApiKey>([^<]+)</ApiKey>", f.read_text())
+    return m.group(1).strip() if m else ""
+
+def seerr_key(p: str) -> str:
+    f = pathlib.Path(p)
+    if not f.exists():
+        return ""
+    try:
+        return json.loads(f.read_text()).get("main", {}).get("apiKey", "").strip()
+    except Exception:
+        return ""
+
+def jellyfin_key(db_path: str) -> str:
+    f = pathlib.Path(db_path)
+    if not f.exists():
+        return ""
+    try:
+        con = sqlite3.connect(f"file:{f}?mode=ro", uri=True)
+        cur = con.cursor()
+        for tbl in ("ApiKeys", "Devices"):
+            try:
+                cur.execute(f"SELECT AccessToken FROM {tbl} WHERE AccessToken IS NOT NULL AND AccessToken != '' LIMIT 1;")
+                row = cur.fetchone()
+                if row and row[0]:
+                    con.close()
+                    return str(row[0]).strip()
+            except Exception:
+                pass
+        con.close()
+    except Exception:
+        pass
+    return ""
+
+results = {
+    "RADARR_API_KEY": set_env("RADARR_API_KEY", xml_key("config/radarr/config.xml")),
+    "SONARR_API_KEY": set_env("SONARR_API_KEY", xml_key("config/sonarr/config.xml")),
+    "PROWLARR_API_KEY": set_env("PROWLARR_API_KEY", xml_key("config/prowlarr/config.xml")),
+    "LIDARR_API_KEY": set_env("LIDARR_API_KEY", xml_key("config/lidarr/config.xml")),
+    "SEERR_API_KEY": set_env("SEERR_API_KEY", seerr_key("config/seerr/settings.json")),
+    "JELLYFIN_API_KEY": set_env("JELLYFIN_API_KEY", jellyfin_key("config/jellyfin/data/jellyfin.db")),
+    "JELLYFIN_METAL_API_KEY": set_env("JELLYFIN_METAL_API_KEY", jellyfin_key("config/jellyfin_metal/data/jellyfin.db")),
+}
+for empty_k in ("PAPERLESS_API_KEY", "GITHUB_TOKEN"):
+    if not re.search(rf"^{empty_k}=", env_text, re.M):
+        env_text = env_text.rstrip("\n") + f"\n{empty_k}=\n"
+        results[empty_k] = "initialized empty key"
+    else:
+        results[empty_k] = "present"
+
+env_path.write_text(env_text)
+for k, status in results.items():
+    print(f"{k:24s} -> {status}")
+PY
+```
+
+`EXPECT`: status lines (`updated existing key`, `appended key`, or `kept existing non-empty value`) for each API key without printing any secret tokens.
+
+Optional: if `PAPERLESS_API_KEY` is still empty and `paperless-webserver` is up, mint or read an admin DRF token inside `paperless-webserver` and store it in `.env`:
+
+```bash
+source /tmp/sol_rb.sh
+if [ -z "$(envget PAPERLESS_API_KEY)" ]; then
+  TOK="$(docker exec paperless-webserver python3 manage.py shell -c '
+from django.contrib.auth.models import User
+from rest_framework.authtoken.models import Token
+u = User.objects.filter(is_superuser=True).first()
+if u:
+    t, _ = Token.objects.get_or_create(user=u)
+    print(t.key)
+' 2>/dev/null | tail -n1 | tr -d "\r")"
+  if [ -n "$TOK" ] && [ "${#TOK}" -ge 30 ]; then
+    perl -pi -e "s/^PAPERLESS_API_KEY=.*\$/PAPERLESS_API_KEY=$TOK/" .env
+    echo "PAPERLESS_API_KEY        -> populated from paperless-webserver DRF Token"
+  else
+    echo "PAPERLESS_API_KEY        -> skipped (no superuser token returned)"
+  fi
+fi
+```
+
+### 4B.2 Prune stopped legacy containers and verify Glance
+
+Glance's `docker-containers` widget sets `running-only: false` so any active container that crashes (`exited`) shows a red failure badge. To prevent stopped pre-refactor standby containers from cluttering the widget, remove stopped containers before Checkpoint R:
+
+```bash
+source /tmp/sol_rb.sh
+echo "== Stopped containers before prune =="
+docker ps -a --filter status=exited --filter status=created --format '{{.Names}}\t{{.Status}}'
+docker container prune -f
+docker compose up -d glance && sleep 10
+docker logs glance --tail 30 2>&1
+docker exec caddy wget -qO- -S http://glance:8080/sol 2>&1 | head -n 5
+```
+
+`EXPECT`: `docker logs glance` shows zero YAML or template parse errors, and `http://glance:8080/sol` returns `HTTP/1.1 200 OK`.
+
+`ROLLBACK` for Task 4B: restore `./data/backups/preflight/glance_pre_pull/glance` if needed.
 
 ---
 

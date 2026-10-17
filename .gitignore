@@ -4,6 +4,7 @@
 # This repository tracks ONLY declarative infrastructure code:
 #   - Compose stacks (docker-compose.yml, compose/*.yml)
 #   - Ingress routing rules (Caddyfile, ports.json)
+#   - Declarative dashboard config & theme assets (config/glance/**)
 #   - Environment templates (.env.example)
 #   - Automation scripts (scripts/*.sh)
 #   - Terraform Coder definitions (coder/*.tf)
@@ -31,6 +32,8 @@
 !/config/rclone/
 /config/rclone/*
 !/config/rclone/filter.txt.example
+!/config/glance/
+!/config/glance/**
 
 # ----------------------------------------------------------------
 # 3. PERSONAL PROJECTS & STATIC WEBSITES
