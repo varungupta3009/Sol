@@ -1100,7 +1100,7 @@ pages:
             collapse-after: 5
             sort-by: top
 
-          - type: lobste-rs
+          - type: lobsters
             title: Lobste.rs
             limit: 10
             collapse-after: 5

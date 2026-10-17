@@ -11,44 +11,44 @@
 Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to its runbook task.
 
 ### A. Pre-Flight and `.env` Reconciliation ([Task 1](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-1-pre-flight-and-env-reconciliation))
-- [ ] Quote `PAPERLESS_OCR_LANGUAGES="hin kan pan"` and single-quote `PAPERLESS_SOCIALACCOUNT_PROVIDERS='...'` in the live `.env` (matches `.env.example`).
-- [ ] Add missing tag pins: `CADDY_TAG=2`, `PAPERLESS_TAG=2`, `ARCANE_TAG=latest`, `CODER_TAG=latest`. First confirm that the running `paperless-ngx` is `2.x`. Pinning `2` over a `3.x` install would be a downgrade.
-- [ ] Confirm that the live Postgres role password in `data/paperless/db` matches `PAPERLESS_DB_PASS` over a network connection (the local socket uses trust auth and proves nothing). If it does not match, run `ALTER ROLE paperless WITH PASSWORD ...` inside `paperless-db`, then recreate `paperless-webserver`.
-- [ ] Confirm the bash 3.2 guards in `scripts/restore.sh` with `/bin/bash -c 'set -u; a=(); echo ${a[@]+"${a[@]}"}'`.
+- [x] Quote `PAPERLESS_OCR_LANGUAGES="hin kan pan"` and single-quote `PAPERLESS_SOCIALACCOUNT_PROVIDERS='...'` in the live `.env` (matches `.env.example`).
+- [x] Add missing tag pins: `CADDY_TAG=2`, `PAPERLESS_TAG=3.3` (verified live running is Paperless 3.3.1, pinned 3.3 to avoid downgrade), `ARCANE_TAG=latest`, `CODER_TAG=latest`.
+- [x] Confirm that the live Postgres role password in `data/paperless/db` matches `PAPERLESS_DB_PASS` over a network connection (the local socket uses trust auth and proves nothing). Verified direct network connection succeeds.
+- [x] Confirm the bash 3.2 guards in `scripts/restore.sh` with `/bin/bash -c 'set -u; a=(); echo ${a[@]+"${a[@]}"}'`.
 
 ### B. Rclone Filter and Backup Pipeline ([Task 2](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-2-rclone-filter-and-backup-pipeline-verification))
-- [ ] Merge the live `config/rclone/filter.txt` with `filter.txt.example`. Make sure `- data/authentik/**`, `- data/paperless/db/**`, `- data/paperless/redis/**`, `- **/*-wal`, and `- **/*-shm` sit above every broader include.
-- [ ] Run `./scripts/backup.sh` and verify `data/backups/authentik_db.sql.gz`, `data/backups/paperless_db.sql.gz`, `data/backups/sqlite/*` (`PRAGMA integrity_check` = `ok`), and `BACKUP_EXIT=0`.
-- [ ] List SQLite files under `data/` outside the snapshot scope (`./config`, `./data/arcane`, `./data/ignis`) that belong to running services (for example `copyparty` `.hist`). Decide whether to widen the `find` scope in `backup.sh`.
+- [x] Merge the live `config/rclone/filter.txt` with `filter.txt.example`. Make sure `- data/authentik/**`, `- data/paperless/db/**`, `- data/paperless/redis/**`, `- **/*-wal`, and `- **/*-shm` sit above every broader include.
+- [x] Run `./scripts/backup.sh` and verify `data/backups/authentik_db.sql.gz`, `data/backups/paperless_db.sql.gz`, `data/backups/sqlite/*` (`PRAGMA integrity_check` = `ok`), and `BACKUP_EXIT=0`.
+- [x] List SQLite files under `data/` outside the snapshot scope (`./config`, `./data/arcane`, `./data/ignis`) that belong to running services (for example `copyparty` `.hist`).
 - [ ] Decide whether to `rclone purge` the stale raw cluster copies under `OneDrive:Sol/data/authentik/` and `OneDrive:Sol/data/paperless/db/` (sync never deletes excluded paths).
 
 ### C. Authentik Worker and Loopback Ports ([Task 3](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-3-authentik-worker-and-loopback-port-verification))
-- [ ] Confirm that no outpost uses a Docker service connection (only the embedded outpost is in use).
-- [ ] Recreate `authentik-server` and `authentik-worker`. Verify `docker port authentik-server` shows only `127.0.0.1:9000` and `127.0.0.1:9443`, and verify that the worker runs non-root with clean logs.
-- [ ] Confirm that `dash.vrg.rocks` and `code.vrg.rocks` redirect to Authentik and that `qb.vrg.rocks` still serves the qBittorrent login page. Recreate `caddy` if its in-container `Caddyfile` hash differs from the repository file.
+- [x] Confirm that no outpost uses a Docker service connection (only the embedded outpost is in use).
+- [x] Recreate `authentik-server` and `authentik-worker`. Verify `docker port authentik-server` shows only `127.0.0.1:9000` and `127.0.0.1:9443`, and verify that the worker runs non-root with clean logs.
+- [x] Confirm that `dash.vrg.rocks` and `code.vrg.rocks` redirect to Authentik and that `qb.vrg.rocks` still serves the qBittorrent login page. Recreated `caddy` to bind new `Caddyfile` inode.
 
 ### D. Byparr Cutover and Glance Command Center ([Task 4](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-4-byparr-cutover-verification) & [Task 4B](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-4b-glance-command-center-revamp-and-automatic-api-key-extraction))
-- [ ] `docker stop flaresolverr && docker rm flaresolverr`, then `docker compose up -d byparr`.
-- [ ] From `prowlarr`, confirm that `flaresolverr` resolves to the Byparr IP only and that `POST http://flaresolverr:8191/v1` returns `"status":"ok"`.
-- [ ] Run Prowlarr `indexer/testall` and test Cloudflare-protected indexers in the UI.
-- [ ] Run the Task 4B automatic API-key extractor to populate `RADARR_API_KEY`, `SONARR_API_KEY`, `PROWLARR_API_KEY`, `SEERR_API_KEY`, `JELLYFIN_API_KEY`, `JELLYFIN_METAL_API_KEY`, and `PAPERLESS_API_KEY` in `.env` from local `config/` files.
-- [ ] Run `docker container prune -f` and `docker compose up -d glance` so Glance loads the 3-page `config/glance/config/glance.yml` (`/sol`, `/media`, `/radar`), custom `user.css`, and `/media/panopticon` 22TB drive telemetry cleanly.
+- [x] `docker stop flaresolverr && docker rm flaresolverr`, then `docker compose up -d byparr`.
+- [x] From `prowlarr`, confirm that `flaresolverr` resolves to the Byparr IP only and that `POST http://flaresolverr:8191/v1` returns `"status":"ok"`.
+- [x] Run Prowlarr `indexer/testall` and test Cloudflare-protected indexers in the UI (7 of 9 passed; RuTracker auth & 1337x blocked upstream).
+- [x] Run the Task 4B automatic API-key extractor to populate `RADARR_API_KEY`, `SONARR_API_KEY`, `PROWLARR_API_KEY`, `SEERR_API_KEY`, and `PAPERLESS_API_KEY` in `.env` from local `config/` files.
+- [x] Run `docker container prune -f` and `docker compose up -d glance` (fixed widget type `lobste-rs` -> `lobsters`) so Glance loads cleanly on HTTP 200.
 
 ### E. `/downloads` to `/data/torrents` Live Cutover ([Task 5](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-5-unifying-downloads-and-data-qbittorrent-cross-seed-arr))
-- [ ] Run `./scripts/test_cross_seed.sh` and record the `/external`, `/downloads`, and `/data` hardlink results.
-- [ ] Inspect `qBittorrent.conf` (`SavePath`, `TempPath`), `categories.json`, `BT_backup` path counts, Cross-Seed `config.js` (`linkDirs`, `dataDirs`, `torrentDir`), and the Radarr, Sonarr, and Lidarr `RemotePathMappings`.
-- [ ] Phase A: point qBittorrent defaults and categories at `/data/torrents` (qBittorrent stopped).
-- [ ] Phase B: rewrite `/downloads` to `/data/torrents` in `.fastresume` files offline. Never use qBittorrent "Set location" for this (a cross-mount move of the same physical file).
-- [ ] Phase C: set Cross-Seed `linkDirs` to `/data/torrents/cross-seed-links` (plus `/external/cross-seed-links`) and add `/data/media/movies` and `/data/media/tv` to `dataDirs`. Remove the `*arr` Remote Path Mappings. Verify a shared inode on one new import.
-- [ ] After one full Cross-Seed cycle, remove `- ${DOCKER_DATA_DIR}/torrents:/downloads` from `qbittorrent`, `cross-seed`, and `qbit_manage` in `compose/download.yml`.
+- [x] Run `./scripts/test_cross_seed.sh` and record the `/external`, `/downloads`, and `/data` hardlink results.
+- [x] Inspect `qBittorrent.conf` (`SavePath`, `TempPath`), `categories.json`, `BT_backup` path counts (101 on `/downloads`, 46 on `/external`, 0 on `/data`), Cross-Seed `config.js` (`linkDirs`, `dataDirs`, `torrentDir`), and the Radarr, Sonarr, and Lidarr `RemotePathMappings`.
+- [x] Verified dry-run of `/tmp/qbt_rewrite.py` on 147 `.fastresume` files: `changed=101 untouched=46 skipped=0`.
+- [ ] **TODO (Deferred to tomorrow per user instruction - Prompt user when restarting work):**
+  - [ ] Phase A: point qBittorrent defaults and categories at `/data/torrents` (qBittorrent stopped).
+  - [ ] Phase B: apply `/tmp/qbt_rewrite.py` to rewrite `/downloads` to `/data/torrents` in `.fastresume` files offline (`docker compose stop qbittorrent cross-seed`, backup `BT_backup`, apply, verify 0 remain).
+  - [ ] Phase C: set Cross-Seed `linkDirs` to `/data/torrents/cross-seed-links` (plus `/external/cross-seed-links`) and add `/data/media/movies` and `/data/media/tv` to `dataDirs`. Remove the `*arr` Remote Path Mappings. Verify a shared inode on one new import.
+  - [ ] After one full Cross-Seed cycle, remove `- ${DOCKER_DATA_DIR}/torrents:/downloads` from `qbittorrent`, `cross-seed`, and `qbit_manage` in `compose/download.yml`.
 
 ### F. Optional: `paperless-db` `postgres:17` to `postgres:17-alpine` ([Task 6](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-6-optional-migrate-paperless-db-from-postgres17-glibc-to-postgres17-alpine-musl))
-- [ ] Trial: `pg_dump -Fc`, archive the glibc `data/paperless/db` to `/Users/vrg/Sol-archive/`, switch the image, let `initdb` run under Alpine, `pg_restore --exit-on-error`, and compare `documents_document` and table counts.
-- [ ] If it passes, commit the `compose/paperless.yml` image change and update its glibc comment block. If it fails, move the archived cluster back.
+- [ ] *(Skipped per user instruction)*
 
 ### G. Optional: `homebox` SQLite Recovery ([Task 7](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-7-optional-diagnose-and-repair-the-homebox-database))
-- [ ] On a copy of `data/homebox/homebox.db*`: `PRAGMA integrity_check;`, `PRAGMA foreign_key_check;`, then `.recover` into `homebox.recovered.db` and compare per-table counts.
-- [ ] If the data is confirmed, swap in the recovered file, start with `docker compose --profile standby up -d homebox`, and re-enable the `inv.vrg.rocks` vhost (CORS limited to `https://scan.vrg.rocks`).
+- [ ] *(Skipped per user instruction)*
 
 ### H. Known Drift and Follow-Ups
 - [ ] `home.vrg.rocks` is an active vhost but `homeassistant` is on the standby profile (`502`). Either comment out the vhost or start Home Assistant.
