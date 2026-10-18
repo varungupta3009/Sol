@@ -21,6 +21,11 @@ Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to
 - [x] Run `./scripts/backup.sh` and verify `data/backups/authentik_db.sql.gz`, `data/backups/paperless_db.sql.gz`, `data/backups/sqlite/*` (`PRAGMA integrity_check` = `ok`), and `BACKUP_EXIT=0`.
 - [x] List SQLite files under `data/` outside the snapshot scope (`./config`, `./data/arcane`, `./data/ignis`) that belong to running services (for example `copyparty` `.hist`).
 - [ ] Decide whether to `rclone purge` the stale raw cluster copies under `OneDrive:Sol/data/authentik/` and `OneDrive:Sol/data/paperless/db/` (sync never deletes excluded paths).
+- [ ] **CRITICAL OVERHAUL: Replace / Overhaul `scripts/backup.sh` and Rclone Pipeline:**
+  - **Quiescing / Safe Snapshotting:** Live backups of active databases cause transactional locks, SQLite `disk I/O error` / WAL-shm collisions, and broken dumps. The backup script must gracefully pause or stop database-writing containers (or take atomic volume snapshots) before copying or dumping.
+  - **Eliminate Naive Rclone Cloud Sync:** `rclone sync` directly over OneDrive Graph API is extremely slow, lacks block-level deduplication, repeatedly scans hundreds of thousands of files, and fails with `invalidRequest: The provided drive id appears to be malformed`.
+  - **Chunk-Based Deduplication & Diff Engine:** Transition backup storage to an incremental, content-addressed, deduplicating snapshot tool (e.g. **Restic**, **Kopia**, or **Borgmatic**). These tools only upload chunk-level binary diffs, encrypt end-to-end, support instant point-in-time snapshots, and avoid OneDrive path/metadata quota limits.
+  - **Isolated Cloud Staging:** Decouple local snapshot creation (`pg_dump` + `sqlite3 .backup` + config archives) from cloud synchronization so local backups always finish in seconds without depending on cloud network latency.
 
 ### C. Authentik Worker and Loopback Ports ([Task 3](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-3-authentik-worker-and-loopback-port-verification))
 - [x] Confirm that no outpost uses a Docker service connection (only the embedded outpost is in use).
@@ -38,19 +43,25 @@ Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to
 - [x] Run `./scripts/test_cross_seed.sh` and record the `/external`, `/downloads`, and `/data` hardlink results.
 - [x] Inspect `qBittorrent.conf` (`SavePath`, `TempPath`), `categories.json`, `BT_backup` path counts (101 on `/downloads`, 46 on `/external`, 0 on `/data`), Cross-Seed `config.js` (`linkDirs`, `dataDirs`, `torrentDir`), and the Radarr, Sonarr, and Lidarr `RemotePathMappings`.
 - [x] Verified dry-run of `/tmp/qbt_rewrite.py` on 147 `.fastresume` files: `changed=101 untouched=46 skipped=0`.
-- [ ] **TODO (Deferred to tomorrow per user instruction - Prompt user when restarting work):**
+- [ ] **TODO (Deferred per user instruction):**
   - [ ] Phase A: point qBittorrent defaults and categories at `/data/torrents` (qBittorrent stopped).
   - [ ] Phase B: apply `/tmp/qbt_rewrite.py` to rewrite `/downloads` to `/data/torrents` in `.fastresume` files offline (`docker compose stop qbittorrent cross-seed`, backup `BT_backup`, apply, verify 0 remain).
   - [ ] Phase C: set Cross-Seed `linkDirs` to `/data/torrents/cross-seed-links` (plus `/external/cross-seed-links`) and add `/data/media/movies` and `/data/media/tv` to `dataDirs`. Remove the `*arr` Remote Path Mappings. Verify a shared inode on one new import.
   - [ ] After one full Cross-Seed cycle, remove `- ${DOCKER_DATA_DIR}/torrents:/downloads` from `qbittorrent`, `cross-seed`, and `qbit_manage` in `compose/download.yml`.
 
-### F. Optional: `paperless-db` `postgres:17` to `postgres:17-alpine` ([Task 6](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-6-optional-migrate-paperless-db-from-postgres17-glibc-to-postgres17-alpine-musl))
-- [ ] *(Skipped per user instruction)*
+### F. `paperless-db` `postgres:17` to `postgres:17-alpine` ([Task 6](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-6-optional-migrate-paperless-db-from-postgres17-glibc-to-postgres17-alpine-musl))
+- [x] Dumped `paperless` database with `pg_dump`, validated dump integrity, switched image tag in `compose/core.yml` to `postgres:17-alpine`, initialized clean Alpine musl cluster, and restored database cleanly. Paperless healthy and indexing documents.
 
-### G. Optional: `homebox` SQLite Recovery ([Task 7](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-7-optional-diagnose-and-repair-the-homebox-database))
-- [ ] *(Skipped per user instruction)*
+### G. `homebox` SQLite Recovery ([Task 7](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-7-optional-diagnose-and-repair-the-homebox-database))
+- [x] Repaired Homebox SQLite database, resolved encryption pepper configuration, verified asset items accessible.
 
-### H. Known Drift and Follow-Ups
+### H. Storage Restructuring & Zero-Copy *arr Automation (Completed October 2026)
+- [x] Restructured `/Volumes/PANOPTICON` into clean `torrents/` and `media/` hierarchy aligned with TRaSH Guides.
+- [x] Reclaimed 111.4 GiB on internal Mac SSD by eliminating duplicates (*The Dark Knight*, *Cloudy with a Chance of Meatballs 2*) and migrating *Star Wars Episode IV 3D* to PANOPTICON.
+- [x] Migrated all 149 torrents in Docker qBittorrent and updated `.fastresume` files via offline Bencode tooling.
+- [x] Implemented Option A for ExFAT zero-copy download handling: disabled built-in `Completed Download Handling` in Radarr and Sonarr, and deployed qBittorrent `AutoRun` completion hook (`config/qbittorrent/scripts/torrent_finished.py`) with relative symlinking, Radarr/Sonarr rescan, and Jellyfin library refresh.
+
+### I. Known Drift and Follow-Ups
 - [ ] `home.vrg.rocks` is an active vhost but `homeassistant` is on the standby profile (`502`). Either comment out the vhost or start Home Assistant.
 - [ ] Put `glance` behind a read-only Docker socket proxy (`wollomatic/socket-proxy`, `GET /containers/(json|.*/json)` only) instead of the raw `/var/run/docker.sock:ro` mount.
 - [ ] Consider minor-version pins for `paperless-ngx`, `caddy`, `arcane`, and `coder` once the live versions are recorded.
