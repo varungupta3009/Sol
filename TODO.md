@@ -41,13 +41,10 @@ Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to
 
 ### E. `/downloads` to `/data/torrents` Live Cutover ([Task 5](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-5-unifying-downloads-and-data-qbittorrent-cross-seed-arr))
 - [x] Run `./scripts/test_cross_seed.sh` and record the `/external`, `/downloads`, and `/data` hardlink results.
-- [x] Inspect `qBittorrent.conf` (`SavePath`, `TempPath`), `categories.json`, `BT_backup` path counts (101 on `/downloads`, 46 on `/external`, 0 on `/data`), Cross-Seed `config.js` (`linkDirs`, `dataDirs`, `torrentDir`), and the Radarr, Sonarr, and Lidarr `RemotePathMappings`.
-- [x] Verified dry-run of `/tmp/qbt_rewrite.py` on 147 `.fastresume` files: `changed=101 untouched=46 skipped=0`.
-- [ ] **TODO (Deferred per user instruction):**
-  - [ ] Phase A: point qBittorrent defaults and categories at `/data/torrents` (qBittorrent stopped).
-  - [ ] Phase B: apply `/tmp/qbt_rewrite.py` to rewrite `/downloads` to `/data/torrents` in `.fastresume` files offline (`docker compose stop qbittorrent cross-seed`, backup `BT_backup`, apply, verify 0 remain).
-  - [ ] Phase C: set Cross-Seed `linkDirs` to `/data/torrents/cross-seed-links` (plus `/external/cross-seed-links`) and add `/data/media/movies` and `/data/media/tv` to `dataDirs`. Remove the `*arr` Remote Path Mappings. Verify a shared inode on one new import.
-  - [ ] After one full Cross-Seed cycle, remove `- ${DOCKER_DATA_DIR}/torrents:/downloads` from `qbittorrent`, `cross-seed`, and `qbit_manage` in `compose/download.yml`.
+- [x] Inspect `qBittorrent.conf` (`SavePath`, `TempPath`), `categories.json`, `BT_backup` path counts, Cross-Seed `config.js` (`linkDirs`, `dataDirs`, `torrentDir`), and the Radarr, Sonarr, and Lidarr `RemotePathMappings`.
+- [x] Migrated all 289 `.fastresume` path entries to `/data/torrents` (`212`) and `/external/torrents` (`77`) with `0` remaining on `/downloads`.
+- [x] Removed legacy `- ${DOCKER_DATA_DIR}/torrents:/downloads` bind mount from `qbittorrent`, `cross-seed`, and `qbit_manage` in `compose/download.yml`.
+- [x] Updated `config/cross-seed/config.js` (`maxDataDepth: 3` and `linkDirs: ["/data/torrents/cross-seed-links"]`).
 
 ### F. `paperless-db` `postgres:17` to `postgres:17-alpine` ([Task 6](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-6-optional-migrate-paperless-db-from-postgres17-glibc-to-postgres17-alpine-musl))
 - [x] Dumped `paperless` database with `pg_dump`, validated dump integrity, switched image tag in `compose/core.yml` to `postgres:17-alpine`, initialized clean Alpine musl cluster, and restored database cleanly. Paperless healthy and indexing documents.
@@ -74,46 +71,49 @@ Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to
 - [x] **Hardened `scripts/backup.sh` SQLite Snapshot Mode:** Changed host `sqlite3` backup invocation to `file:${db_file}?immutable=1` so macOS host `sqlite3` never writes to guest Linux VM `-shm` files over VirtioFS.
 
 ### J. Known Drift and Follow-Ups
-- [ ] **Prowlarr Stale Indexer & App Cleanup:** Remove deprecated `TheRARBG` indexer definition (`IndexerNoDefinitionCheck`) and remove or disable unused `Readarr` application sync (`ApplicationLongTermStatusCheck`) in Prowlarr UI (`https://prowlarr.vrg.rocks`).
-- [ ] Put `glance` behind a read-only Docker socket proxy (`wollomatic/socket-proxy`, `GET /containers/(json|.*/json)` only) instead of the raw `/var/run/docker.sock:ro` mount.
-- [ ] Consider minor-version pins for `paperless-ngx`, `caddy`, `arcane`, and `coder` once the live versions are recorded.
-- [ ] Consider switching `PAPERLESS_DBPASS` and `POSTGRES_PASSWORD` from `:-paperless` to `:?` (fail loudly) after item A passes.
+- [x] **Prowlarr Stale Indexer & App Cleanup + DB Recovery:** Recovered corrupted `prowlarr.db` (`Tree 16 page 5865`), deleted deprecated `TheRARBG` indexer (`ID 5`) and retired `Readarr` application sync (`ID 4`), and added `RADARR__`, `SONARR__`, `LIDARR__`, and `PROWLARR__SERVER__ALLOWEDHOSTS` in `compose/media.yml`.
+- [x] **Reclaimed `11.6 GB` of Unused Docker Images & Removed 13 Empty Anonymous Volumes:** Executed `docker image prune -a -f` and removed dangling `0 B` volumes while preserving the `4.775 GB` stopped Coder workspace volume (`coder-8378beda-cda2-40ff-a1ad-bc2613acad62-home`).
+- [ ] **Purge Stale Retired Config Directories (`420.6 MB`) & Legacy Named Volumes (`860 MB`):** Remove retired `config/plex` (`292 MB`), `config/readarr` (`121 MB`), `config/jellyseerr*`, `config/overseerr`, `config/authelia*`, `_backup_pre_refactor`, and legacy `sol_coder_home`, `sol_coder_data`, `sol_database` volumes after final sign-off.
+- [ ] **Separate `VRG's 1st Birthday` Home Videos from Jellyfin `Movies` Library:** Move `VRG's 1st Birthday` (`.mkv` and `.mpeg`) to `data/media/home-videos/` and create a Jellyfin `Home Videos` library (`collectionType=homevideos`) unchecked in Seerr so Seerr stops logging `Unable to find TMDb ID` every 5 minutes.
+- [ ] Put `glance`, `dozzle`, and `beszel-agent` behind a read-only Docker socket proxy (`wollomatic/socket-proxy:1`) instead of raw `/var/run/docker.sock:ro` mounts.
+- [ ] Add `x-logging` (`driver: json-file`, `max-size: "10m"`, `max-file: "3"`) across all 8 `compose/*.yml` files.
 
 ---
 
-## 🌟 Roadmap: Possible Future Containers & Use-Case Expansions
+## 🌟 Roadmap: "Lean is Sexy" Container Replacements & Passion-Project Expansions
 
-High-value self-hosted containers and candidate services removed from the Glance template so they can be properly architected, deployed, and integrated into Sol (`compose/*.yml` and `Caddyfile`) in future iterations:
+Full technical analysis and RAM benchmarks: [10_MEGA_OPTIMIZATION_AND_CONTAINER_ROADMAP.md](docs/system_state/10_MEGA_OPTIMIZATION_AND_CONTAINER_ROADMAP.md).
 
-### 1. Next-Gen Container Discovery & Stack Benchmarking (Research Task)
-- [ ] **Scour, Benchmark, and Curate the Best, Latest, and Most Optimized Containers/Images for Sol:**
-  - Audit every existing container and planned use case on Sol to identify modern, lightweight, lower-RAM, Apple-Silicon-native (ARM64) alternatives or companion tools (similar to replacing `FlareSolverr` with `Byparr` and `Jellyseerr` with `Seerr`).
-  - Evaluate resource footprint on the 16GB M1 Pro, OIDC/Authentik integration, SQLite vs Postgres backing, and active upstream maintenance before adding new services to `compose/*.yml`.
+### 1. Next-Gen Container Discovery & Stack Benchmarking (Completed October 2026)
+- [x] **Scoured, Benchmarked, and Curated the Best, Latest, and Most Optimized 2026 Containers/Images for Sol:**
+  - Completed dual-agent research audit (`10_MEGA_OPTIMIZATION_AND_CONTAINER_ROADMAP.md`) evaluating Go/Rust/C/Svelte/WASM alternatives, RAM footprints on the 16GB M1 Pro, and Apple Silicon native vs OrbStack VM boundaries.
 
-### 2. Download, Network & File Sync Utilities
-- [ ] **QUI (`qui.vrg.rocks`):** Modern, responsive alternative web interface for qBittorrent (`ghcr.io/autobrr/qui` or VueTorrent) optimized for mobile and desktop torrent management.
-- [ ] **PairDrop (`drop.vrg.rocks`):** Local LAN and WebRTC peer-to-peer file sharing (`lscr.io/linuxserver/pairdrop:latest`, port `3000`) for instant cross-device AirDrop between macOS, Android, and Linux.
-- [ ] **Syncthing (`sync.vrg.rocks`):** Continuous decentralized peer-to-peer file synchronization (`lscr.io/linuxserver/syncthing:latest`, port `8384`) for obsidian vaults, dotfiles, and mobile folders.
-- [ ] **OpenSpeedTest (`speed.vrg.rocks`):** Self-hosted HTML5 LAN and Wi-Fi throughput benchmark (`openspeedtest/latest`, port `3000`) to test link speeds between devices and the M1 Pro server.
+### 2. Download, Identity, Backup & Monitoring Replacements
+- [x] **QUI (`qui.vrg.rocks` — DEPLOYED LIVE):** Deployed `ghcr.io/autobrr/qui:latest` (`23.6 MiB` RAM) on port `7476`, initialized user `VRG`, and connected `Sol (qBittorrent)` with local `/data` and `/external` filesystem access. Ready to delete standby `flood` and `qbit_manage`.
+- [ ] **Pocket ID v2 + Tinyauth v5 (`id.vrg.rocks`, `login.vrg.rocks`):** Replace `authentik-server` + `authentik-worker` + `authentik-postgresql` (`502 MiB` RAM, `10%` idle CPU) with `ghcr.io/pocket-id/pocket-id:v2` (Go + SQLite passkey OIDC, `~20 MiB`) and `ghcr.io/steveiliop56/tinyauth:v5` (Go forward-auth for Caddy, `~12 MiB`), saving **`~460 MiB` RAM**.
+- [ ] **Backrest + Restic (`backrest.vrg.rocks`):** Replace raw `rclone sync` with `ghcr.io/garethgeorge/backrest:latest` (Go + Restic + Rclone, `~25 MiB` RAM) backing up `scripts/stage_db_backups.sh` outputs and configs to `/Volumes/PANOPTICON/backups/sol-restic` and `rclone:OneDrive:Sol-Restic` with chunk deduplication and AES-256 encryption.
+- [ ] **Beszel + Dozzle + Gatus behind `wollomatic/socket-proxy`:** Activate the three Go monitoring services (`~65 MiB` combined, with `beszel-agent` running natively on macOS for true Apple Silicon metrics) and delete heavy `uptime-kuma`, `homarr`, and `dockge` from `standby`.
 
-### 3. Document, Knowledge, Bookmark & Recipe Suites
-- [ ] **Stirling-PDF / BentoPDF (`pdf.vrg.rocks`):** Self-hosted PDF manipulation suite (`stirlingtools/stirling-pdf:latest-ultra-lite` or client-side `BentoPDF`) for merging, splitting, OCR, and signing PDFs alongside Paperless-ngx.
-- [ ] **ChangeDetection.io (`cd.vrg.rocks`):** Website visual and text diff watcher (`ghcr.io/dgtlmoon/changedetection.io:latest`, port `5000`) with `ntfy` webhook notifications for restocks, ticket drops, and price alerts.
-- [ ] **Karakeep (formerly Hoarder, `links.vrg.rocks`):** AI-assisted bookmark, article, and media archiver (`ghcr.io/karakeep-app/karakeep:latest`) with full-text search and automatic tagging.
-- [ ] **FreshRSS / Miniflux (`rss.vrg.rocks`):** Self-hosted RSS/Atom feed aggregator (`lscr.io/linuxserver/freshrss:latest` or `miniflux/miniflux:latest`) with Fever/Google Reader API support for mobile readers.
-- [ ] **Mealie (`recipes.vrg.rocks`):** Recipe manager, meal planner, and shopping list organizer (`ghcr.io/mealie-recipes/mealie:latest`) with URL recipe scraping and OpenAI/Gemini ingredient parsing.
+### 3. Zero-Container Static Suite (Served Directly by Caddy from `web/` at `0 MiB` RAM)
+- [ ] **BentoPDF (`pdf.vrg.rocks`):** Client-side WebAssembly PDF toolkit (`alam00000/bentopdf`, `0 MiB` server RAM) replacing bloated Java `Stirling-PDF` (`400+ MiB`).
+- [ ] **IT-Tools (`tools.vrg.rocks`):** 80+ client-side developer utilities (`CorentinTh/it-tools`).
+- [ ] **CyberChef (`chef.vrg.rocks`):** GCHQ client-side data encoding and binary analysis web app (`gchq/CyberChef`).
+- [ ] **OpenSpeedTest (`speed.vrg.rocks`):** Static HTML5 LAN and Wi-Fi throughput benchmark (`openspeedtest/Speed-Test`).
+- [ ] **Excalidraw (`draw.vrg.rocks`):** Static virtual whiteboard (`excalidraw/excalidraw`).
+- [ ] **MediaInfo Web (`mi.vrg.rocks`):** Client-side WebAssembly `mediainfo.js` inspector for verifying 4K UHD Remux Dolby Vision Profile 7 FEL vs 8.1, HDR10 MaxCLL/MaxFALL, and TrueHD Atmos bitstreams.
 
-### 4. Media, Audio, Comics & Live Channels
-- [ ] **Audiobookshelf (`audio.vrg.rocks`):** Self-hosted audiobook and podcast server (`ghcr.io/advplyr/audiobookshelf:latest`) with progress sync across Android and iOS clients.
-- [ ] **Komga (`comics.vrg.rocks`):** Comics, manga, and graphic novel media server (`gotson/komga:latest`) with OPDS and Mihon/Tachiyomi extension support (complementing or replacing standby `kavita`).
-- [ ] **Navidrome (`music.vrg.rocks`):** Lightweight Go-based Subsonic/Airsonic-compatible music streamer (`deluan/navidrome:latest`) paired with `lidarr`.
-- [ ] **Tautulli / Jellystat (`stats.vrg.rocks`):** Deep playback analytics, watch history, and bandwidth telemetry (`cyfershepard/jellystat:latest` for Jellyfin or `tautulli/tautulli`).
-- [ ] **ErsatzTV (`tv.vrg.rocks`):** Custom live IPTV channel builder (`jasongdove/ersatztv:latest`) that turns local Jellyfin libraries and IMAX preshows into scheduled cable-style channels with hardware transcoding.
+### 4. Knowledge, Bookmarks, RSS & Encrypted Sharing
+- [ ] **Readeck (`links.vrg.rocks`):** Single-binary Go + SQLite bookmark and read-later archiver (`codeberg.org/readeck/readeck:latest`, `~25 MiB` RAM) with full-text extraction and EPUB export (replacing heavy Chromium+Meilisearch `Karakeep`).
+- [ ] **Fusion or Miniflux (`rss.vrg.rocks`):** Go + SQLite RSS/Atom reader (`ghcr.io/0x2e/fusion:latest` or `miniflux/miniflux:latest`, `~25-50 MiB` RAM) with Fever/Google Reader API support.
+- [ ] **Enclosed (`send.vrg.rocks`):** Zero-knowledge client-side encrypted notes and self-destructing file drops built with Hono + TypeScript (`corentinth/enclosed:latest`, `~30 MiB` RAM).
+- [ ] **PocketBase Sandbox (`pb.vrg.rocks`):** Single-binary Go + SQLite backend (`~15 MiB` RAM) for Svelte 5 / Datastar / HTMX rapid prototyping.
+- [ ] **Retire Standby Desktop `calibre` & `calibre-web`:** Keep `kavita` (or `crocodilestick/calibre-web-automated` if Kobo/Kindle wireless sync is needed).
 
-### 5. Developer & Visual Canvas Micro-Tools
-- [ ] **Excalidraw (`draw.vrg.rocks`):** Self-hosted virtual whiteboard (`excalidraw/excalidraw:latest`) for hand-drawn architecture diagrams.
-- [ ] **IT-Tools (`tools.vrg.rocks`):** Collection of 80+ browser-based developer utilities (`corentinth/it-tools:latest`) for JWT decoding, hashes, regex, cron, and network conversions.
-- [ ] **CyberChef (`chef.vrg.rocks`):** GCHQ's data encoding, encryption, and binary analysis Swiss Army Knife (`ghcr.io/gchq/cyberchef:latest`).
+### 5. Cinema, IMAX & Airbus Flight Deck Passion Projects
+- [ ] **AirTrail (`fly.vrg.rocks`):** Self-hosted personal flight log and aircraft registry built with **SvelteKit** (`ghcr.io/johanohly/airtrail:latest`, sharing `paperless-db`) with Flightradar24/Flighty import and REST API integration for Glance `/radar`.
+- [ ] **adsb-ultrafeeder (`adsb.vrg.rocks` on Raspberry Pi 3B):** Run `ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest` (`readsb` + `tar1090`) on the Raspberry Pi 3B with the RTL-SDR dongle and reverse-proxy `adsb.vrg.rocks` via Sol's Caddy.
+- [ ] **ErsatzTV (`tv.vrg.rocks` Native macOS):** Run ErsatzTV natively on macOS (for Apple VideoToolbox hardware transcoding) to build 24/7 rolling IMAX, Criterion, and Nolan live channels with `data/media/preshows` bumpers in Jellyfin Live TV.
+- [ ] **Jellyfin Intro Skipper & Playback Reporting Plugins:** Install in-process Jellyfin plugins (`0 MB` extra container RAM) for automatic intro skipping and SQLite watch analytics.
 
 ---
 

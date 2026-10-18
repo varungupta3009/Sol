@@ -476,6 +476,7 @@ The dumps are plain SQL without `--clean`. Use `--restore-dbs` only on empty clu
 | :--- | :--- |
 | [`docs/system_state/00` to `08`](docs/system_state) | Topology, service catalog, storage, ingress, legacy registry, migration plan, config taxonomy, media stack, performance |
 | [`09_ARCHITECTURAL_AUDIT_AND_UPGRADE_PLAN.md`](docs/system_state/09_ARCHITECTURAL_AUDIT_AND_UPGRADE_PLAN.md) | October 2026 `/double-agent` review, five upgrade phases, open live-host checks |
+| [`10_MEGA_OPTIMIZATION_AND_CONTAINER_ROADMAP.md`](docs/system_state/10_MEGA_OPTIMIZATION_AND_CONTAINER_ROADMAP.md) | Live infrastructure audit, SQLite/Servarr/Cross-Seed repairs, `qui` deployment, "Lean is Sexy" 2026 container replacement matrix, and dossier-inspired passion projects |
 | [`FLASH_LOCAL_VERIFICATION_RUNBOOK.md`](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md) | Live host playbook: `.env` reconciliation, backups, Authentik, Byparr, `/data` cutover, Alpine trial, Homebox repair |
 | [`TODO.md`](TODO.md) | Roadmap and open tasks |
 | [`coder/README.md`](coder/README.md) | Coder workspace template |
