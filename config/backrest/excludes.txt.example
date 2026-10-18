@@ -1,0 +1,72 @@
+# ==============================================================================
+# Sol Home Server — Restic & Backrest Exclude Patterns (excludes.txt)
+# ==============================================================================
+# Used by scripts/backup.sh and Backrest plans when backing up /userdata/sol.
+# Excludes all bulk media, raw downloads, live database clusters (which are
+# safely dumped into data/backups/), transient caches, and log files so that
+# bare-metal state restoration is fast, lean, and 100% deterministic.
+# Note: In Restic, directory paths WITHOUT trailing /** match both the directory
+# and its entire subtree without traversing into it.
+# ==============================================================================
+
+# 1. Bulk Media & Raw Torrent Payloads (Symlinks are captured in data/backups/symlinks_manifest.tsv)
+/userdata/sol/data/torrents/movies
+/userdata/sol/data/torrents/tv
+/userdata/sol/data/torrents/books
+/userdata/sol/data/torrents/music
+/userdata/sol/data/torrents/files
+/userdata/sol/data/torrents/temp
+/userdata/sol/data/torrents/incomplete
+/userdata/sol/data/torrents/cross-seed-links
+/userdata/sol/data/media/movies
+/userdata/sol/data/media/tv
+/userdata/sol/data/media/music
+/userdata/sol/data/media/books
+/userdata/sol/data/media/home-videos
+
+# 2. Live Relational Database & Redis Data Directories (Backed up via data/backups/*.sql.gz)
+/userdata/sol/data/authentik
+/userdata/sol/data/paperless/db
+/userdata/sol/data/paperless/redis
+
+# 3. Live SQLite WAL / SHM Journals (Atomic snapshots live in data/backups/sqlite/)
+*-wal
+*-shm
+*.db-journal
+
+# 4. Backrest & Restic Local Cache
+/userdata/sol/data/backrest/cache
+
+# 5. Reproducible Node Modules, Build Caches & Transcode/Trickplay/Metadata Caches
+/userdata/sol/quartz/node_modules
+/userdata/sol/quartz/public
+/userdata/sol/quartz/.quartz-cache
+/userdata/sol/config/jellyfin/cache
+/userdata/sol/config/jellyfin/data/temp
+/userdata/sol/config/jellyfin/data/data/trickplay
+/userdata/sol/config/jellyfin/data/metadata
+/userdata/sol/config/jellyfin_metal/cache
+/userdata/sol/config/jellyfin_metal/data/metadata
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Cache
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Codecs
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Crash Reports
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Media
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Metadata
+/userdata/sol/config/code-server/.cache
+/userdata/sol/config/code-server/Library/Caches
+
+# 6. Ephemeral Container & Host Logs
+/userdata/sol/logs
+logs
+log
+Logs
+*.log
+*.log.*
+
+# 7. macOS Metadata & Temporary Files
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+*.tmp
+*.temp

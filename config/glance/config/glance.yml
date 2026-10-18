@@ -212,6 +212,9 @@ pages:
                   - title: Arcane Docker
                     url: https://arcane.vrg.rocks
                     icon: sh:arcane
+                  - title: Backrest Backups
+                    url: https://backrest.vrg.rocks
+                    icon: sh:restic
                   - title: Router Gateway
                     url: https://router.vrg.rocks
                     icon: sh:openrouter
@@ -694,7 +697,7 @@ pages:
                 icon: sh:cross-seed
 
           - type: monitor
-            title: Core, Knowledge, Dev & Utility Mesh (10 Active Services)
+            title: Core, Knowledge, Dev & Utility Mesh (11 Active Services)
             cache: 1m
             style: compact
             sites:
@@ -734,6 +737,10 @@ pages:
                 url: https://inv.vrg.rocks
                 check-url: http://homebox:7745/api/v1/status
                 icon: sh:homebox
+              - title: Backrest Backups
+                url: https://backrest.vrg.rocks
+                check-url: http://backrest:9898
+                icon: sh:restic
               - title: ntfy Alerts
                 url: https://ntfy.vrg.rocks
                 check-url: http://ntfy:80/v1/health

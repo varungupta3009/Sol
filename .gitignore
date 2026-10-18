@@ -32,6 +32,9 @@
 !/config/rclone/
 /config/rclone/*
 !/config/rclone/filter.txt.example
+!/config/backrest/
+/config/backrest/*
+!/config/backrest/excludes.txt.example
 !/config/glance/
 !/config/glance/**
 

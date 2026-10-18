@@ -2,6 +2,12 @@
 # Sol Infrastructure - Core Services (Proxy, Auth & Stack Manager)
 # ================================================================
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # ----------------------------------------------------------------
   # Caddy: Unified Edge Ingress, Reverse Proxy & Static Web Server
@@ -10,6 +16,7 @@ services:
     container_name: caddy
     image: caddy:${CADDY_TAG:-2}
     restart: unless-stopped
+    logging: *default-logging
     cap_add:
       - NET_ADMIN
     ports:
@@ -39,6 +46,7 @@ services:
     container_name: authentik-postgresql
     image: docker.io/library/postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
     # Database Performance Tuning for Apple Silicon M1 Pro (16GB Unified RAM)
     # shared_buffers: 256MB dedicated memory cache for fast auth session lookups
     # work_mem / effective_cache_size: optimizes sorting and OS cache utilization
@@ -80,6 +88,7 @@ services:
     image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.5.3}
     command: server
     restart: unless-stopped
+    logging: *default-logging
     shm_size: 512mb # Prevents Python Gunicorn worker crashes during heavy SSO flows
     depends_on:
       authentik-postgresql:
@@ -113,6 +122,7 @@ services:
     image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.5.3}
     command: worker
     restart: unless-stopped
+    logging: *default-logging
     # Note: Caddy uses the embedded outpost on authentik-server:9000, so root and
     # /var/run/docker.sock are omitted to avoid host-root privilege exposure.
     shm_size: 512mb # Prevents shared memory exhaustion during background sync tasks
@@ -140,6 +150,7 @@ services:
     container_name: arcane
     image: ghcr.io/getarcaneapp/arcane:${ARCANE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     environment:
       APP_URL: https://arcane.vrg.rocks
       PUID: ${PUID}

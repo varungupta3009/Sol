@@ -2,6 +2,12 @@
 # Sol Infrastructure - Download & Cross-Seeding Pipeline
 # ================================================================
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # ----------------------------------------------------------------
   # qBittorrent: Primary BitTorrent Client with Web UI & WAN Port
@@ -10,6 +16,7 @@ services:
     container_name: qbittorrent
     image: lscr.io/linuxserver/qbittorrent:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -42,6 +49,7 @@ services:
     container_name: qui
     image: ghcr.io/autobrr/qui:latest
     restart: unless-stopped
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     depends_on:
       - qbittorrent
@@ -70,6 +78,7 @@ services:
     image: ghcr.io/cross-seed/cross-seed:6
     command: daemon # Runs in persistent daemon mode with periodic searching
     restart: unless-stopped
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     volumes:
       - ${DOCKER_CONFIG_DIR}/cross-seed:/config
@@ -94,6 +103,7 @@ services:
     image: golift/unpackerr:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     environment:
       TZ: ${TZ}
@@ -121,6 +131,7 @@ services:
     image: ghcr.io/stuffanthings/qbit_manage:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -174,6 +185,7 @@ services:
       - --qbpass=${CORE_PASSWORD:-}
       - --rundir=/config
     restart: always
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     depends_on:
       - qbittorrent

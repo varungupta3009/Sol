@@ -403,6 +403,14 @@ inv.vrg.rocks {
 	reverse_proxy http://homebox:7745
 }
 
+# Backrest Encrypted Restic Backup Engine & WebUI
+backrest.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://backrest:9898
+}
+
 # --- Standby Utility Routes (Uncomment when launching with --profile standby) ---
 # Home Assistant (Bridged to Mac Host via OrbStack host.docker.internal)
 # home.vrg.rocks {

@@ -2,6 +2,12 @@
 # Sol Infrastructure - Knowledge Management & Digital Notes
 # ================================================================
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # ----------------------------------------------------------------
   # Ignis: Obsidian Vault Synchronization & Note Manager
@@ -10,6 +16,7 @@ services:
     container_name: ignis
     image: nobbe/ignis:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -32,6 +39,7 @@ services:
     image: ghcr.io/perber/leafwiki:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     environment:
       LEAFWIKI_JWT_SECRET: ${CORE_PASSWORD:-}
@@ -51,6 +59,7 @@ services:
     image: lscr.io/linuxserver/kavita:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -70,6 +79,7 @@ services:
     image: lscr.io/linuxserver/calibre:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -89,6 +99,7 @@ services:
     image: lscr.io/linuxserver/calibre-web:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}

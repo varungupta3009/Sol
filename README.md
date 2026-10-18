@@ -46,7 +46,7 @@ At a glance:
 
 | Item | Value |
 | :--- | :--- |
-| Active containers (default `docker compose up -d`) | 26 |
+| Active containers (default `docker compose up -d`) | 27 |
 | Profile-gated containers (`standby`, plus `ops` for `rclone`) | 25 |
 | Native host processes | 1 (`jellyfin-metal` on port `8097`) |
 | Compose project and network | `sol`, `sol_default` |
@@ -55,11 +55,11 @@ At a glance:
 ### Key Principles
 
 - **Apple Silicon tuning:** Concurrency is set per service. Paperless runs `PAPERLESS_TASK_WORKERS: 2` and `PAPERLESS_THREADS_PER_WORKER: 2`. Authentik runs `AUTHENTIK_WEB__WORKERS: 2`. Both PostgreSQL clusters use `shared_buffers=256MB`, `work_mem=16MB`, and `effective_cache_size=1GB`. Caddy uses 32 KB streaming buffers on the Jellyfin routes.
-- **Modular Compose:** The root `docker-compose.yml` loads 8 domain files under `compose/` with Compose V2 `include:`. Containers reach each other by name on `sol_default` (for example `http://radarr:7878` or `http://authentik-server:9000`).
-- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 51, and only the 26 active ones start by default.
+- **Modular Compose:** The root `docker-compose.yml` loads 8 domain files under `compose/` with Compose V2 `include:` and `x-logging` JSON log rotation (`max-size: 10m`, `max-file: 3`). Containers reach each other by name on `sol_default` (for example `http://radarr:7878` or `http://authentik-server:9000`).
+- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 52, and only the 27 active ones start by default.
 - **Zero-copy file moves:** A unified `/data` mount on APFS lets downloads hardlink into the media library with no second copy.
 - **Edge security:** Caddy terminates TLS and checks sessions against the Authentik embedded outpost before it forwards requests to admin dashboards. Authentik host ports listen on `127.0.0.1` only.
-- **State vs configuration:** Version control tracks declarative infrastructure only. Application state goes to OneDrive through `scripts/backup.sh` as PostgreSQL dumps, atomic SQLite snapshots, and filtered config files.
+- **State vs configuration:** Version control tracks declarative infrastructure only. Application state is backed up through `scripts/backup.sh` and `backrest` (`backrest.vrg.rocks`) as encrypted, deduplicated Restic snapshots (containing PostgreSQL dumps, WAL-complete SQLite snapshots, media symlink manifests, and Coder workspace archives) to `/Volumes/PANOPTICON/backups/sol-restic` and `rclone:OneDrive:Sol-Restic`.
 
 ---
 
@@ -169,6 +169,7 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 - **[Copyparty](https://github.com/9001/copyparty):** File server and WebDAV for `data/copyparty`, `data/media`, `data/torrents`, and the external drive.
 - **[Homebox](https://github.com/sysadminsmedia/homebox):** Physical asset and home inventory manager (`inv.vrg.rocks`), paired with the mobile barcode scanner PWA (`scan.vrg.rocks`).
+- **[Backrest](https://github.com/garethgeorge/backrest)** (`ghcr.io/garethgeorge/backrest:latest`): Single-binary Go WebUI and scheduler for encrypted, deduplicated Restic backups on port `9898` (`backrest.vrg.rocks`) to `/Volumes/PANOPTICON/backups/sol-restic` and `rclone:OneDrive:Sol-Restic`.
 - **[ntfy](https://ntfy.sh/):** Local pub/sub push notifications.
 - *Standby:* Vaultwarden, n8n, Home Assistant, Rclone (`ops` and `standby`), Rclone GUI.
 
@@ -178,7 +179,7 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 | Set | Count | Services |
 | :--- | :--- | :--- |
-| Active | 26 | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `qui`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `code-server`, `coder`, `copyparty`, `homebox`, `ntfy` |
+| Active | 27 | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `qui`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `code-server`, `coder`, `copyparty`, `homebox`, `backrest`, `ntfy` |
 | Standby | 25 | `gatus`, `dozzle`, `beszel`, `beszel-agent`, `dockge`, `uptime-kuma`, `homarr`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `qbit_manage`, `flood`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `calibre`, `calibre-web`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`), `rclone-gui` |
 | Native | 1 | `jellyfin-metal` |
 
@@ -235,9 +236,11 @@ Linux `link(2)` fails with `EXDEV` across two different mount points, even when 
 │   ├── paperless.yml                     # Paperless-ngx, Redis 8, PostgreSQL 17 | standby: Gotenberg, Tika, AI
 │   ├── knowledge.yml                     # Ignis | standby: LeafWiki, Kavita, Calibre, Calibre-Web
 │   ├── coding.yml                        # code-server, Coder
-│   └── utilities.yml                     # Copyparty, Homebox, ntfy | standby: Vaultwarden, n8n, HA, Rclone
+│   └── utilities.yml                     # Copyparty, Homebox, Backrest, ntfy | standby: Vaultwarden, n8n, HA, Rclone
 │
 ├── config/
+│   ├── backrest/
+│   │   └── excludes.txt.example          # Tracked Restic exclude filter template
 │   ├── glance/
 │   │   ├── assets/
 │   │   │   ├── sol.svg                   # Tracked Glance favicon and logo
@@ -248,8 +251,10 @@ Linux `link(2)` fails with `EXDEV` across two different mount points, even when 
 │       └── filter.txt.example            # Tracked rclone filter template
 │
 ├── scripts/                              # Automation scripts
-│   ├── backup.sh                         # pg_dump + SQLite snapshots + rclone sync with --backup-dir
-│   ├── restore.sh                        # Cloud pull, SQLite restore, psql import, stack start
+│   ├── stage_db_backups.sh               # Pre-backup hook: pg_dump, WAL-complete SQLite snapshots, symlink manifest, Coder tar
+│   ├── backup.sh                         # Staging + encrypted Restic snapshots to PANOPTICON and OneDrive
+│   ├── restore.sh                        # Full Mac reset recovery: Restic pull, DB restore, symlink rebuild, Coder volume restore
+│   ├── merge_overseerr_history.py        # Idempotent historical Overseerr -> Seerr media_request merge utility
 │   ├── setup_jellyfin_metal.py           # Native Jellyfin launcher (--reset re-runs the setup wizard)
 │   └── test_cross_seed.sh                # Cross-Seed permission and hardlink test as PUID:PGID
 │
@@ -310,6 +315,7 @@ Active routes only. Standby routes are commented in the `Caddyfile` and listed i
 | *Bridge only* | `coder` | `7080` | TCP | `coder.vrg.rocks` | Authentik forward auth | **Active** |
 | *Bridge only* | `copyparty` | `3923` | TCP | `files.vrg.rocks`, `copyparty.vrg.rocks` | Authentik + Copyparty ACL | **Active** |
 | *Bridge only* | `homebox` | `7745` | TCP | `inv.vrg.rocks` | Authentik forward auth + Homebox ACL | **Active** |
+| *Bridge only* | `backrest` | `9898` | TCP | `backrest.vrg.rocks` | Authentik forward auth | **Active** |
 | *Bridge only* | `ntfy` | `80` | TCP | `ntfy.vrg.rocks` | ntfy token / open | **Active** |
 | *Static* | `caddy` (`/mind`) | n/a | HTTPS | `mind.vrg.rocks` | Authentik forward auth | **Active** |
 | *Static* | `caddy` (`/fam`) | n/a | HTTPS | `fam.vrg.rocks` | Authentik forward auth | **Active** |
@@ -415,21 +421,25 @@ killall jellyfin
 
 ## Backup and Disaster Recovery
 
-### Running Backups ([`scripts/backup.sh`](scripts/backup.sh))
+### Running Backups ([`scripts/backup.sh`](scripts/backup.sh) & [`scripts/stage_db_backups.sh`](scripts/stage_db_backups.sh))
 
 ```bash
+# Run full staged backup to both PANOPTICON and OneDrive (Restic via Backrest)
 ./scripts/backup.sh
+
+# Run local-only Restic snapshot to /Volumes/PANOPTICON/backups/sol-restic
+./scripts/backup.sh --local-only
 ```
 
 Pipeline:
 
-1. Loads `.env` with a line-by-line parser and runs under `set -euo pipefail`.
-2. Dumps `authentik-postgresql` and `paperless-db` with `pg_dump` to `data/backups/authentik_db.sql.gz` and `data/backups/paperless_db.sql.gz` (temp file, then rename).
-3. Takes online `sqlite3 .backup` snapshots of every `*.db`, `*.sqlite`, and `*.sqlite3` under `./config`, `./data/arcane`, and `./data/ignis` (depth 4) into `data/backups/sqlite/`. Path separators become `__`.
-4. Runs `rclone sync . OneDrive:Sol` with `--filter-from config/rclone/filter.txt` (falls back to `filter.txt.example`), `--backup-dir OneDrive:Sol-archive/<timestamp>`, and `--links`. It uses the host `rclone` when `config/rclone/rclone.conf` exists, and `docker compose --profile ops run --rm rclone` otherwise.
-5. Fails with a non-zero exit when rclone fails. Prunes `logs/backup_*.log` older than 30 days.
-
-The filter excludes live PostgreSQL clusters (`data/authentik/**`, `data/paperless/db/**`), `data/paperless/redis/**`, SQLite `-wal`/`-shm` files, logs, caches, transcodes, and bulk media. It keeps `data/backups/**`, `data/media/preshows/**`, and every `.torrent` and `.fastresume` file. Copy the template once: `cp config/rclone/filter.txt.example config/rclone/filter.txt`.
+1. **Pre-Backup Staging ([`scripts/stage_db_backups.sh`](scripts/stage_db_backups.sh)):**
+   - Dumps `authentik-postgresql` and `paperless-db` with `pg_dump` to `data/backups/authentik_db.sql.gz` and `data/backups/paperless_db.sql.gz` (atomic temp file, then rename).
+   - Copies each SQLite database (`*.db`, `*.sqlite`, `*.sqlite3`) and its `-wal` file (without `-shm`) to a local temp directory and runs `sqlite3 .backup` into `data/backups/sqlite/`, capturing all un-checkpointed WAL transactions without touching guest Linux VM `-shm` mmap files.
+   - Exports all library symlinks in `data/media` and `/Volumes/PANOPTICON/media` to `data/backups/symlinks_manifest.tsv` so relative media symlinks can be reconstructed after a Mac reset.
+   - Archives the persistent Coder workspace Docker volume (`coder-*-home`) to `data/backups/coder_home.tar.gz`.
+2. **Restic Deduplicated Snapshot ([`scripts/backup.sh`](scripts/backup.sh)):**
+   - Runs `restic backup` inside the `backrest` container against `/repos/local-panopticon` (`/Volumes/PANOPTICON/backups/sol-restic`) and `rclone:OneDrive:Sol-Restic` using [`config/backrest/excludes.txt.example`](config/backrest/excludes.txt.example), followed by `restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune`.
 
 ### Restoring on a Fresh Machine ([`scripts/restore.sh`](scripts/restore.sh))
 
@@ -437,24 +447,20 @@ The filter excludes live PostgreSQL clusters (`data/authentik/**`, `data/paperle
 # 1. Clone the repository
 git clone https://github.com/varungupta3009/Sol.git /Users/vrg/Documents/Sol && cd /Users/vrg/Documents/Sol
 
-# 2. Preview the cloud pull (no changes)
+# 2. Preview available Restic snapshots (no changes)
 ./scripts/restore.sh --dry-run
 
-# 3. Pull state from OneDrive:Sol, restore missing SQLite files, import dumps into empty clusters, start the stack
-./scripts/restore.sh --start-stack
-
-# 4. Force PostgreSQL dump import from local state (no cloud pull)
-./scripts/restore.sh --skip-cloud-pull --restore-dbs --start-stack
+# 3. Restore latest snapshot from PANOPTICON (or --from-cloud for OneDrive), rebuild DBs, symlinks, Coder volume, and start stack
+./scripts/restore.sh --restore-dbs --start-stack
 ```
 
 | Flag | Effect |
 | :--- | :--- |
-| `--dry-run` | Runs `rclone copy --dry-run` and exits. |
-| `--skip-cloud-pull` | Uses local files only. |
-| `--restore-dbs` | Imports both `.sql.gz` dumps with `psql` even if a cluster exists. |
-| `--start-stack` | Runs `docker compose up -d`. Without `--restore-dbs`, it imports a dump only when that cluster has no `PG_VERSION`. |
-
-The dumps are plain SQL without `--clean`. Use `--restore-dbs` only on empty clusters, or move the old cluster directory aside first.
+| `--dry-run` | Lists Restic snapshots and previews restore plan without mutating files. |
+| `--from-cloud` | Pulls the Restic snapshot from `rclone:OneDrive:Sol-Restic` instead of local `/Volumes/PANOPTICON/backups/sol-restic`. |
+| `--skip-pull` | Uses already-extracted local files under `data/backups/` without running `restic restore`. |
+| `--restore-dbs` | Imports both PostgreSQL `.sql.gz` dumps (`authentik_db.sql.gz`, `paperless_db.sql.gz`) and restores SQLite snapshots. |
+| `--start-stack` | Recreates media symlinks from `symlinks_manifest.tsv`, restores `coder_home.tar.gz`, and starts all 27 active containers. |
 
 ---
 

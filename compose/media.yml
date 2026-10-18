@@ -2,6 +2,12 @@
 # Sol Infrastructure - Media Streaming & *arr PVR Automation
 # ================================================================
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # ----------------------------------------------------------------
   # Jellyfin: Hardware-Accelerated Media Streaming Server
@@ -10,6 +16,7 @@ services:
     container_name: jellyfin
     image: lscr.io/linuxserver/jellyfin:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -37,6 +44,7 @@ services:
     image: ghcr.io/seerr-team/seerr:latest
     init: true
     restart: unless-stopped
+    logging: *default-logging
     environment:
       TZ: ${TZ}
       LOG_LEVEL: info
@@ -69,6 +77,7 @@ services:
     container_name: radarr
     image: lscr.io/linuxserver/radarr:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -96,6 +105,7 @@ services:
     container_name: sonarr
     image: lscr.io/linuxserver/sonarr:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -123,6 +133,7 @@ services:
     container_name: bazarr
     image: lscr.io/linuxserver/bazarr:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -149,6 +160,7 @@ services:
     container_name: lidarr
     image: lscr.io/linuxserver/lidarr:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -176,6 +188,7 @@ services:
     container_name: prowlarr
     image: lscr.io/linuxserver/prowlarr:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -202,6 +215,7 @@ services:
     container_name: byparr
     image: ghcr.io/thephaseless/byparr:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       TZ: ${TZ}
       LOG_LEVEL: info
@@ -227,6 +241,7 @@ services:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     environment:
       TZ: ${TZ}
       LOG_LEVEL: info
@@ -245,6 +260,7 @@ services:
     image: ghcr.io/recyclarr/recyclarr:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     environment:
       TZ: ${TZ}
@@ -263,6 +279,7 @@ services:
     image: ghcr.io/wizarrrr/wizarr:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     environment:
       PUID: ${PUID}
       PGID: ${PGID}

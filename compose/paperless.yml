@@ -2,6 +2,12 @@
 # Sol Infrastructure - Paperless Document Archival & OCR Engine
 # ================================================================
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # ----------------------------------------------------------------
   # Paperless-ngx: Core Web Server, OCR & Document Ingestion
@@ -10,6 +16,7 @@ services:
     container_name: paperless-webserver
     image: ghcr.io/paperless-ngx/paperless-ngx:${PAPERLESS_TAG:-2}
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       paperless-db:
         condition: service_healthy
@@ -67,6 +74,7 @@ services:
     container_name: paperless-broker
     image: docker.io/library/redis:8-alpine
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - ${DOCKER_DATA_DIR}/paperless/redis:/data
     healthcheck:
@@ -88,6 +96,7 @@ services:
     container_name: paperless-db
     image: docker.io/library/postgres:17-alpine
     restart: unless-stopped
+    logging: *default-logging
     # Database Performance Tuning for Apple Silicon M1 Pro (16GB Unified RAM)
     # shared_buffers: 256MB dedicated memory cache for fast full-text document searches
     command:
@@ -131,6 +140,7 @@ services:
       - "--chromium-disable-javascript=true"
       - "--chromium-allow-list=file:///tmp/.*"
     restart: unless-stopped
+    logging: *default-logging
     labels:
       glance.name: Gotenberg
       glance.parent: paperless
@@ -140,6 +150,7 @@ services:
     image: docker.io/apache/tika:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     labels:
       glance.name: Apache Tika
       glance.parent: paperless
@@ -149,6 +160,7 @@ services:
     image: clusterzx/paperless-ai:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - ${DOCKER_DATA_DIR}/paperless-ai:/app/data
     labels:

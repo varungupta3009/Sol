@@ -215,6 +215,14 @@
     "status": "active",
     "category": "utilities"
   },
+  "backrest": {
+    "internal_port": 9898,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://backrest.vrg.rocks",
+    "status": "active",
+    "category": "utilities"
+  },
   "flaresolverr": {
     "internal_port": 8191,
     "host_port": null,

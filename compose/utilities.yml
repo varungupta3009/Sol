@@ -2,6 +2,12 @@
 # Sol Infrastructure - Storage Logistics, Inventory & Utilities
 # ================================================================
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # ----------------------------------------------------------------
   # Copyparty: High-Speed Multi-Port File Server & WebDAV
@@ -10,6 +16,7 @@ services:
     container_name: copyparty
     image: copyparty/ac:latest
     restart: unless-stopped
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     environment:
       LD_PRELOAD: /usr/lib/libmimalloc-secure.so.NOPE
@@ -44,6 +51,7 @@ services:
     command:
       - serve
     restart: unless-stopped
+    logging: *default-logging
     init: true
     user: "${PUID}:${PGID}"
     environment:
@@ -71,6 +79,7 @@ services:
     container_name: homebox
     image: ghcr.io/sysadminsmedia/homebox:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       HBOX_LOG_LEVEL: info
       HBOX_LOG_FORMAT: text
@@ -87,6 +96,36 @@ services:
       glance.description: Home Inventory Management
 
   # ----------------------------------------------------------------
+  # Backrest: Encrypted Restic Backup Engine, Scheduler & WebUI
+  # ----------------------------------------------------------------
+  backrest:
+    container_name: backrest
+    image: ghcr.io/garethgeorge/backrest:latest
+    restart: unless-stopped
+    logging: *default-logging
+    hostname: sol-backrest
+    environment:
+      BACKREST_DATA: /data
+      BACKREST_CONFIG: /config/config.json
+      XDG_CACHE_HOME: /cache
+      RCLONE_CONFIG: /rclone/rclone.conf
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-${CORE_PASSWORD}}
+      TZ: ${TZ:-Asia/Kolkata}
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/backrest:/config
+      - ${DOCKER_DATA_DIR}/backrest/data:/data
+      - ${DOCKER_DATA_DIR}/backrest/cache:/cache
+      - ${DOCKER_CONFIG_DIR}/rclone:/rclone:ro
+      - ${DOCKER_BASE_DIR}:/userdata/sol
+      - ${EXTERNAL_DRIVE_00}/backups/sol-restic:/repos/local-panopticon
+    labels:
+      glance.id: backrest
+      glance.name: Backrest
+      glance.icon: sh:restic
+      glance.url: https://backrest.vrg.rocks
+      glance.description: Encrypted Restic Backup Engine
+
+  # ----------------------------------------------------------------
   # Standby Utilities & Automation (Launch via: docker compose --profile standby up -d <service>)
   # ----------------------------------------------------------------
 
@@ -95,6 +134,7 @@ services:
     image: vaultwarden/server:latest
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     environment:
       DOMAIN: https://vault.vrg.rocks
     volumes:
@@ -111,6 +151,7 @@ services:
     image: docker.n8n.io/n8nio/n8n
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     environment:
       N8N_HOST: ${N8N_SUBDOMAIN:-n8n}.${N8N_DOMAIN_NAME:-vrg.rocks}
@@ -136,6 +177,7 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     profiles: ["standby"]
     restart: unless-stopped
+    logging: *default-logging
     privileged: true
     network_mode: host
     volumes:
@@ -154,6 +196,7 @@ services:
     image: rclone/rclone:latest
     profiles: ["ops", "standby"]
     restart: "no"
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     volumes:
       - ${DOCKER_CONFIG_DIR}/rclone:/config/rclone
@@ -176,6 +219,7 @@ services:
       --rc-user ${RCLONE_GUI_USER:-admin}
       --rc-pass ${CORE_PASSWORD:-admin}
     restart: unless-stopped
+    logging: *default-logging
     user: "${PUID}:${PGID}"
     volumes:
       - ${DOCKER_CONFIG_DIR}/rclone:/config/rclone
