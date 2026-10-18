@@ -52,8 +52,9 @@ Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to
 ### F. `paperless-db` `postgres:17` to `postgres:17-alpine` ([Task 6](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-6-optional-migrate-paperless-db-from-postgres17-glibc-to-postgres17-alpine-musl))
 - [x] Dumped `paperless` database with `pg_dump`, validated dump integrity, switched image tag in `compose/core.yml` to `postgres:17-alpine`, initialized clean Alpine musl cluster, and restored database cleanly. Paperless healthy and indexing documents.
 
-### G. `homebox` SQLite Recovery ([Task 7](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-7-optional-diagnose-and-repair-the-homebox-database))
+### G. `homebox` SQLite Recovery & Active Promotion ([Task 7](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md#task-7-optional-diagnose-and-repair-the-homebox-database))
 - [x] Repaired Homebox SQLite database, resolved encryption pepper configuration, verified asset items accessible.
+- [x] Promoted `homebox` from `profiles: ["standby"]` back to active in `compose/utilities.yml`, uncommented `inv.vrg.rocks` in `Caddyfile`, updated `ports.json`, removed ad-hoc `kind_nobel` container, and started `homebox` cleanly under Docker Compose.
 
 ### H. Storage Restructuring & Zero-Copy *arr Automation (Completed October 2026)
 - [x] Restructured `/Volumes/PANOPTICON` into clean `torrents/` and `media/` hierarchy aligned with TRaSH Guides.
@@ -61,11 +62,58 @@ Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to
 - [x] Migrated all 149 torrents in Docker qBittorrent and updated `.fastresume` files via offline Bencode tooling.
 - [x] Implemented Option A for ExFAT zero-copy download handling: disabled built-in `Completed Download Handling` in Radarr and Sonarr, and deployed qBittorrent `AutoRun` completion hook (`config/qbittorrent/scripts/torrent_finished.py`) with relative symlinking, Radarr/Sonarr rescan, and Jellyfin library refresh.
 
-### I. Known Drift and Follow-Ups
-- [ ] `home.vrg.rocks` is an active vhost but `homeassistant` is on the standby profile (`502`). Either comment out the vhost or start Home Assistant.
+### I. Live Container Repairs & 3-Page Glance Command Center (Completed October 2026)
+- [x] **3-Page Glance Redesign (`config/glance/config/glance.yml` & `config/glance/assets/user.css`):**
+  - **Page 1 (`Sol`, `/sol`):** Breathable, mobile-first unified landing page combining original `Home` and `Sol` pages with full-width `head-widgets` bang search bar, `sh:` icons, `PANOPTICON (2TB ExFAT)` host stats, and zero phantom services.
+  - **Page 2 (`Stats & Ops`, `/stats`):** Geeky telemetry deck with 6 live `custom-api` cards (`Jellyfin` with fixed `#(NowPlayingItem.Name!=)#` GJSON filter, `Seerr`, `Prowlarr`, `Paperless-ngx`, and split-column `Radarr` + `Sonarr`), 20-container internal health mesh, live Docker socket fleet, and ops scratchpad.
+  - **Page 3 (`Radar`, `/radar`):** Curated feeds for Cinema/IMAX, Pantheon of Interactive Explainers, Compiler-First Web Stack, and Airbus Flight Deck (`bookmarks`, `twitch-channels`, single consolidated `releases` widget without `ghostty-org/ghostty` 404, tabbed `rss` and `videos` groups, and subreddit tabs).
+- [x] **Repaired `arcane` (`arcane.francis.db`):** Restored corrupted `data/arcane/arcane.francis.db` actor runtime database from clean snapshot and removed deprecated `JWT_SECRET` environment variable in `compose/core.yml`.
+- [x] **Repaired `cross-seed` (`cross-seed.db`):** Recovered corrupted `config/cross-seed/cross-seed.db` via `sqlite3 .recover` so RSS and searchee indexing succeed without `SqliteError: database disk image is malformed`.
+- [x] **Fixed `sonarr` -> `qbittorrent` Authentication (`401:Unauthorized`):** Replaced placeholder `00000000` password in Sonarr's qBittorrent DownloadClient settings with the valid `VRG` credential and verified `/api/v3/downloadclient/testall` returns `isValid: true`.
+- [x] **Fixed `radarr` Movie Collection Root Folders:** Updated 8 Movie Collections in `radarr.db` from stale `/external/Movies` to `/external/media/movies` following the PANOPTICON restructuring.
+- [x] **Hardened `scripts/backup.sh` SQLite Snapshot Mode:** Changed host `sqlite3` backup invocation to `file:${db_file}?immutable=1` so macOS host `sqlite3` never writes to guest Linux VM `-shm` files over VirtioFS.
+
+### J. Known Drift and Follow-Ups
+- [ ] **Prowlarr Stale Indexer & App Cleanup:** Remove deprecated `TheRARBG` indexer definition (`IndexerNoDefinitionCheck`) and remove or disable unused `Readarr` application sync (`ApplicationLongTermStatusCheck`) in Prowlarr UI (`https://prowlarr.vrg.rocks`).
 - [ ] Put `glance` behind a read-only Docker socket proxy (`wollomatic/socket-proxy`, `GET /containers/(json|.*/json)` only) instead of the raw `/var/run/docker.sock:ro` mount.
 - [ ] Consider minor-version pins for `paperless-ngx`, `caddy`, `arcane`, and `coder` once the live versions are recorded.
 - [ ] Consider switching `PAPERLESS_DBPASS` and `POSTGRES_PASSWORD` from `:-paperless` to `:?` (fail loudly) after item A passes.
+
+---
+
+## 🌟 Roadmap: Possible Future Containers & Use-Case Expansions
+
+High-value self-hosted containers and candidate services removed from the Glance template so they can be properly architected, deployed, and integrated into Sol (`compose/*.yml` and `Caddyfile`) in future iterations:
+
+### 1. Next-Gen Container Discovery & Stack Benchmarking (Research Task)
+- [ ] **Scour, Benchmark, and Curate the Best, Latest, and Most Optimized Containers/Images for Sol:**
+  - Audit every existing container and planned use case on Sol to identify modern, lightweight, lower-RAM, Apple-Silicon-native (ARM64) alternatives or companion tools (similar to replacing `FlareSolverr` with `Byparr` and `Jellyseerr` with `Seerr`).
+  - Evaluate resource footprint on the 16GB M1 Pro, OIDC/Authentik integration, SQLite vs Postgres backing, and active upstream maintenance before adding new services to `compose/*.yml`.
+
+### 2. Download, Network & File Sync Utilities
+- [ ] **QUI (`qui.vrg.rocks`):** Modern, responsive alternative web interface for qBittorrent (`ghcr.io/autobrr/qui` or VueTorrent) optimized for mobile and desktop torrent management.
+- [ ] **PairDrop (`drop.vrg.rocks`):** Local LAN and WebRTC peer-to-peer file sharing (`lscr.io/linuxserver/pairdrop:latest`, port `3000`) for instant cross-device AirDrop between macOS, Android, and Linux.
+- [ ] **Syncthing (`sync.vrg.rocks`):** Continuous decentralized peer-to-peer file synchronization (`lscr.io/linuxserver/syncthing:latest`, port `8384`) for obsidian vaults, dotfiles, and mobile folders.
+- [ ] **OpenSpeedTest (`speed.vrg.rocks`):** Self-hosted HTML5 LAN and Wi-Fi throughput benchmark (`openspeedtest/latest`, port `3000`) to test link speeds between devices and the M1 Pro server.
+
+### 3. Document, Knowledge, Bookmark & Recipe Suites
+- [ ] **Stirling-PDF / BentoPDF (`pdf.vrg.rocks`):** Self-hosted PDF manipulation suite (`stirlingtools/stirling-pdf:latest-ultra-lite` or client-side `BentoPDF`) for merging, splitting, OCR, and signing PDFs alongside Paperless-ngx.
+- [ ] **ChangeDetection.io (`cd.vrg.rocks`):** Website visual and text diff watcher (`ghcr.io/dgtlmoon/changedetection.io:latest`, port `5000`) with `ntfy` webhook notifications for restocks, ticket drops, and price alerts.
+- [ ] **Karakeep (formerly Hoarder, `links.vrg.rocks`):** AI-assisted bookmark, article, and media archiver (`ghcr.io/karakeep-app/karakeep:latest`) with full-text search and automatic tagging.
+- [ ] **FreshRSS / Miniflux (`rss.vrg.rocks`):** Self-hosted RSS/Atom feed aggregator (`lscr.io/linuxserver/freshrss:latest` or `miniflux/miniflux:latest`) with Fever/Google Reader API support for mobile readers.
+- [ ] **Mealie (`recipes.vrg.rocks`):** Recipe manager, meal planner, and shopping list organizer (`ghcr.io/mealie-recipes/mealie:latest`) with URL recipe scraping and OpenAI/Gemini ingredient parsing.
+
+### 4. Media, Audio, Comics & Live Channels
+- [ ] **Audiobookshelf (`audio.vrg.rocks`):** Self-hosted audiobook and podcast server (`ghcr.io/advplyr/audiobookshelf:latest`) with progress sync across Android and iOS clients.
+- [ ] **Komga (`comics.vrg.rocks`):** Comics, manga, and graphic novel media server (`gotson/komga:latest`) with OPDS and Mihon/Tachiyomi extension support (complementing or replacing standby `kavita`).
+- [ ] **Navidrome (`music.vrg.rocks`):** Lightweight Go-based Subsonic/Airsonic-compatible music streamer (`deluan/navidrome:latest`) paired with `lidarr`.
+- [ ] **Tautulli / Jellystat (`stats.vrg.rocks`):** Deep playback analytics, watch history, and bandwidth telemetry (`cyfershepard/jellystat:latest` for Jellyfin or `tautulli/tautulli`).
+- [ ] **ErsatzTV (`tv.vrg.rocks`):** Custom live IPTV channel builder (`jasongdove/ersatztv:latest`) that turns local Jellyfin libraries and IMAX preshows into scheduled cable-style channels with hardware transcoding.
+
+### 5. Developer & Visual Canvas Micro-Tools
+- [ ] **Excalidraw (`draw.vrg.rocks`):** Self-hosted virtual whiteboard (`excalidraw/excalidraw:latest`) for hand-drawn architecture diagrams.
+- [ ] **IT-Tools (`tools.vrg.rocks`):** Collection of 80+ browser-based developer utilities (`corentinth/it-tools:latest`) for JWT decoding, hashes, regex, cron, and network conversions.
+- [ ] **CyberChef (`chef.vrg.rocks`):** GCHQ's data encoding, encryption, and binary analysis Swiss Army Knife (`ghcr.io/gchq/cyberchef:latest`).
 
 ---
 

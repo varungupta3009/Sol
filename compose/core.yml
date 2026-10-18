@@ -145,7 +145,6 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       ENCRYPTION_KEY: ${ARCANE_ENCRYPTION_KEY}
-      JWT_SECRET: ${ARCANE_JWT_SECRET}
       LOG_LEVEL: info
       LOG_JSON: "false"
       OIDC_ENABLED: "true"

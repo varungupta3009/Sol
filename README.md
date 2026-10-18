@@ -46,8 +46,8 @@ At a glance:
 
 | Item | Value |
 | :--- | :--- |
-| Active containers (default `docker compose up -d`) | 24 |
-| Profile-gated containers (`standby`, plus `ops` for `rclone`) | 26 |
+| Active containers (default `docker compose up -d`) | 25 |
+| Profile-gated containers (`standby`, plus `ops` for `rclone`) | 25 |
 | Native host processes | 1 (`jellyfin-metal` on port `8097`) |
 | Compose project and network | `sol`, `sol_default` |
 | Public domain | `*.vrg.rocks` |
@@ -56,7 +56,7 @@ At a glance:
 
 - **Apple Silicon tuning:** Concurrency is set per service. Paperless runs `PAPERLESS_TASK_WORKERS: 2` and `PAPERLESS_THREADS_PER_WORKER: 2`. Authentik runs `AUTHENTIK_WEB__WORKERS: 2`. Both PostgreSQL clusters use `shared_buffers=256MB`, `work_mem=16MB`, and `effective_cache_size=1GB`. Caddy uses 32 KB streaming buffers on the Jellyfin routes.
 - **Modular Compose:** The root `docker-compose.yml` loads 8 domain files under `compose/` with Compose V2 `include:`. Containers reach each other by name on `sol_default` (for example `http://radarr:7878` or `http://authentik-server:9000`).
-- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 50, and only the 24 active ones start by default.
+- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 50, and only the 25 active ones start by default.
 - **Zero-copy file moves:** A unified `/data` mount on APFS lets downloads hardlink into the media library with no second copy.
 - **Edge security:** Caddy terminates TLS and checks sessions against the Authentik embedded outpost before it forwards requests to admin dashboards. Authentik host ports listen on `127.0.0.1` only.
 - **State vs configuration:** Version control tracks declarative infrastructure only. Application state goes to OneDrive through `scripts/backup.sh` as PostgreSQL dumps, atomic SQLite snapshots, and filtered config files.
@@ -124,7 +124,7 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 ### 2. Monitoring and Dashboards ([`compose/monitoring.yml`](compose/monitoring.yml))
 
-- **[Glance](https://github.com/glanceapp/glance):** Declarative 3-page command center ([`config/glance/config/glance.yml`](config/glance/config/glance.yml)) with custom Catppuccin Mocha / GM3 theme presets ([`config/glance/assets/user.css`](config/glance/assets/user.css)), internal Docker bridge health monitors, `custom-api` telemetry for Jellyfin, Jellyfin Metal, Seerr, Radarr, Sonarr, Prowlarr, and Paperless-ngx, live Docker socket container status, and `/media/panopticon` 22TB drive telemetry (`dash.vrg.rocks`, `sol.vrg.rocks`).
+- **[Glance](https://github.com/glanceapp/glance):** Declarative 3-page command center ([`config/glance/config/glance.yml`](config/glance/config/glance.yml)) with `Sol` (`/sol`), `Stats & Ops` (`/stats`), and `Radar` (`/radar`), custom Catppuccin Mocha / GM3 theme presets ([`config/glance/assets/user.css`](config/glance/assets/user.css)), internal Docker bridge health monitors, `custom-api` telemetry for Jellyfin, Seerr, Radarr, Sonarr, Prowlarr, and Paperless-ngx, live Docker socket container status, and `/media/panopticon` 2TB ExFAT drive telemetry (`dash.vrg.rocks`, `sol.vrg.rocks`).
 - *Standby:* Gatus, Dozzle, Beszel, Beszel Agent, Dockge, Uptime Kuma, Homarr.
 
 ### 3. Media and Servarr ([`compose/media.yml`](compose/media.yml))
@@ -148,7 +148,7 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 - **[Paperless-ngx](https://docs.paperless-ngx.com/)** (`paperless-ngx:${PAPERLESS_TAG:-2}`): Document archive with OCR (`eng`, plus `hin kan pan`) and Authentik OIDC.
 - **Redis broker:** `redis:8-alpine`.
-- **PostgreSQL 17:** `postgres:17` (Debian, glibc). It stays off Alpine to keep collation compatible with the existing `data/paperless/db` cluster.
+- **PostgreSQL 17:** `postgres:17-alpine` (migrated via `pg_dump` and `pg_restore` in October 2026).
 - **Pre-consumption hook (`pre-consumption.py`):** Uses `pikepdf` to decrypt statement PDFs and extract embedded attachments.
 - **Push notifications (`ntfy_notify.sh`):** Sends an ntfy alert when a document finishes processing.
 - *Standby:* Gotenberg, Apache Tika, Paperless-AI.
@@ -166,8 +166,9 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 ### 8. Storage and Utilities ([`compose/utilities.yml`](compose/utilities.yml))
 
 - **[Copyparty](https://github.com/9001/copyparty):** File server and WebDAV for `data/copyparty`, `data/media`, `data/torrents`, and the external drive.
+- **[Homebox](https://github.com/sysadminsmedia/homebox):** Physical asset and home inventory manager (`inv.vrg.rocks`), paired with the mobile barcode scanner PWA (`scan.vrg.rocks`).
 - **[ntfy](https://ntfy.sh/):** Local pub/sub push notifications.
-- *Standby:* Homebox (pending DB repair), Vaultwarden, n8n, Home Assistant, Rclone (`ops` and `standby`), Rclone GUI.
+- *Standby:* Vaultwarden, n8n, Home Assistant, Rclone (`ops` and `standby`), Rclone GUI.
 
 ---
 
@@ -175,8 +176,8 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 | Set | Count | Services |
 | :--- | :--- | :--- |
-| Active | 24 | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `code-server`, `coder`, `copyparty`, `ntfy` |
-| Standby | 26 | `gatus`, `dozzle`, `beszel`, `beszel-agent`, `dockge`, `uptime-kuma`, `homarr`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `qbit_manage`, `flood`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `calibre`, `calibre-web`, `homebox`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`), `rclone-gui` |
+| Active | 25 | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `code-server`, `coder`, `copyparty`, `homebox`, `ntfy` |
+| Standby | 25 | `gatus`, `dozzle`, `beszel`, `beszel-agent`, `dockge`, `uptime-kuma`, `homarr`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `qbit_manage`, `flood`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `calibre`, `calibre-web`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`), `rclone-gui` |
 | Native | 1 | `jellyfin-metal` |
 
 Each standby service has a matching commented vhost in the [`Caddyfile`](Caddyfile) under a `--- Standby ... Routes ---` header. To bring one online:
@@ -305,6 +306,7 @@ Active routes only. Standby routes are commented in the `Caddyfile` and listed i
 | *Bridge only* | `code-server` | `8443` | TCP | `code.vrg.rocks` | Authentik forward auth + code-server password | **Active** |
 | *Bridge only* | `coder` | `7080` | TCP | `coder.vrg.rocks` | Authentik forward auth | **Active** |
 | *Bridge only* | `copyparty` | `3923` | TCP | `files.vrg.rocks`, `copyparty.vrg.rocks` | Authentik + Copyparty ACL | **Active** |
+| *Bridge only* | `homebox` | `7745` | TCP | `inv.vrg.rocks` | Authentik forward auth + Homebox ACL | **Active** |
 | *Bridge only* | `ntfy` | `80` | TCP | `ntfy.vrg.rocks` | ntfy token / open | **Active** |
 | *Static* | `caddy` (`/mind`) | n/a | HTTPS | `mind.vrg.rocks` | Authentik forward auth | **Active** |
 | *Static* | `caddy` (`/fam`) | n/a | HTTPS | `fam.vrg.rocks` | Authentik forward auth | **Active** |
@@ -322,7 +324,7 @@ Run every command from the repository root. Compose reads `.env` from the projec
 ### Docker Lifecycle
 
 ```bash
-# Start the 24 active services
+# Start the 25 active services
 docker compose up -d
 
 # Status and logs
@@ -333,7 +335,7 @@ docker compose logs -f paperless-webserver
 # Validate the full model (all 50 service definitions)
 docker compose config -q
 
-# List services that start by default (expect 24)
+# List services that start by default (expect 25)
 docker compose config --services | wc -l
 
 # Stop all containers

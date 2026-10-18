@@ -91,12 +91,15 @@ else
 fi
 
 # 1c. Online Atomic SQLite Snapshots (Prevents live WAL/SHM split-brain during rclone sync)
+# Note: On macOS + OrbStack/VirtioFS, opening a live container's WAL-mode SQLite DB in read-write
+# mode from the macOS host kernel can desynchronize the guest Linux VM's mmap-backed -shm index.
+# Using URI `?immutable=1` (or running inside the Linux VM) avoids host-to-guest -shm writes.
 if command -v sqlite3 &> /dev/null; then
     log "Creating atomic online SQLite snapshots in data/backups/sqlite/..."
     while IFS= read -r -d '' db_file; do
         rel_path="${db_file#./}"
         safe_name="${rel_path//\//__}"
-        if sqlite3 "$db_file" ".timeout 5000" ".backup './data/backups/sqlite/${safe_name}'" 2>/dev/null; then
+        if sqlite3 "file:${db_file}?immutable=1" ".backup './data/backups/sqlite/${safe_name}'" 2>/dev/null; then
             log "  ✓ Snapshot: ${rel_path} -> data/backups/sqlite/${safe_name}"
         else
             log "  ⚠ Skipped locked or non-SQLite file: ${rel_path}"

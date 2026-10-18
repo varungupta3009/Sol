@@ -90,6 +90,7 @@ pre,
 }
 
 .sol-badge {
+  display: inline-block;
   font-family: var(--font-mono);
   font-size: var(--font-size-tiny);
   text-transform: uppercase;
@@ -100,11 +101,44 @@ pre,
   background: var(--color-background);
 }
 
+.sol-badge--ok {
+  color: hsl(var(--color-positive));
+  border-color: hsla(var(--color-positive), 0.4);
+  background: hsla(var(--color-positive), 0.1);
+}
+
+.sol-badge--info {
+  color: hsl(var(--color-primary));
+  border-color: hsla(var(--color-primary), 0.4);
+  background: hsla(var(--color-primary), 0.1);
+}
+
+.sol-badge--warn {
+  color: hsl(var(--color-negative));
+  border-color: hsla(var(--color-negative), 0.4);
+  background: hsla(var(--color-negative), 0.1);
+}
+
 .sol-hint {
   font-size: var(--font-size-h5);
   color: var(--color-text-subdue);
   padding: 0.5rem 0.25rem;
   text-align: center;
+}
+
+/* Mobile viewport refinements */
+@media (max-width: 640px) {
+  .sol-stat-grid {
+    gap: 0.45rem;
+  }
+
+  .sol-stat-card {
+    padding: 0.5rem 0.35rem;
+  }
+
+  .bookmarks-group {
+    margin-bottom: 0.75rem;
+  }
 }
 
 /* Ultrawide display responsiveness */

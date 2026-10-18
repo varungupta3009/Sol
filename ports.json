@@ -204,8 +204,7 @@
     "host_port": null,
     "protocol": "HTTP",
     "url": "https://inv.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
+    "status": "active",
     "category": "utilities"
   },
   "flaresolverr": {

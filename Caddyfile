@@ -371,6 +371,30 @@ ntfy.vrg.rocks {
 	reverse_proxy http://ntfy:80
 }
 
+# Homebox Physical Inventory Manager (CORS restricted strictly to https://scan.vrg.rocks)
+inv.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+
+	@allowed_origins header Origin https://scan.vrg.rocks
+	header @allowed_origins {
+		Access-Control-Allow-Origin "https://scan.vrg.rocks"
+		Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+		Access-Control-Allow-Headers "Origin, Content-Type, Authorization, Accept"
+		Access-Control-Allow-Credentials true
+		Vary Origin
+	}
+
+	@options {
+		method OPTIONS
+		header Origin https://scan.vrg.rocks
+	}
+	respond @options 204
+
+	reverse_proxy http://homebox:7745
+}
+
 # --- Standby Utility Routes (Uncomment when launching with --profile standby) ---
 # Home Assistant (Bridged to Mac Host via OrbStack host.docker.internal)
 # home.vrg.rocks {
@@ -378,30 +402,6 @@ ntfy.vrg.rocks {
 # 	import security_headers
 # 	import authentik
 # 	reverse_proxy http://host.docker.internal:8123
-# }
-#
-# Homebox Physical Inventory Manager (CORS restricted strictly to https://scan.vrg.rocks)
-# inv.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import authentik
-#
-# 	@allowed_origins header Origin https://scan.vrg.rocks
-# 	header @allowed_origins {
-# 		Access-Control-Allow-Origin "https://scan.vrg.rocks"
-# 		Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
-# 		Access-Control-Allow-Headers "Origin, Content-Type, Authorization, Accept"
-# 		Access-Control-Allow-Credentials true
-# 		Vary Origin
-# 	}
-#
-# 	@options {
-# 		method OPTIONS
-# 		header Origin https://scan.vrg.rocks
-# 	}
-# 	respond @options 204
-#
-# 	reverse_proxy http://homebox:7745
 # }
 #
 # vault.vrg.rocks, pass.vrg.rocks {

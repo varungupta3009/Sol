@@ -65,12 +65,11 @@ services:
       glance.description: Push Notification Service
 
   # ----------------------------------------------------------------
-  # Standby Utilities & Automation (Launch via: docker compose --profile standby up -d <service>)
+  # Homebox: Physical Asset & Home Inventory Management
   # ----------------------------------------------------------------
   homebox:
     container_name: homebox
     image: ghcr.io/sysadminsmedia/homebox:latest
-    profiles: ["standby"]
     restart: unless-stopped
     environment:
       HBOX_LOG_LEVEL: info
@@ -85,7 +84,11 @@ services:
       glance.name: Homebox
       glance.icon: sh:homebox
       glance.url: https://inv.vrg.rocks
-      glance.description: Home Inventory Management (Standby)
+      glance.description: Home Inventory Management
+
+  # ----------------------------------------------------------------
+  # Standby Utilities & Automation (Launch via: docker compose --profile standby up -d <service>)
+  # ----------------------------------------------------------------
 
   vaultwarden:
     container_name: vaultwarden
