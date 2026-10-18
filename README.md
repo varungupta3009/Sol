@@ -46,7 +46,7 @@ At a glance:
 
 | Item | Value |
 | :--- | :--- |
-| Active containers (default `docker compose up -d`) | 25 |
+| Active containers (default `docker compose up -d`) | 26 |
 | Profile-gated containers (`standby`, plus `ops` for `rclone`) | 25 |
 | Native host processes | 1 (`jellyfin-metal` on port `8097`) |
 | Compose project and network | `sol`, `sol_default` |
@@ -56,7 +56,7 @@ At a glance:
 
 - **Apple Silicon tuning:** Concurrency is set per service. Paperless runs `PAPERLESS_TASK_WORKERS: 2` and `PAPERLESS_THREADS_PER_WORKER: 2`. Authentik runs `AUTHENTIK_WEB__WORKERS: 2`. Both PostgreSQL clusters use `shared_buffers=256MB`, `work_mem=16MB`, and `effective_cache_size=1GB`. Caddy uses 32 KB streaming buffers on the Jellyfin routes.
 - **Modular Compose:** The root `docker-compose.yml` loads 8 domain files under `compose/` with Compose V2 `include:`. Containers reach each other by name on `sol_default` (for example `http://radarr:7878` or `http://authentik-server:9000`).
-- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 50, and only the 25 active ones start by default.
+- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 51, and only the 26 active ones start by default.
 - **Zero-copy file moves:** A unified `/data` mount on APFS lets downloads hardlink into the media library with no second copy.
 - **Edge security:** Caddy terminates TLS and checks sessions against the Authentik embedded outpost before it forwards requests to admin dashboards. Authentik host ports listen on `127.0.0.1` only.
 - **State vs configuration:** Version control tracks declarative infrastructure only. Application state goes to OneDrive through `scripts/backup.sh` as PostgreSQL dumps, atomic SQLite snapshots, and filtered config files.
@@ -106,6 +106,7 @@ At a glance:
 | - Prowlarr (:9696)     |
 | - Byparr (:8191)       |
 | - qBittorrent (:8080)  |
+| - QUI (:7476)          |
 | - Cross-Seed (:2468)   |
 +------------------------+
 ```
@@ -140,8 +141,9 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 ### 4. Downloads and Cross-Seeding ([`compose/download.yml`](compose/download.yml))
 
 - **[qBittorrent](https://www.qbittorrent.org/):** Torrent client with WAN peer port `42069` TCP/UDP and the WebUI on `8080`.
+- **[QUI](https://github.com/autobrr/qui)** (`ghcr.io/autobrr/qui:latest`): Single-binary Go WebUI for qBittorrent and Cross-Seed on port `7476` (`qui.vrg.rocks`) with multi-instance support, orphan file scanning, and hardlink/reflink inspection.
 - **[Cross-Seed](https://cross-seed.org/)** (`cross-seed:6`): Daemon that finds and injects matching torrents across trackers. Runs as `${PUID}:${PGID}`.
-- Both mount `${DOCKER_DATA_DIR}/torrents:/downloads` and `${DOCKER_DATA_DIR}:/data`. The dual mount is a staging step for the `/data/torrents` cutover (see [TODO.md](TODO.md)).
+- All three mount `${DOCKER_DATA_DIR}:/data` and `${EXTERNAL_DRIVE_00}:/external` (the legacy `/downloads` mount has been retired after migrating all 289 `.fastresume` files to `/data/torrents` and `/external/torrents`).
 - *Standby:* Unpackerr, qbit_manage, Flood.
 
 ### 5. Document Management and OCR ([`compose/paperless.yml`](compose/paperless.yml))
@@ -176,7 +178,7 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 | Set | Count | Services |
 | :--- | :--- | :--- |
-| Active | 25 | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `code-server`, `coder`, `copyparty`, `homebox`, `ntfy` |
+| Active | 26 | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `qui`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `code-server`, `coder`, `copyparty`, `homebox`, `ntfy` |
 | Standby | 25 | `gatus`, `dozzle`, `beszel`, `beszel-agent`, `dockge`, `uptime-kuma`, `homarr`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `qbit_manage`, `flood`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `calibre`, `calibre-web`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`), `rclone-gui` |
 | Native | 1 | `jellyfin-metal` |
 
@@ -229,11 +231,11 @@ Linux `link(2)` fails with `EXDEV` across two different mount points, even when 
 │   ├── core.yml                          # Caddy, Authentik (server, worker, PostgreSQL 16), Arcane
 │   ├── monitoring.yml                    # Glance | standby: Gatus, Dozzle, Beszel, Dockge, Kuma, Homarr
 │   ├── media.yml                         # Jellyfin, Seerr, *arr, Prowlarr, Byparr | standby: FlareSolverr, Recyclarr, Wizarr
-│   ├── download.yml                      # qBittorrent, Cross-Seed | standby: Unpackerr, qbit_manage, Flood
+│   ├── download.yml                      # qBittorrent, QUI, Cross-Seed | standby: Unpackerr, qbit_manage, Flood
 │   ├── paperless.yml                     # Paperless-ngx, Redis 8, PostgreSQL 17 | standby: Gotenberg, Tika, AI
 │   ├── knowledge.yml                     # Ignis | standby: LeafWiki, Kavita, Calibre, Calibre-Web
 │   ├── coding.yml                        # code-server, Coder
-│   └── utilities.yml                     # Copyparty, ntfy | standby: Homebox, Vaultwarden, n8n, HA, Rclone
+│   └── utilities.yml                     # Copyparty, Homebox, ntfy | standby: Vaultwarden, n8n, HA, Rclone
 │
 ├── config/
 │   ├── glance/
@@ -298,6 +300,7 @@ Active routes only. Standby routes are commented in the `Caddyfile` and listed i
 | *Bridge only* | `prowlarr` | `9696` | TCP | `prowlarr.vrg.rocks` | Authentik forward auth | **Active** |
 | *Bridge only* | `byparr` | `8191` | TCP | `byparr.vrg.rocks`, `flaresolverr.vrg.rocks` (alias `flaresolverr`) | Authentik forward auth | **Active** |
 | *Bridge only* | `qbittorrent` | `8080` | TCP | `qb.vrg.rocks`, `qbittorrent.vrg.rocks` | qBittorrent native (Android app) | **Active** |
+| *Bridge only* | `qui` | `7476` | TCP | `qui.vrg.rocks` | Authentik forward auth + QUI login | **Active** |
 | *Bridge only* | `cross-seed` | `2468` | TCP | `cs.vrg.rocks` | Authentik forward auth | **Active** |
 | *Bridge only* | `paperless-webserver` | `8000` | TCP | `docs.vrg.rocks`, `paperless.vrg.rocks` | Paperless OIDC (Authentik) | **Active** |
 | *Bridge only* | `paperless-broker` | `6379` | TCP | `paperless-broker:6379` | Internal | **Active** |

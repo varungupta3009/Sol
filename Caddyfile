@@ -249,6 +249,14 @@ qb.vrg.rocks, qbittorrent.vrg.rocks {
 	reverse_proxy http://qbittorrent:8080
 }
 
+# QUI Modern Go Web UI for qBittorrent
+qui.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://qui:7476
+}
+
 # Cross-Seed Multi-Tracker Daemon
 cs.vrg.rocks {
 	import optimize

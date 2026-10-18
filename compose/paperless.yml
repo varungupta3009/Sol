@@ -79,11 +79,10 @@ services:
       glance.parent: paperless
 
   # ----------------------------------------------------------------
-  # Paperless Database: PostgreSQL 17 Relational Store
-  # Note: Retained on Debian 'postgres:17' (glibc) rather than 'postgres:17-alpine' (musl)
-  # to preserve C-library collation compatibility with the existing data/paperless/db
-  # cluster volume. See TODO.md and docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md for the
-  # optional pg_dump/pg_restore migration procedure if switching to Alpine later.
+  # Paperless Database: PostgreSQL 17 Relational Store (Alpine musl)
+  # Note: Migrated from Debian 'postgres:17' (glibc) to 'postgres:17-alpine' (musl)
+  # via pg_dump/pg_restore in October 2026 for lower RAM overhead and unified
+  # Alpine parity across the Sol database tier.
   # ----------------------------------------------------------------
   paperless-db:
     container_name: paperless-db

@@ -127,6 +127,14 @@
     "status": "active",
     "category": "download"
   },
+  "qui": {
+    "internal_port": 7476,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://qui.vrg.rocks",
+    "status": "active",
+    "category": "download"
+  },
   "cross-seed": {
     "internal_port": 2468,
     "host_port": null,

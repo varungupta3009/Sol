@@ -99,6 +99,9 @@ if command -v sqlite3 &> /dev/null; then
     while IFS= read -r -d '' db_file; do
         rel_path="${db_file#./}"
         safe_name="${rel_path//\//__}"
+        if ! head -c 15 "$db_file" 2>/dev/null | grep -q "SQLite format 3"; then
+            continue
+        fi
         if sqlite3 "file:${db_file}?immutable=1" ".backup './data/backups/sqlite/${safe_name}'" 2>/dev/null; then
             log "  ✓ Snapshot: ${rel_path} -> data/backups/sqlite/${safe_name}"
         else

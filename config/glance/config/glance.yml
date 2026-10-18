@@ -159,6 +159,9 @@ pages:
                   - title: qBittorrent
                     url: https://qb.vrg.rocks
                     icon: sh:qbittorrent
+                  - title: QUI
+                    url: https://qui.vrg.rocks
+                    icon: sh:qbittorrent
                   - title: Cross-Seed
                     url: https://cs.vrg.rocks
                     icon: sh:cross-seed
@@ -641,7 +644,7 @@ pages:
                   {{ end }}
 
           - type: monitor
-            title: Media, PVR & Download Mesh (10 Active Services)
+            title: Media, PVR & Download Mesh (11 Active Services)
             cache: 1m
             style: compact
             sites:
@@ -680,6 +683,10 @@ pages:
               - title: qBittorrent
                 url: https://qb.vrg.rocks
                 check-url: http://qbittorrent:8080
+                icon: sh:qbittorrent
+              - title: QUI
+                url: https://qui.vrg.rocks
+                check-url: http://qui:7476
                 icon: sh:qbittorrent
               - title: Cross-Seed
                 url: https://cs.vrg.rocks

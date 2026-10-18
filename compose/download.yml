@@ -18,8 +18,7 @@ services:
       TORRENTING_PORT: ${QBITTORRENT_TORRENTING_PORT:-42069}
     volumes:
       - ${DOCKER_CONFIG_DIR}/qbittorrent:/config
-      - ${DOCKER_DATA_DIR}/torrents:/downloads
-      - ${DOCKER_DATA_DIR}:/data # Unified root mount staged alongside /downloads for zero-copy migration
+      - ${DOCKER_DATA_DIR}:/data
       - ${EXTERNAL_DRIVE_00}:/external
       # - ${EXTERNAL_DRIVE_01}:/ext01
     ports:
@@ -37,6 +36,33 @@ services:
       glance.description: BitTorrent Client
 
   # ----------------------------------------------------------------
+  # QUI: Ultra-Lean Go Web Interface for qBittorrent & Cross-Seed
+  # ----------------------------------------------------------------
+  qui:
+    container_name: qui
+    image: ghcr.io/autobrr/qui:latest
+    restart: unless-stopped
+    user: "${PUID}:${PGID}"
+    depends_on:
+      - qbittorrent
+    environment:
+      TZ: ${TZ}
+      QUI__HOST: 0.0.0.0
+      QUI__PORT: 7476
+      QUI__LOG_LEVEL: INFO
+    volumes:
+      - ${DOCKER_CONFIG_DIR}/qui:/config
+      - ${DOCKER_DATA_DIR}:/data
+      - ${EXTERNAL_DRIVE_00}:/external
+    labels:
+      glance.id: qui
+      glance.name: QUI
+      glance.icon: sh:qbittorrent
+      glance.url: https://qui.vrg.rocks
+      glance.parent: qbittorrent
+      glance.description: Modern Go Web UI for qBittorrent
+
+  # ----------------------------------------------------------------
   # Cross-Seed: Automated Multi-Tracker Cross-Seeding Daemon
   # ----------------------------------------------------------------
   cross-seed:
@@ -47,7 +73,6 @@ services:
     user: "${PUID}:${PGID}"
     volumes:
       - ${DOCKER_CONFIG_DIR}/cross-seed:/config
-      - ${DOCKER_DATA_DIR}/torrents:/downloads
       - ${DOCKER_DATA_DIR}:/data # Exposes /data/torrents and /data/media for library-wide dataDirs scanning
       - ${EXTERNAL_DRIVE_00}:/external
       # - ${EXTERNAL_DRIVE_01}:/ext01
