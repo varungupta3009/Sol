@@ -262,8 +262,8 @@ def main():
 
     print("8. Creating Media Libraries (Internal SSD + PANOPTICON USB)...")
     movie_paths = ["/Users/vrg/Documents/Sol/data/media/movies"]
-    if os.path.exists("/Volumes/PANOPTICON/Movies"):
-        movie_paths.append("/Volumes/PANOPTICON/Movies")
+    if os.path.exists("/Volumes/PANOPTICON/media/movies"):
+        movie_paths.append("/Volumes/PANOPTICON/media/movies")
 
     movie_options = {
         "Enabled": True,
@@ -292,8 +292,8 @@ def main():
     )
 
     tv_paths = ["/Users/vrg/Documents/Sol/data/media/tv"]
-    if os.path.exists("/Volumes/PANOPTICON/TV Shows"):
-        tv_paths.append("/Volumes/PANOPTICON/TV Shows")
+    if os.path.exists("/Volumes/PANOPTICON/media/tv"):
+        tv_paths.append("/Volumes/PANOPTICON/media/tv")
 
     tv_options = {
         "Enabled": True,

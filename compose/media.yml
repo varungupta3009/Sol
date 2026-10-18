@@ -20,6 +20,8 @@ services:
       - ${EXTERNAL_DRIVE_00}:/media/external
       # - ${EXTERNAL_DRIVE_01}:/media/ext01
       # - ${EXTERNAL_DRIVE_02}:/media/ext02
+    tmpfs:
+      - /tmp/jellyfin:size=512m # Keeps Trickplay & transcode frame buffers in RAM off the APFS SSD
     labels:
       glance.id: jellyfin
       glance.name: Jellyfin
@@ -71,6 +73,7 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
+      RADARR__SERVER__ALLOWEDHOSTS: "radarr.vrg.rocks,radarr,localhost,127.0.0.1"
     volumes:
       - ${DOCKER_CONFIG_DIR}/radarr:/config
       - ${DOCKER_DATA_DIR}:/data # Unified root mount for zero-copy APFS atomic hardlinks
@@ -97,6 +100,7 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
+      SONARR__SERVER__ALLOWEDHOSTS: "sonarr.vrg.rocks,sonarr,localhost,127.0.0.1"
     volumes:
       - ${DOCKER_CONFIG_DIR}/sonarr:/config
       - ${DOCKER_DATA_DIR}:/data # Unified root mount for zero-copy APFS atomic hardlinks
@@ -149,6 +153,7 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
+      LIDARR__SERVER__ALLOWEDHOSTS: "lidarr.vrg.rocks,lidarr,localhost,127.0.0.1"
     volumes:
       - ${DOCKER_CONFIG_DIR}/lidarr:/config
       - ${DOCKER_DATA_DIR}:/data
@@ -175,6 +180,7 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
+      PROWLARR__SERVER__ALLOWEDHOSTS: "prowlarr.vrg.rocks,prowlarr,localhost,127.0.0.1"
     volumes:
       - ${DOCKER_CONFIG_DIR}/prowlarr:/config
     dns:
