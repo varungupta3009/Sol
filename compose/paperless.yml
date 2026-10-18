@@ -87,7 +87,7 @@ services:
   # ----------------------------------------------------------------
   paperless-db:
     container_name: paperless-db
-    image: docker.io/library/postgres:17
+    image: docker.io/library/postgres:17-alpine
     restart: unless-stopped
     # Database Performance Tuning for Apple Silicon M1 Pro (16GB Unified RAM)
     # shared_buffers: 256MB dedicated memory cache for fast full-text document searches
