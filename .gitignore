@@ -41,7 +41,7 @@
 !/config/qui/tracker_registry.json
 !/config/auth/
 /config/auth/*
-!/config/auth/users.json
+!/config/auth/users.json.example
 !/config/glance/
 !/config/glance/**
 

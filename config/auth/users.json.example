@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "_comment": "Exported one-way identity snapshot generated from lldap (data/lldap/users.db) by scripts/identity_sync.py. Copy to config/auth/users.json or run scripts/identity_sync.py --apply.",
+  "defaults": {
+    "ldap_base_dn": "dc=vrg,dc=rocks",
+    "jellyfin_sso_provider": "google-sso"
+  },
+  "users": [
+    {
+      "uid": "vrg",
+      "display": "VRG",
+      "first_name": "Admin",
+      "last_name": "User",
+      "emails": [
+        "admin@example.com"
+      ],
+      "role": "admin",
+      "jellyfin_id": "00000000-0000-0000-0000-000000000001",
+      "seerr_id": 1
+    },
+    {
+      "uid": "member1",
+      "display": "Member1",
+      "emails": [
+        "member1@example.com"
+      ],
+      "role": "user",
+      "jellyfin_id": "00000000-0000-0000-0000-000000000002",
+      "seerr_id": 2
+    }
+  ]
+}

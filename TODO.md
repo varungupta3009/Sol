@@ -85,7 +85,7 @@ Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to
 - [x] **Added `x-logging` (`driver: json-file`, `max-size: "10m"`, `max-file: "3"`) Across All 8 `compose/*.yml` Files:** Prevents unbounded container JSON logs from filling the 512 GB internal NVMe SSD.
 - [ ] **Merge Historical Overseerr Requests into Active Seerr Database (`scripts/merge_overseerr_history.py`):**
   - Both `config/overseerr/db/db.sqlite3` (`45` media, `10` requests) and `/Users/vrg/Movies/overseerr/db/db.sqlite3` (`43` media, `10` requests) are preserved.
-  - Created and dry-run verified [`scripts/merge_overseerr_history.py`](scripts/merge_overseerr_history.py) (`python3 scripts/merge_overseerr_history.py --dry-run`), which backdates `41` `media.createdAt` timestamps to May/June 2025 and inserts all `10` historical `media_request` rows (`2025-05-10` to `2025-06-19` by `admin@example.com` and `member1@example.com`, bringing total requests from `33` to `43`).
+  - Created and executed [`scripts/merge_overseerr_history.py`](scripts/merge_overseerr_history.py) (`python3 scripts/merge_overseerr_history.py --apply`), which backdated `41` `media.createdAt` timestamps to May/June 2025, inserted all `10` historical `media_request` rows (`2025-05-10` to `2025-06-19`, bringing total requests from `33` to `43`), and retired the legacy Overseerr and Jellyseerr backup directories.
   - To execute when ready: `docker stop seerr && python3 scripts/merge_overseerr_history.py --apply && docker start seerr`.
 - [ ] Put `glance`, `dozzle`, and `beszel-agent` behind a read-only Docker socket proxy (`wollomatic/socket-proxy:1`) instead of raw `/var/run/docker.sock:ro` mounts.
 
@@ -127,7 +127,7 @@ Managed via [`scripts/sync_static_tools.sh`](scripts/sync_static_tools.sh) and m
 ### 4. Knowledge, Bookmarks, RSS & Encrypted Sharing
 - [x] **Readeck (`links.vrg.rocks` — DEPLOYED LIVE):** Single-binary Go + SQLite bookmark and read-later archiver (`codeberg.org/readeck/readeck:latest`, `~45 MiB` RAM) with full-text extraction and EPUB export. Initialized admin user `VRG` with `CORE_PASSWORD`.
 - [x] **Enclosed (`send.vrg.rocks` — DEPLOYED LIVE):** Zero-knowledge client-side encrypted notes and self-destructing file drops built with Hono + TypeScript (`ghcr.io/corentinth/enclosed:latest`, `~27 MiB` RAM).
-- [x] **PocketBase Sandbox (`pb.vrg.rocks` — DEPLOYED LIVE):** Single-binary Go + SQLite backend (`ghcr.io/muchobien/pocketbase:latest`, `~27 MiB` RAM) for Svelte 5 / Datastar / HTMX rapid prototyping. Initialized superuser `admin@example.com` with `CORE_PASSWORD` at `https://pb.vrg.rocks/_/`.
+- [x] **PocketBase Sandbox (`pb.vrg.rocks` — DEPLOYED LIVE):** Single-binary Go + SQLite backend (`ghcr.io/muchobien/pocketbase:latest`, `~27 MiB` RAM) for Svelte 5 / Datastar / HTMX rapid prototyping. Initialized superuser (`${ACME_EMAIL}`) with `CORE_PASSWORD` at `https://pb.vrg.rocks/_/`.
 - [x] **Retired Standby Desktop `calibre` & `calibre-web`:** Kept `kavita` in standby for EPUB/PDF/Manga/Comics.
 - [ ] **Fusion or Miniflux (`rss.vrg.rocks`):** Go + SQLite RSS/Atom reader (`ghcr.io/0x2e/fusion:latest` or `miniflux/miniflux:latest`, `~25-50 MiB` RAM) with Fever/Google Reader API support.
 

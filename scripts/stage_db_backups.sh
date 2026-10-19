@@ -53,21 +53,7 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
-# 1. Authentik PostgreSQL Dump
-if docker ps --format '{{.Names}}' | grep -q "^authentik-postgresql$"; then
-    log "Dumping Authentik PostgreSQL database..."
-    if docker exec authentik-postgresql pg_dump --clean --if-exists -U "${PG_USER:-authentik}" "${PG_DB:-authentik}" | gzip > ./data/backups/authentik_db.sql.gz.tmp; then
-        mv ./data/backups/authentik_db.sql.gz.tmp ./data/backups/authentik_db.sql.gz
-        log "✓ Authentik DB dumped to data/backups/authentik_db.sql.gz"
-    else
-        rm -f ./data/backups/authentik_db.sql.gz.tmp
-        log "⚠ Warning: Authentik DB dump failed."
-    fi
-else
-    log "ℹ authentik-postgresql is not running; skipping live dump."
-fi
-
-# 2. Paperless & AirTrail PostgreSQL Dumps
+# 1. Paperless & AirTrail PostgreSQL Dumps
 if docker ps --format '{{.Names}}' | grep -q "^paperless-db$"; then
     log "Dumping Paperless PostgreSQL database..."
     if docker exec paperless-db pg_dump --clean --if-exists -U "${PAPERLESS_DB_USER:-paperless}" "${PAPERLESS_DB_NAME:-paperless}" | gzip > ./data/backups/paperless_db.sql.gz.tmp; then

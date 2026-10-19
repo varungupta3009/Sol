@@ -204,33 +204,14 @@ if [ -d "./data/backups/sqlite" ]; then
     done
 fi
 
-NEED_AUTHENTIK_IMPORT=false
 NEED_PAPERLESS_IMPORT=false
 
 if [ "$RESTORE_DBS" = true ]; then
-    NEED_AUTHENTIK_IMPORT=true
     NEED_PAPERLESS_IMPORT=true
 elif [ "$START_STACK" = true ]; then
-    if [ ! -f "./data/authentik/PG_VERSION" ] && [ -f "./data/backups/authentik_db.sql.gz" ]; then
-        NEED_AUTHENTIK_IMPORT=true
-    fi
     if [ ! -f "./data/paperless/db/PG_VERSION" ] && [ -f "./data/backups/paperless_db.sql.gz" ]; then
         NEED_PAPERLESS_IMPORT=true
     fi
-fi
-
-if [ -f "./data/backups/authentik_db.sql.gz" ] && [ "$NEED_AUTHENTIK_IMPORT" = true ]; then
-    echo "Starting authentik-postgresql container for dump import..."
-    docker compose up -d authentik-postgresql
-    for _ in {1..30}; do
-        if docker exec authentik-postgresql pg_isready -U "${PG_USER:-authentik}" -d "${PG_DB:-authentik}" >/dev/null 2>&1; then
-            break
-        fi
-        sleep 1
-    done
-    echo "Importing Authentik database dump..."
-    gunzip -c ./data/backups/authentik_db.sql.gz | docker exec -i authentik-postgresql psql -U "${PG_USER:-authentik}" -d "${PG_DB:-authentik}"
-    echo "✓ Authentik PostgreSQL dump imported."
 fi
 
 if [ -f "./data/backups/paperless_db.sql.gz" ] && [ "$NEED_PAPERLESS_IMPORT" = true ]; then

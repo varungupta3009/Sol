@@ -444,7 +444,7 @@ Sol uses a two-tier backup architecture designed for zero-bloat version control 
    - Backs up the entire `/Users/vrg/Documents/Sol` directory **except** bulk media files (`data/media/{movies,tv,music,books,home-videos}`), raw torrent downloads (`data/torrents/{movies,tv,books,music,temp,incomplete}`), live database binary clusters (which are dumped cleanly into `data/backups/*.sql.gz` and `data/backups/sqlite/*`), logs, and regenerable caches/bundles (`excludes.txt.example`).
    - **Recovery Guarantee:** After a complete Mac wipe and reset, restoring the Restic snapshot (`./scripts/restore.sh --restore-dbs --start-stack`) with media files in their respective folders brings **100% of the server, databases, secrets (`.env`), `.torrent`/`.fastresume` state, Paperless documents, Obsidian vaults, Coder workspace volume, and media symlink trees** back up and running identically to the time of backup.
 2. **Tier 2 — Declarative Infrastructure Blueprint (`GitHub` `varungupta3009/Sol`):**
-   - Tracks a lean, zero-secret infrastructure-as-code blueprint (`docker-compose.yml`, `compose/*.yml`, `Caddyfile`, `ports.json`, `.env.example`, `config/glance/**`, `config/qui/tracker_registry.json`, `config/auth/users.json`, `config/backrest/*.example`, `config/rclone/filter.txt.example`, `coder/main.tf`, `scripts/*`, and `docs/*`).
+   - Tracks a lean, zero-secret infrastructure-as-code blueprint (`docker-compose.yml`, `compose/*.yml`, `Caddyfile`, `ports.json`, `.env.example`, `config/glance/**`, `config/qui/tracker_registry.json`, `config/auth/users.json.example`, `config/backrest/*.example`, `config/rclone/filter.txt.example`, `coder/main.tf`, `scripts/*`, and `docs/*`).
    - Allows provisioning and configuring the entire container topology, routing layer, dashboards, and automation scripts from scratch as of the latest commit without requiring runtime data volumes.
 
 ### Running Backups ([`scripts/backup.sh`](scripts/backup.sh), [`scripts/stage_db_backups.sh`](scripts/stage_db_backups.sh) & `https://backrest.vrg.rocks`)
@@ -463,7 +463,7 @@ Sol uses a two-tier backup architecture designed for zero-bloat version control 
 Pipeline:
 
 1. **Pre-Backup Staging ([`scripts/stage_db_backups.sh`](scripts/stage_db_backups.sh)):**
-   - Dumps `paperless-db` (`paperless` and `airtrail` databases), `coder` (embedded PostgreSQL), and `authentik-postgresql` (if running) with `pg_dump` to `data/backups/{paperless_db,airtrail_db,coder_db,authentik_db}.sql.gz` (atomic temp file, then rename).
+   - Dumps `paperless-db` (`paperless` and `airtrail` databases) and `coder` (embedded PostgreSQL) with `pg_dump` to `data/backups/{paperless_db,airtrail_db,coder_db}.sql.gz` (atomic temp file, then rename).
    - Copies each SQLite database (`*.db`, `*.sqlite`, `*.sqlite3`, including `data/lldap/users.db`, `data/tinyauth/tinyauth.db`, `config/qui/qui.db`, and all `*arr` DBs) and its `-wal` file (without `-shm`) to a local temp directory and runs `sqlite3 .backup` into `data/backups/sqlite/`, capturing all un-checkpointed WAL transactions without touching guest Linux VM `-shm` mmap files.
    - Exports all library and cross-seed symlinks in `data/media`, `data/torrents/{cross-seed-links,qui-links}`, and `/Volumes/PANOPTICON/{media,torrents}` to `data/backups/symlinks_manifest.tsv` so relative media symlinks can be reconstructed after a Mac reset.
    - Archives the persistent Coder workspace Docker volume (`coder-*-home`) to `data/backups/coder_home.tar.gz`.

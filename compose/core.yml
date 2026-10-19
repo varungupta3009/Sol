@@ -112,31 +112,31 @@ services:
       TINYAUTH_OIDC_CLIENTS_JELLYFIN_TRUSTEDREDIRECTURIS: "https://watch.vrg.rocks/sso/OID/redirect/google-sso,https://jellyfin.vrg.rocks/sso/OID/redirect/google-sso,https://watch.vrg.rocks/sso/OID/r/google-sso,https://jellyfin.vrg.rocks/sso/OID/r/google-sso"
       # --- Per-App Forward-Auth Admin Lockdown (VRG Only) ---
       TINYAUTH_APPS_CODE_CONFIG_DOMAIN: code.vrg.rocks
-      TINYAUTH_APPS_CODE_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_CODE_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_BACKREST_CONFIG_DOMAIN: backrest.vrg.rocks
-      TINYAUTH_APPS_BACKREST_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_BACKREST_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_QUI_CONFIG_DOMAIN: qui.vrg.rocks
-      TINYAUTH_APPS_QUI_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_QUI_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_RADARR_CONFIG_DOMAIN: radarr.vrg.rocks
-      TINYAUTH_APPS_RADARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_RADARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_SONARR_CONFIG_DOMAIN: sonarr.vrg.rocks
-      TINYAUTH_APPS_SONARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_SONARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_LIDARR_CONFIG_DOMAIN: lidarr.vrg.rocks
-      TINYAUTH_APPS_LIDARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_LIDARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_PROWLARR_CONFIG_DOMAIN: prowlarr.vrg.rocks
-      TINYAUTH_APPS_PROWLARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_PROWLARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_BAZARR_CONFIG_DOMAIN: bazarr.vrg.rocks
-      TINYAUTH_APPS_BAZARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_BAZARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_CS_CONFIG_DOMAIN: cs.vrg.rocks
-      TINYAUTH_APPS_CS_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_CS_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_BYPARR_CONFIG_DOMAIN: byparr.vrg.rocks
-      TINYAUTH_APPS_BYPARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_BYPARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_PB_CONFIG_DOMAIN: pb.vrg.rocks
-      TINYAUTH_APPS_PB_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_PB_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_LDAP_CONFIG_DOMAIN: ldap.vrg.rocks
-      TINYAUTH_APPS_LDAP_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_LDAP_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_ROUTER_CONFIG_DOMAIN: router.vrg.rocks
-      TINYAUTH_APPS_ROUTER_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_ROUTER_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
     volumes:
       - ${DOCKER_DATA_DIR}/tinyauth:/data
     labels:
