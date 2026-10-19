@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Sol unified identity sync: lldap <-> users.json -> Tinyauth, OIDC apps, Jellyfin, Seerr, Copyparty.
+"""Sol unified identity sync (strict one-way: lldap -> users.json -> Tinyauth, OIDC apps, Jellyfin, Seerr, Copyparty).
 
-Can be driven either from:
-  - lldap Web UI (https://ldap.vrg.rocks) via `--from-lldap` (triggered automatically by launchd WatchPaths on data/lldap/users.db)
-  - CLI (`./scripts/allowlist_user.sh` or `python3 scripts/identity_sync.py --apply`)
+lldap (https://ldap.vrg.rocks, data/lldap/users.db) is the single authoritative user database.
+Triggered automatically by the macOS launchd WatchPaths agent (com.vrg.sol.identity-sync)
+within 15 seconds of any edit in lldap, or manually via `python3 scripts/identity_sync.py --apply`.
 
-Targets reconciled:
-  1. lldap         users, mail + mailalias (editable), groups jellyfin_users / jellyfin_admin
+Targets reconciled from lldap:
+  1. users.json    read-only exported snapshot of lldap users + discovered Jellyfin/Seerr IDs
   2. Tinyauth      data/tinyauth/whitelist.txt, .env TINYAUTH_OAUTH_WHITELIST, oidc_consents
   3. Jellyfin      users exist, AuthenticationProviderId = LDAP-Auth,
                    LDAP-Auth.xml + SSO-Auth.xml (DefaultProvider + DefaultUsernameClaim + CanonicalLinks),
@@ -249,101 +249,31 @@ def sync_tinyauth(data: dict, env: dict) -> None:
             ENV_FILE.write_text(text)
 
     client_ids = sorted({v for k, v in env.items() if re.fullmatch(r"TINYAUTH_OIDC_[A-Z0-9_]+_CLIENT_ID", k)})
+    want_usernames = {tinyauth_username(e) for e in want}
     con = sqlite3.connect(f"file:{TINYAUTH_DB}?immutable=1", uri=True)
     rows = set(con.execute("select username, client_id from oidc_consents").fetchall())
     con.close()
     missing = [(tinyauth_username(e), c) for e in want for c in client_ids if (tinyauth_username(e), c) not in rows]
-    log(f"INFO   {len(client_ids)} OIDC clients, {len(missing)} consent rows missing")
-    if (missing or changed) and act("stop tinyauth, seed consents, start tinyauth"):
+    stale = [u for (u, _) in rows if u not in want_usernames and u != "VRG"]
+    log(f"INFO   {len(client_ids)} OIDC clients, {len(missing)} consent rows missing, {len(stale)} stale")
+    if (missing or stale or changed) and act("stop tinyauth, sync consents, start tinyauth"):
         docker("stop", "tinyauth", check=False)
         con = sqlite3.connect(str(TINYAUTH_DB))
         now = int(time.time())
-        con.executemany(
-            "INSERT INTO oidc_consents (username, client_id, scope, created_at) VALUES (?,?,?,?) "
-            "ON CONFLICT(username, client_id) DO UPDATE SET scope = excluded.scope",
-            [(u, c, CONSENT_SCOPE, now) for (u, c) in missing],
-        )
+        if missing:
+            con.executemany(
+                "INSERT INTO oidc_consents (username, client_id, scope, created_at) VALUES (?,?,?,?) "
+                "ON CONFLICT(username, client_id) DO UPDATE SET scope = excluded.scope",
+                [(u, c, CONSENT_SCOPE, now) for (u, c) in missing],
+            )
+        if stale:
+            con.executemany("DELETE FROM oidc_consents WHERE username = ?", [(u,) for u in set(stale)])
         con.commit()
         con.close()
         subprocess.run(["docker", "compose", "up", "-d", "tinyauth"], cwd=BASE, check=True)
 
 
-# --------------------------------------------------------------------------- 2. lldap
-
-def lldap_secret(name: str, create: bool) -> tuple:
-    p = LLDAP_SECRETS / f"{name}.pw"
-    if p.exists():
-        return p, False
-    if create and APPLY:
-        LLDAP_SECRETS.mkdir(parents=True, exist_ok=True)
-        LLDAP_SECRETS.chmod(0o700)
-        p.write_text(secrets.token_urlsafe(18) + "\n")
-        p.chmod(0o600)
-    return p, True
-
-
-def lldap_existing_users() -> set:
-    try:
-        res = lldap_graphql("{users{id}}")
-        return {u["id"] for u in res["data"]["users"]}
-    except Exception as e:
-        log(f"WARN   cannot list lldap users ({e}); treating all as new")
-        return set()
-
-
-def sync_lldap(data: dict) -> None:
-    log("\n== lldap ==")
-    existing = lldap_existing_users()
-    user_rows, new_pw = [], []
-    for u in data["users"]:
-        groups = ["jellyfin_users"] + (["jellyfin_admin"] if u["role"] == "admin" else [])
-        row = {
-            "id": u["uid"],
-            "email": u["emails"][0],
-            "displayName": u["display"],
-            "firstName": u.get("first_name"),
-            "lastName": u.get("last_name"),
-            "groups": groups,
-            "mailalias": u["emails"][1:],
-        }
-        if u["uid"] not in existing:
-            p, _ = lldap_secret(u["uid"], create=True)
-            row["password_file"] = f"/data/secrets/{p.name}"
-            new_pw.append(u["uid"])
-        user_rows.append({k: v for k, v in row.items() if v is not None})
-    bp, _ = lldap_secret("svc_bind", create=True)
-    svc = {"id": "svc_bind", "email": "svc_bind@vrg.rocks", "displayName": "Service Bind",
-           "groups": ["lldap_strict_readonly"]}
-    if "svc_bind" not in existing:
-        svc["password_file"] = f"/data/secrets/{bp.name}"
-    user_rows.append(svc)
-
-    files = {
-        LLDAP_BOOT / "user-schemas/schema.json": json.dumps(
-            [{"name": "mailalias", "attributeType": "STRING", "isEditable": True, "isList": True, "isVisible": True}]),
-        LLDAP_BOOT / "group-configs/groups.json": "\n".join(json.dumps({"name": g}) for g in ("jellyfin_users", "jellyfin_admin")),
-        LLDAP_BOOT / "user-configs/users.json": "\n".join(json.dumps(r) for r in user_rows),
-    }
-    changed = False
-    for path, content in files.items():
-        if not path.exists() or path.read_text().strip() != content.strip():
-            changed = True
-            if act(f"write {path.relative_to(BASE)}"):
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(content + "\n")
-    if new_pw:
-        log(f"INFO   new lldap users get a password in data/lldap/secrets/<uid>.pw: {new_pw}")
-    if (changed or new_pw) and act("docker exec lldap /app/bootstrap.sh (idempotent; DO_CLEANUP=false)"):
-        out = docker("exec", "-e", "LLDAP_ADMIN_PASSWORD_FILE=/data/secrets/admin.pw",
-                     "-e", "USER_CONFIGS_DIR=/data/bootstrap/user-configs",
-                     "-e", "GROUP_CONFIGS_DIR=/data/bootstrap/group-configs",
-                     "-e", "USER_SCHEMAS_DIR=/data/bootstrap/user-schemas",
-                     "lldap", "/app/bootstrap.sh")
-        bad = [l for l in out.splitlines() if re.search(r"error|not exists|failed", l, re.I)]
-        log("\n".join("  " + l for l in bad) or "  bootstrap: no errors")
-
-
-# --------------------------------------------------------------------------- 3. Jellyfin
+# --------------------------------------------------------------------------- 2. Jellyfin
 
 def jf_token(env: dict) -> str:
     if env.get("JELLYFIN_API_KEY"):
@@ -694,19 +624,15 @@ def main() -> None:
     global APPLY
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--apply", action="store_true", help="execute the plan (default is dry-run)")
-    ap.add_argument("--from-lldap", action="store_true", help="pull user list from live lldap before syncing")
-    ap.add_argument("--only", choices=["tinyauth", "lldap", "jellyfin", "seerr", "oidc", "copyparty", "report"], action="append")
+    ap.add_argument("--from-lldap", action="store_true", help="accepted for compatibility (one-way pull from lldap is always active)")
+    ap.add_argument("--only", choices=["tinyauth", "jellyfin", "seerr", "oidc", "copyparty", "report"], action="append")
     a = ap.parse_args()
     APPLY = a.apply
 
     data, env = load_users(), load_env(ENV_FILE)
-    dirty = False
-    if a.from_lldap:
-        dirty |= pull_from_lldap(data)
+    dirty = pull_from_lldap(data)
 
-    steps = a.only or ["tinyauth", "lldap", "jellyfin", "seerr", "oidc", "copyparty", "report"]
-    if "lldap" in steps and not a.from_lldap:
-        sync_lldap(data)
+    steps = a.only or ["tinyauth", "jellyfin", "seerr", "oidc", "copyparty", "report"]
     if "tinyauth" in steps:
         sync_tinyauth(data, env)
     if "jellyfin" in steps:
@@ -719,7 +645,7 @@ def main() -> None:
         sync_copyparty(data)
     if "report" in steps:
         report(data, env)
-    if dirty and act(f"write discovered ids/users back to {USERS_JSON}"):
+    if dirty and act(f"export lldap state + discovered IDs to {USERS_JSON}"):
         USERS_JSON.write_text(json.dumps(data, indent=2) + "\n")
     if not APPLY:
         log("\nDry-run only. Re-run with --apply to execute.")

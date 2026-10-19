@@ -12,15 +12,16 @@
 
 Sol's authentication architecture enforces five strict invariants across all `*.vrg.rocks` endpoints:
 
-1. **One Email Connects All Interfaces (`lldap` + `users.json` Bidirectional Identity Spine):**
-   - You can add or edit users and emails either in the **`lldap` Web UI (`https://ldap.vrg.rocks`)** or via [`config/auth/users.json`](../../config/auth/users.json) / [`scripts/allowlist_user.sh`](../../scripts/allowlist_user.sh).
-   - A macOS `launchd` `WatchPaths` agent (`/Users/vrg/Library/LaunchAgents/com.vrg.sol.identity-sync.plist`) watches `data/lldap/users.db` and `data/lldap/users.db-wal` and automatically runs `python3 scripts/identity_sync.py --from-lldap --apply` within 15 seconds of any change in `lldap`.
-   - Running `scripts/identity_sync.py` deterministically synchronizes every approved user across all 6 targets:
-     - **lldap LDAP Directory** (`dc=vrg,dc=rocks` over GraphQL API, provisioning `uid`, `displayName`, `mail`, editable custom `mailalias` attribute, `jellyfin_users` / `jellyfin_admins` group memberships, and initial passwords in `data/lldap/secrets/<uid>.pw`).
+1. **One Email Connects All Interfaces (`lldap` -> `users.json` One-Way Identity Spine):**
+   - **`lldap` (`https://ldap.vrg.rocks`, `data/lldap/users.db`) is the single authoritative user database.** Users and emails are added, edited, or removed exclusively in `lldap`.
+   - A macOS `launchd` `WatchPaths` agent (`/Users/vrg/Library/LaunchAgents/com.vrg.sol.identity-sync.plist`) watches `data/lldap/users.db` and `data/lldap/users.db-wal` and automatically runs `python3 scripts/identity_sync.py --apply` within 15 seconds of any change in `lldap`.
+   - [`config/auth/users.json`](../../config/auth/users.json) is a **one-way exported snapshot** generated from `lldap` (storing the exported user list alongside discovered `jellyfin_id` and `seerr_id` keys).
+   - Running `scripts/identity_sync.py` deterministically synchronizes every `lldap` user across all downstream targets:
+     - **lldap Group Enforcement**: Automatically adds any new `lldap` user to `jellyfin_users` via GraphQL.
      - **Tinyauth forward-auth & OIDC** (`data/tinyauth/whitelist.txt`, `.env` `TINYAUTH_OAUTH_WHITELIST` + `TINYAUTH_ADMIN_EMAILS`, and pre-seeded `oidc_consents` in `data/tinyauth/tinyauth.db` across all 7 OIDC clients).
      - **OIDC App Databases (`Paperless-ngx`, `AirTrail`, `Homebox`)**: Pre-provisions non-admin user accounts and links their deterministic Tinyauth OIDC `sub` UUIDs in `paperless` (`auth_user` + `socialaccount_socialaccount`), `airtrail` (`"user"`), and `homebox.db` (`users` + `user_groups`) so first-time OIDC logins succeed in 0 clicks without manual registration errors.
      - **Jellyfin (`watch.vrg.rocks`)** (`LDAP-Auth.xml` with `( &(objectClass=person)(|(uid={0})(cn={0})(mail={0})(mailalias={0})) )` filter so users can log in on TV/mobile/web using their email, alias, or username; `SSO-Auth.xml` with `<DefaultProvider>Jellyfin.Plugin.LDAP_Auth.LdapAuthenticationProviderPlugin</DefaultProvider>`, `<DefaultUsernameClaim>email</DefaultUsernameClaim>`, and pre-seeded `<CanonicalLinks>` mapping every user's email and aliases to their existing Jellyfin GUID; plus `branding.xml` `<LoginDisclaimer>` rendering a 1-click **"Sign in with Google SSO"** button on the web login page).
-     - **Seerr (`request.vrg.rocks`)** (linked to the matching `jellyfinUserId` and `email` in `config/seerr/db/db.sqlite3` with `userType = 3` so "Sign in with Jellyfin" accepts the same email/username + LDAP password and maps to the same account).
+     - **Seerr (`request.vrg.rocks`)** (linked to the matching `jellyfinUserId` and `email` in `config/seerr/db/db.sqlite3` with `userType = 3` so "Sign in with Jellyfin" accepts the same email/username + LDAP password or Quick Connect and maps to the same account).
      - **Copyparty (`files.vrg.rocks`)** (`idp-hm-usr` header mappings in `config/copyparty/copyparty.conf`).
 2. **Zero-Click Google SSO:**
    - When signed into an allowlisted Google account in the browser, navigating to any `*.vrg.rocks` service authenticates and opens the application with **zero button clicks** (no provider selection screen, no OIDC consent prompt, and no secondary app login screen).
@@ -102,19 +103,23 @@ These containers do not need a secondary password prompt because they either rea
 | `member2` | `Member2` | `member2@example.com` | — | `user` | `00000000000000000000000000000003` | `3` |
 | `member3` | `Member3` | `member3@example.com` | — | `user` | Auto-provisioned & synced | Auto-provisioned & synced |
 
-### Approving, Revoking, or Re-Syncing Users
+### Approving, Editing, or Revoking Users (`lldap` -> `users.json` One-Way Sync)
+
+- **Add, Edit, or Remove Users in `lldap` (`https://ldap.vrg.rocks`):**
+  - Open `https://ldap.vrg.rocks` and create, edit, or delete users (`mail`, `mailalias`, `displayName`, and optional password).
+  - Within 15 seconds, the `com.vrg.sol.identity-sync` `launchd` `WatchPaths` agent automatically runs `python3 scripts/identity_sync.py --apply`, which exports the updated user list to [`config/auth/users.json`](../../config/auth/users.json) and syncs Tinyauth, OIDC apps, Jellyfin, Seerr, and Copyparty.
+- **Passwordless Users on Jellyfin & Seerr:**
+  - If a user is created in `lldap` with only an email and no password (`password_hash = NULL`), direct LDAP password binds will be rejected by `lldap` until a password is set.
+  - However, passwordless users can still log into both **Jellyfin (`watch.vrg.rocks`)** and **Seerr (`request.vrg.rocks`)** immediately without any password:
+    1. **Jellyfin Web (`watch.vrg.rocks`):** Click **"Sign in with Google SSO"** on the login page (`SSO-Auth.xml` maps their email via `<CanonicalLinks>` to their pre-provisioned Jellyfin user).
+    2. **Jellyfin TV & Mobile Apps:** Use **Quick Connect** on the TV/mobile app and approve the 6-digit code from their signed-in `watch.vrg.rocks` browser session (`User Icon -> Quick Connect`).
+    3. **Seerr (`request.vrg.rocks`):** Click **"Use Quick Connect"** on the Seerr login page (`/api/v1/auth/jellyfin/quickconnect/initiate`) and approve the 6-digit code in `watch.vrg.rocks`.
 
 ```bash
-# List all allowlisted users from config/auth/users.json
+# List the exported config/auth/users.json snapshot
 ./scripts/allowlist_user.sh list
 
-# Approve a new user across Tinyauth, OIDC, lldap, Jellyfin, Seerr, and Copyparty
-./scripts/allowlist_user.sh add friend@gmail.com "FriendName"
-
-# Revoke a user across all systems
-./scripts/allowlist_user.sh remove friend@gmail.com
-
-# Dry-run or apply the full 5-target identity reconciler directly
+# Manually dry-run or trigger the one-way lldap -> users.json -> apps sync
 ./scripts/allowlist_user.sh sync
 ./scripts/allowlist_user.sh sync --apply
 ```

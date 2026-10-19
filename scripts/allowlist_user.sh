@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
 # ================================================================
-# Sol - Unified Identity Front Door (One Email -> Every Interface)
+# Sol - Unified Identity Helper (lldap -> users.json -> Every App)
 # ================================================================
-# Usage:
-#   ./scripts/allowlist_user.sh list
-#   ./scripts/allowlist_user.sh add <email> <uid> [Display] [admin|user]
-#        new uid  -> new person (lldap user, Jellyfin + Seerr + OIDC accounts, Copyparty mapping)
-#        old uid  -> extra email (alias) for that person
-#   ./scripts/allowlist_user.sh remove <email>
-#   ./scripts/allowlist_user.sh sync [--apply]         (users.json -> lldap + Tinyauth + OIDC + Jellyfin + Seerr)
-#   ./scripts/allowlist_user.sh from-lldap [--apply]   (lldap -> users.json + Tinyauth + OIDC + Jellyfin + Seerr)
+# Authoritative user database: lldap (https://ldap.vrg.rocks, data/lldap/users.db).
+# Add, edit, or remove users in the lldap Web UI at https://ldap.vrg.rocks.
+# The com.vrg.sol.identity-sync launchd watcher automatically runs a one-way
+# sync (lldap -> config/auth/users.json -> Tinyauth, OIDC apps, Jellyfin, Seerr, Copyparty).
 #
-# Users can be added or edited either in the lldap Web UI (https://ldap.vrg.rocks,
-# which triggers the com.vrg.sol.identity-sync launchd watcher automatically) or
-# via this CLI. All writes go through scripts/identity_sync.py.
-# Compatible with macOS /bin/bash 3.2 (no associative arrays, no ${arr[@]} under -u).
+# Usage:
+#   ./scripts/allowlist_user.sh list             (show exported users.json snapshot)
+#   ./scripts/allowlist_user.sh sync [--apply]   (run one-way lldap -> users.json -> apps sync)
 # ================================================================
 set -euo pipefail
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,54 +25,16 @@ for u in json.load(open(sys.argv[1]))["users"]:
     print(f"{u['uid']:10} {u['display']:10} {u['role']:6} jf={u.get('jellyfin_id')} seerr={u.get('seerr_id')}  {', '.join(u['emails'])}")
 PY
     ;;
-  add)
-    EMAIL="${2:?email required}"; USERID="${3:-}"; DISPLAY="${4:-}"; ROLE="${5:-user}"
-    if [[ -z "${USERID}" ]]; then
-      USERID="$(echo "${EMAIL%%@*}" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_.-')"
-    fi
-    python3 - "${USERS_JSON}" "${EMAIL}" "${USERID}" "${DISPLAY}" "${ROLE}" <<'PY'
-import json, sys
-path, email, uid, display, role = sys.argv[1], sys.argv[2].strip().lower(), sys.argv[3].strip().lower(), sys.argv[4], sys.argv[5]
-d = json.load(open(path))
-if any(email in u["emails"] for u in d["users"]):
-    sys.exit(f"{email} already belongs to a user")
-for u in d["users"]:
-    if u["uid"] == uid:
-        u["emails"].append(email); print(f"added alias {email} to {uid}"); break
-else:
-    d["users"].append({"uid": uid, "display": display or uid.upper(), "emails": [email], "role": role,
-                       "jellyfin_id": None, "seerr_id": None})
-    print(f"added new user {uid} <{email}>")
-open(path, "w").write(json.dumps(d, indent=2) + "\n")
-PY
-    python3 "${SYNC}" --apply
-    ;;
-  remove)
-    EMAIL="${2:?email required}"
-    python3 - "${USERS_JSON}" "${EMAIL}" <<'PY'
-import json, sys
-path, email = sys.argv[1], sys.argv[2].strip().lower()
-d = json.load(open(path))
-for u in d["users"]:
-    if email in u["emails"]:
-        if len(u["emails"]) == 1:
-            sys.exit(f"{email} is the only email of {u['uid']}. Remove the user by editing users.json "
-                     "(Jellyfin/Seerr/lldap accounts are never deleted automatically).")
-        u["emails"].remove(email); print(f"removed alias {email} from {u['uid']}"); break
-else:
-    sys.exit(f"{email} not found")
-open(path, "w").write(json.dumps(d, indent=2) + "\n")
-PY
-    python3 "${SYNC}" --apply
-    ;;
-  sync)
+  sync|from-lldap)
     shift; python3 "${SYNC}" "$@"
     ;;
-  from-lldap)
-    shift; python3 "${SYNC}" --from-lldap "$@"
+  add|remove)
+    echo "lldap (https://ldap.vrg.rocks) is the single authoritative user database." >&2
+    echo "Add, edit, or delete users in https://ldap.vrg.rocks; com.vrg.sol.identity-sync syncs lldap -> users.json automatically." >&2
+    exit 1
     ;;
   *)
-    echo "Usage: $0 {list|add <email> [uid] [Display] [admin|user]|remove <email>|sync [--apply]|from-lldap [--apply]}" >&2
+    echo "Usage: $0 {list|sync [--apply]}" >&2
     exit 1
     ;;
 esac
