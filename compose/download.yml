@@ -47,7 +47,7 @@ services:
   # ----------------------------------------------------------------
   qui:
     container_name: qui
-    image: ghcr.io/autobrr/qui:${QUI_TAG:-v1.32.0}
+    image: ghcr.io/autobrr/qui:latest
     restart: unless-stopped
     logging: *default-logging
     user: "${PUID}:${PGID}"
@@ -78,7 +78,7 @@ services:
   # ----------------------------------------------------------------
   cross-seed:
     container_name: cross-seed
-    image: ghcr.io/cross-seed/cross-seed:6
+    image: ghcr.io/cross-seed/cross-seed:latest
     profiles: ["standby"]
     command: daemon
     restart: unless-stopped

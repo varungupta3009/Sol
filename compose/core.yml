@@ -14,7 +14,7 @@ services:
   # ----------------------------------------------------------------
   caddy:
     container_name: caddy
-    image: caddy:${CADDY_TAG:-2}
+    image: caddy:latest
     restart: unless-stopped
     logging: *default-logging
     cap_add:
@@ -52,7 +52,8 @@ services:
   # ----------------------------------------------------------------
   tinyauth:
     container_name: tinyauth
-    image: ghcr.io/tinyauthapp/tinyauth:${TINYAUTH_TAG:-v5}
+    # Rolling v5.x release track (v4 -> v5 renamed all TINYAUTH_* env vars)
+    image: ghcr.io/tinyauthapp/tinyauth:v5
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -151,7 +152,8 @@ services:
   # ----------------------------------------------------------------
   lldap:
     container_name: lldap
-    image: ghcr.io/lldap/lldap:${LLDAP_TAG:-stable}
+    # Upstream :stable tracks official releases (:latest is bleeding-edge main branch)
+    image: ghcr.io/lldap/lldap:stable
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -180,7 +182,7 @@ services:
   # ----------------------------------------------------------------
   arcane:
     container_name: arcane
-    image: ghcr.io/getarcaneapp/arcane:${ARCANE_TAG:-latest}
+    image: ghcr.io/getarcaneapp/arcane:latest
     restart: unless-stopped
     logging: *default-logging
     environment:

@@ -14,7 +14,7 @@ services:
   # ----------------------------------------------------------------
   paperless-webserver:
     container_name: paperless-webserver
-    image: ghcr.io/paperless-ngx/paperless-ngx:${PAPERLESS_TAG:-2}
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
     restart: unless-stopped
     logging: *default-logging
     depends_on:
@@ -137,7 +137,7 @@ services:
   # ----------------------------------------------------------------
   paperless-gotenberg:
     container_name: paperless-gotenberg
-    image: docker.io/gotenberg/gotenberg:8.20
+    image: docker.io/gotenberg/gotenberg:latest
     profiles: ["standby"]
     command:
       - "gotenberg"
