@@ -9,15 +9,18 @@
 # and its entire subtree without traversing into it.
 # ==============================================================================
 
-# 1. Bulk Media & Raw Torrent Payloads (Symlinks are captured in data/backups/symlinks_manifest.tsv)
+# 1. Bulk Media & Raw Torrent Payloads
+# Note: /userdata/sol/data/torrents/files (*.torrent metafiles) and
+# /userdata/sol/data/media/preshows are intentionally INCLUDED!
+# Library and cross-seed symlinks are captured in data/backups/symlinks_manifest.tsv.
 /userdata/sol/data/torrents/movies
 /userdata/sol/data/torrents/tv
 /userdata/sol/data/torrents/books
 /userdata/sol/data/torrents/music
-/userdata/sol/data/torrents/files
 /userdata/sol/data/torrents/temp
 /userdata/sol/data/torrents/incomplete
 /userdata/sol/data/torrents/cross-seed-links
+/userdata/sol/data/torrents/qui-links
 /userdata/sol/data/media/movies
 /userdata/sol/data/media/tv
 /userdata/sol/data/media/music
@@ -28,32 +31,58 @@
 /userdata/sol/data/authentik
 /userdata/sol/data/paperless/db
 /userdata/sol/data/paperless/redis
+/userdata/sol/config/coder/coderv2/postgres
 
-# 3. Live SQLite WAL / SHM Journals (Atomic snapshots live in data/backups/sqlite/)
+# 3. Live SQLite WAL / SHM Journals & Log DBs (Atomic snapshots live in data/backups/sqlite/)
 *-wal
 *-shm
 *.db-journal
+logs.db
+logs.db-wal
+logs.db-shm
 
 # 4. Backrest & Restic Local Cache
 /userdata/sol/data/backrest/cache
 
-# 5. Reproducible Node Modules, Build Caches & Transcode/Trickplay/Metadata Caches
+# 5. Reproducible Node Modules, Static Tool Bundles & Transcode/Trickplay/Metadata Caches
 /userdata/sol/quartz/node_modules
 /userdata/sol/quartz/public
 /userdata/sol/quartz/.quartz-cache
+/userdata/sol/web/pdf
+/userdata/sol/web/chef
+/userdata/sol/web/draw
+/userdata/sol/web/speed
+/userdata/sol/web/tools
+/userdata/sol/web/fam_backup_20260913
 /userdata/sol/config/jellyfin/cache
 /userdata/sol/config/jellyfin/data/temp
+/userdata/sol/config/jellyfin/data/transcodes
 /userdata/sol/config/jellyfin/data/data/trickplay
 /userdata/sol/config/jellyfin/data/metadata
 /userdata/sol/config/jellyfin_metal/cache
+/userdata/sol/config/jellyfin_metal/data/temp
+/userdata/sol/config/jellyfin_metal/data/transcodes
+/userdata/sol/config/jellyfin_metal/data/data/trickplay
 /userdata/sol/config/jellyfin_metal/data/metadata
 /userdata/sol/config/plex/Library/Application Support/Plex Media Server/Cache
 /userdata/sol/config/plex/Library/Application Support/Plex Media Server/Codecs
 /userdata/sol/config/plex/Library/Application Support/Plex Media Server/Crash Reports
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Diagnostics
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Logs
 /userdata/sol/config/plex/Library/Application Support/Plex Media Server/Media
 /userdata/sol/config/plex/Library/Application Support/Plex Media Server/Metadata
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Plug-in Support/Caches
+/userdata/sol/config/code-server/extensions
 /userdata/sol/config/code-server/.cache
 /userdata/sol/config/code-server/Library/Caches
+/userdata/sol/config/prowlarr/Definitions
+/userdata/sol/data/ntfy/var/cache
+/userdata/sol/.hist
+/userdata/sol/priv/.hist
+/userdata/sol/_backup_pre_refactor
+/userdata/sol/docs/archive
+MediaCover
+.terraform
 
 # 6. Ephemeral Container & Host Logs
 /userdata/sol/logs
@@ -68,5 +97,8 @@ Logs
 ._*
 .Spotlight-V100
 .Trashes
+Thumbs.db
 *.tmp
 *.temp
+*.swp
+*.sock

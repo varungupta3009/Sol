@@ -35,6 +35,7 @@
 !/config/backrest/
 /config/backrest/*
 !/config/backrest/excludes.txt.example
+!/config/backrest/config.json.example
 !/config/qui/
 /config/qui/*
 !/config/qui/tracker_registry.json

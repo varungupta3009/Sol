@@ -23,6 +23,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 SOL_ROOT="$(pwd)"
 
+# Prevent non-interactive SSH / launchd docker calls from hanging on locked macOS Keychain
+mkdir -p /tmp/sol_no_keychain
+printf '#!/bin/sh\necho "{}"\n' > /tmp/sol_no_keychain/docker-credential-osxkeychain
+chmod +x /tmp/sol_no_keychain/docker-credential-osxkeychain
+export PATH="/tmp/sol_no_keychain:/usr/local/bin:/opt/homebrew/bin:$PATH"
+
 DRY_RUN=false
 SKIP_PULL=false
 RESTORE_DBS=false
@@ -143,13 +149,19 @@ load_env "./.env"
 # Step 2: Verify Essential Directories & Permissions
 # ----------------------------------------------------------------
 echo "--- [2/5] Verifying essential directory structure & scripts ---"
-mkdir -p ./logs ./data/backups ./data/backups/sqlite ./data/media/preshows ./data/media/home-videos ./data/torrents ./data/paperless/consume ./data/paperless/scripts ./data/tinyauth ./data/readeck ./data/pocketbase ./data/enclosed ./data/airtrail ./config/rclone ./config/backrest
+mkdir -p ./logs ./data/backups ./data/backups/sqlite ./data/media/preshows ./data/media/home-videos ./data/torrents ./data/paperless/consume ./data/paperless/scripts ./data/tinyauth ./data/lldap ./data/readeck ./data/pocketbase ./data/enclosed ./data/airtrail ./config/rclone ./config/backrest
 
 if [ ! -f "./config/rclone/filter.txt" ] && [ -f "./config/rclone/filter.txt.example" ]; then
     cp ./config/rclone/filter.txt.example ./config/rclone/filter.txt
 fi
 if [ ! -f "./config/backrest/excludes.txt" ] && [ -f "./config/backrest/excludes.txt.example" ]; then
     cp ./config/backrest/excludes.txt.example ./config/backrest/excludes.txt
+fi
+if [ ! -f "./config/backrest/config.json" ] && [ -f "./config/backrest/config.json.example" ]; then
+    cp ./config/backrest/config.json.example ./config/backrest/config.json
+fi
+if [ -x "./scripts/sync_static_tools.sh" ] && [ ! -d "./web/tools" ]; then
+    ./scripts/sync_static_tools.sh || true
 fi
 
 chmod +x ./scripts/*.sh ./scripts/*.py 2>/dev/null || true

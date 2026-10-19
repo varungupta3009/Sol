@@ -1,0 +1,257 @@
+{
+  "modno": 1,
+  "version": 6,
+  "instance": "sol-backrest",
+  "auth": {
+    "disabled": true
+  },
+  "repos": [
+    {
+      "id": "local-panopticon",
+      "uri": "/repos/local-panopticon",
+      "flags": [
+        "--no-cache"
+      ],
+      "autoUnlock": true,
+      "prunePolicy": {
+        "maxUnusedPercent": 10,
+        "schedule": {
+          "cron": "0 4 * * 0",
+          "clock": "CLOCK_LOCAL"
+        }
+      },
+      "checkPolicy": {
+        "readDataSubsetPercent": 5,
+        "schedule": {
+          "cron": "30 4 * * 0",
+          "clock": "CLOCK_LOCAL"
+        }
+      },
+      "commandPrefix": {
+        "ioNice": "IO_DEFAULT",
+        "cpuNice": "CPU_DEFAULT"
+      }
+    },
+    {
+      "id": "onedrive-cloud",
+      "uri": "rclone:OneDrive:Sol-Restic",
+      "autoUnlock": true,
+      "prunePolicy": {
+        "maxUnusedPercent": 10,
+        "schedule": {
+          "cron": "0 5 * * 0",
+          "clock": "CLOCK_LOCAL"
+        }
+      },
+      "checkPolicy": {
+        "readDataSubsetPercent": 2,
+        "schedule": {
+          "cron": "30 5 * * 0",
+          "clock": "CLOCK_LOCAL"
+        }
+      },
+      "commandPrefix": {
+        "ioNice": "IO_DEFAULT",
+        "cpuNice": "CPU_DEFAULT"
+      }
+    }
+  ],
+  "plans": [
+    {
+      "id": "sol-local-daily",
+      "repo": "local-panopticon",
+      "paths": [
+        "/userdata/sol"
+      ],
+      "excludes": [
+        "/userdata/sol/data/torrents/movies",
+        "/userdata/sol/data/torrents/tv",
+        "/userdata/sol/data/torrents/books",
+        "/userdata/sol/data/torrents/music",
+        "/userdata/sol/data/torrents/temp",
+        "/userdata/sol/data/torrents/incomplete",
+        "/userdata/sol/data/torrents/cross-seed-links",
+        "/userdata/sol/data/torrents/qui-links",
+        "/userdata/sol/data/media/movies",
+        "/userdata/sol/data/media/tv",
+        "/userdata/sol/data/media/music",
+        "/userdata/sol/data/media/books",
+        "/userdata/sol/data/media/home-videos",
+        "/userdata/sol/data/authentik",
+        "/userdata/sol/data/paperless/db",
+        "/userdata/sol/data/paperless/redis",
+        "/userdata/sol/config/coder/coderv2/postgres",
+        "*-wal",
+        "*-shm",
+        "*.db-journal",
+        "logs.db",
+        "logs.db-wal",
+        "logs.db-shm",
+        "/userdata/sol/data/backrest/cache",
+        "/userdata/sol/quartz/node_modules",
+        "/userdata/sol/quartz/public",
+        "/userdata/sol/quartz/.quartz-cache",
+        "/userdata/sol/web/pdf",
+        "/userdata/sol/web/chef",
+        "/userdata/sol/web/draw",
+        "/userdata/sol/web/speed",
+        "/userdata/sol/web/tools",
+        "/userdata/sol/web/fam_backup_20260913",
+        "/userdata/sol/config/jellyfin/cache",
+        "/userdata/sol/config/jellyfin/data/temp",
+        "/userdata/sol/config/jellyfin/data/transcodes",
+        "/userdata/sol/config/jellyfin/data/data/trickplay",
+        "/userdata/sol/config/jellyfin/data/metadata",
+        "/userdata/sol/config/jellyfin_metal/cache",
+        "/userdata/sol/config/jellyfin_metal/data/temp",
+        "/userdata/sol/config/jellyfin_metal/data/transcodes",
+        "/userdata/sol/config/jellyfin_metal/data/data/trickplay",
+        "/userdata/sol/config/jellyfin_metal/data/metadata",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Cache",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Codecs",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Crash Reports",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Diagnostics",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Logs",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Media",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Metadata",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Plug-in Support/Caches",
+        "/userdata/sol/config/code-server/extensions",
+        "/userdata/sol/config/code-server/.cache",
+        "/userdata/sol/config/code-server/Library/Caches",
+        "/userdata/sol/config/prowlarr/Definitions",
+        "/userdata/sol/data/ntfy/var/cache",
+        "/userdata/sol/.hist",
+        "/userdata/sol/priv/.hist",
+        "/userdata/sol/_backup_pre_refactor",
+        "/userdata/sol/docs/archive",
+        "MediaCover",
+        ".terraform",
+        "/userdata/sol/logs",
+        "logs",
+        "log",
+        "Logs",
+        "*.log",
+        "*.log.*",
+        ".DS_Store",
+        "._*",
+        ".Spotlight-V100",
+        ".Trashes",
+        "Thumbs.db",
+        "*.tmp",
+        "*.temp",
+        "*.swp",
+        "*.sock"
+      ],
+      "schedule": {
+        "cron": "0 3,15 * * *",
+        "clock": "CLOCK_LOCAL"
+      },
+      "retention": {
+        "policyTimeBucketed": {
+          "daily": 7,
+          "weekly": 4,
+          "monthly": 6,
+          "keepLastN": 3
+        }
+      }
+    },
+    {
+      "id": "sol-onedrive-cloud",
+      "repo": "onedrive-cloud",
+      "paths": [
+        "/userdata/sol"
+      ],
+      "excludes": [
+        "/userdata/sol/data/torrents/movies",
+        "/userdata/sol/data/torrents/tv",
+        "/userdata/sol/data/torrents/books",
+        "/userdata/sol/data/torrents/music",
+        "/userdata/sol/data/torrents/temp",
+        "/userdata/sol/data/torrents/incomplete",
+        "/userdata/sol/data/torrents/cross-seed-links",
+        "/userdata/sol/data/torrents/qui-links",
+        "/userdata/sol/data/media/movies",
+        "/userdata/sol/data/media/tv",
+        "/userdata/sol/data/media/music",
+        "/userdata/sol/data/media/books",
+        "/userdata/sol/data/media/home-videos",
+        "/userdata/sol/data/authentik",
+        "/userdata/sol/data/paperless/db",
+        "/userdata/sol/data/paperless/redis",
+        "/userdata/sol/config/coder/coderv2/postgres",
+        "*-wal",
+        "*-shm",
+        "*.db-journal",
+        "logs.db",
+        "logs.db-wal",
+        "logs.db-shm",
+        "/userdata/sol/data/backrest/cache",
+        "/userdata/sol/quartz/node_modules",
+        "/userdata/sol/quartz/public",
+        "/userdata/sol/quartz/.quartz-cache",
+        "/userdata/sol/web/pdf",
+        "/userdata/sol/web/chef",
+        "/userdata/sol/web/draw",
+        "/userdata/sol/web/speed",
+        "/userdata/sol/web/tools",
+        "/userdata/sol/web/fam_backup_20260913",
+        "/userdata/sol/config/jellyfin/cache",
+        "/userdata/sol/config/jellyfin/data/temp",
+        "/userdata/sol/config/jellyfin/data/transcodes",
+        "/userdata/sol/config/jellyfin/data/data/trickplay",
+        "/userdata/sol/config/jellyfin/data/metadata",
+        "/userdata/sol/config/jellyfin_metal/cache",
+        "/userdata/sol/config/jellyfin_metal/data/temp",
+        "/userdata/sol/config/jellyfin_metal/data/transcodes",
+        "/userdata/sol/config/jellyfin_metal/data/data/trickplay",
+        "/userdata/sol/config/jellyfin_metal/data/metadata",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Cache",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Codecs",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Crash Reports",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Diagnostics",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Logs",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Media",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Metadata",
+        "/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Plug-in Support/Caches",
+        "/userdata/sol/config/code-server/extensions",
+        "/userdata/sol/config/code-server/.cache",
+        "/userdata/sol/config/code-server/Library/Caches",
+        "/userdata/sol/config/prowlarr/Definitions",
+        "/userdata/sol/data/ntfy/var/cache",
+        "/userdata/sol/.hist",
+        "/userdata/sol/priv/.hist",
+        "/userdata/sol/_backup_pre_refactor",
+        "/userdata/sol/docs/archive",
+        "MediaCover",
+        ".terraform",
+        "/userdata/sol/logs",
+        "logs",
+        "log",
+        "Logs",
+        "*.log",
+        "*.log.*",
+        ".DS_Store",
+        "._*",
+        ".Spotlight-V100",
+        ".Trashes",
+        "Thumbs.db",
+        "*.tmp",
+        "*.temp",
+        "*.swp",
+        "*.sock"
+      ],
+      "schedule": {
+        "cron": "30 3 * * *",
+        "clock": "CLOCK_LOCAL"
+      },
+      "retention": {
+        "policyTimeBucketed": {
+          "daily": 7,
+          "weekly": 4,
+          "monthly": 6,
+          "keepLastN": 3
+        }
+      }
+    }
+  ]
+}

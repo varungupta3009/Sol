@@ -1,11 +1,12 @@
 # 02. Storage, Volumes & Persistence Topology
 
-> **Scope:** Physical and virtual storage architecture, container volume bindings, cross-filesystem linking mechanisms, and disaster recovery backup classifications on `Sol`.  
+> **Scope:** Physical and virtual storage architecture, container volume bindings, cross-filesystem linking mechanisms, and the Two-Tier Disaster Recovery & Backup Strategy on `Sol`.  
 > **Host Root:** `/Users/vrg/Documents/Sol` (`DOCKER_BASE_DIR`)  
-> **External Storage Devices:** `/Volumes/PANOPTICON` (`EXTERNAL_DRIVE_00`, mounted), `/Volumes/PHOENIX` (`EXTERNAL_DRIVE_01`, mounted only in standby `qbit_manage`)  
-> **Backup Remote Target:** `OneDrive:Sol` via Rclone, with point-in-time archive `OneDrive:Sol-archive/<TIMESTAMP>`  
-> **Filter Rules:** `config/rclone/filter.txt` (local copy) or tracked fallback `config/rclone/filter.txt.example`  
-> **Last Synced to Ground Truth:** 2026-10-17  
+> **External Storage Devices:** `/Volumes/PANOPTICON` (`EXTERNAL_DRIVE_00`, mounted), `/Volumes/PHOENIX` (`EXTERNAL_DRIVE_01`, standby)  
+> **Tier 1 State Backup Targets (Backrest + Restic):** `/Volumes/PANOPTICON/backups/sol-restic` (`local-panopticon`) and `rclone:OneDrive:Sol-Restic` (`onedrive-cloud`)  
+> **Tier 2 Blueprint Backup Target (GitHub):** `https://github.com/varungupta3009/Sol` (lean, zero-secret declarative IaC blueprint)  
+> **Exclude Rules:** [`config/backrest/excludes.txt.example`](../../config/backrest/excludes.txt.example) (`config/backrest/excludes.txt`) and [`config/rclone/filter.txt.example`](../../config/rclone/filter.txt.example)  
+> **Last Synced to Ground Truth:** 2026-10-19  
 
 ---
 
@@ -221,25 +222,30 @@ Cross-seeding searches multiple indexers for identical file payloads to seed acr
 
 ---
 
-## 5. Disaster Recovery, Backup & Restore Strategy
+## 5. Two-Tier Disaster Recovery, Backup & Restore Strategy
 
-`scripts/backup.sh` runs a three-step pipeline. It ends with a versioned rclone sync of server state to Microsoft OneDrive (`OneDrive:Sol`).
+Sol separates disaster recovery into two complementary tiers so that neither cloud storage nor Git history carries unnecessary bloat or exposed secrets:
 
-### Backup Pipeline (`scripts/backup.sh`)
+| Tier | Target | Engine & Cadence | Purpose & Guarantees |
+| :--- | :--- | :--- | :--- |
+| **Tier 1: Full Server State Backup** | **1a. Local External Drive:** `/Volumes/PANOPTICON/backups/sol-restic` (`local-panopticon`)<br>**1b. Cloud Off-Site:** `rclone:OneDrive:Sol-Restic` (`onedrive-cloud`) | **Backrest (`v1.14.1`) + Restic (`0.19.1`)** + [`scripts/stage_db_backups.sh`](../../scripts/stage_db_backups.sh)<br>Local: twice daily (`03:00` & `15:00` IST)<br>OneDrive: daily (`03:30` IST) | Captures **100% of server state** in `/Users/vrg/Documents/Sol` (`.env` secrets, live PostgreSQL dumps, WAL-complete SQLite snapshots, `.torrent`/`.fastresume` files, Paperless PDFs, Obsidian vaults, Coder home volume, and the media symlink manifest) while excluding bulk media files, raw torrent payloads, logs, and regenerable caches. After a complete Mac wipe and restore (with media files present on disk), **100% of containers, databases, users, and configurations come back online identically to the moment of backup**. |
+| **Tier 2: Declarative Blueprint Backup** | **GitHub Repository:** `varungupta3009/Sol` (`origin/main`) | **Jujutsu (`jj`) / Git**<br>On every architectural or configuration change | Tracks a **lean, zero-secret declarative blueprint** (`docker-compose.yml`, `compose/*.yml`, `Caddyfile`, `ports.json`, `.env.example`, `config/glance/**`, `config/qui/tracker_registry.json`, `config/auth/users.json`, `config/backrest/*.example`, `config/rclone/filter.txt.example`, `coder/main.tf`, `scripts/*`, and `docs/*`). Allows spinning up and configuring the entire architecture from scratch on a clean host without needing any runtime data volumes. |
+
+---
+
+### Tier 1 Pre-Backup Staging & Restic Pipeline ([`scripts/stage_db_backups.sh`](../../scripts/stage_db_backups.sh) & [`scripts/backup.sh`](../../scripts/backup.sh))
+
+Because Backrest runs inside an isolated container without host Docker socket access, [`scripts/stage_db_backups.sh`](../../scripts/stage_db_backups.sh) executes on the macOS host (automatically via `com.vrg.sol.db-stage.plist` at `02:45` and `14:45` IST, and at Step 1 of [`scripts/backup.sh`](../../scripts/backup.sh)) to materialize crash-consistent database and volume artifacts in `./data/backups/` before Backrest snapshots `/userdata/sol`:
 
 | Step | Action | Output / Behavior |
 | :--- | :--- | :--- |
-| **0. Init** | `set -euo pipefail`, `cd` to Sol root, load `.env` through the safe `load_env` parser (handles quoted values such as `PAPERLESS_OCR_LANGUAGES="hin kan pan"` and single-quoted JSON, strips inline comments only on unquoted values) | `mkdir -p ./logs ./data/backups ./data/backups/sqlite`, log file `logs/backup_<YYYY-MM-DD_HH-MM-SS>.log` |
-| **1a. Authentik Dump** | `docker exec authentik-postgresql pg_dump -U ${PG_USER:-authentik} ${PG_DB:-authentik} \| gzip` | Written to `authentik_db.sql.gz.tmp`, then `mv` to `data/backups/authentik_db.sql.gz`. Skipped if the container is not running. |
-| **1b. Paperless Dump** | `docker exec paperless-db pg_dump -U ${PAPERLESS_DB_USER:-paperless} ${PAPERLESS_DB_NAME:-paperless} \| gzip` | `data/backups/paperless_db.sql.gz` with the same `.tmp` then `mv` pattern |
-| **1c. SQLite Snapshots** | `find ./config ./data/arcane ./data/ignis -maxdepth 4` for `*.db`, `*.sqlite`, `*.sqlite3`, then `sqlite3 <db> ".timeout 5000" ".backup './data/backups/sqlite/<safe_name>'"` | Atomic online copy without the live `-wal` and `-shm` split. `safe_name` replaces `/` with `__`. Skipped if host `sqlite3` CLI is missing. |
-| **2. Rclone Sync** | Native host `rclone sync . OneDrive:Sol --config ./config/rclone/rclone.conf --filter-from <filter> --backup-dir OneDrive:Sol-archive/<TIMESTAMP> --links -v --stats 30s --stats-one-line` | Fallback when host rclone or `rclone.conf` is missing: `docker compose --profile ops run --rm rclone sync /source OneDrive:Sol ...` with the same flags |
-| **3. Cleanup** | `find ./logs -name "backup_*.log" -mtime +30 -delete` | Prints archive location and log path |
+| **1. PostgreSQL Logical Dumps** | Dumps `paperless-db` (`paperless` and `airtrail` databases), `coder` (embedded PostgreSQL on `::1:43235`), and `authentik-postgresql` (if running) via `pg_dump --clean --if-exists \| gzip` | Written atomically via `.tmp` rename to `data/backups/paperless_db.sql.gz`, `data/backups/airtrail_db.sql.gz`, `data/backups/coder_db.sql.gz`, and `data/backups/authentik_db.sql.gz`. |
+| **2. VirtioFS-Safe SQLite Snapshots** | Finds all `*.db`, `*.sqlite`, and `*.sqlite3` files across `./config` and `./data/{arcane,tinyauth,lldap,readeck,pocketbase,enclosed,ignis,ntfy,copyparty,homebox,beszel,leafwiki}` (excluding Servarr `logs.db`), copies `.db` + `-wal` (without `-shm`) to a local temp directory, and runs `sqlite3 .backup` | Produces single-file, WAL-checkpointed SQLite snapshots in `data/backups/sqlite/<path_with___>` without touching guest Linux VM `-shm` shared-memory files. |
+| **3. Media & Cross-Seed Symlink Manifest** | Scans `./data/media`, `./data/torrents/{cross-seed-links,qui-links}`, and `/Volumes/PANOPTICON/{media,torrents/cross-seed-links,torrents/qui-links}` for all symbolic links | Exports `<link_path>\t<target_path>` to `data/backups/symlinks_manifest.tsv` (`391+` symlinks) so the entire media library symlink tree can be recreated without backing up multi-terabyte video files. |
+| **4. Coder Workspace Volume Archive** | Archives the persistent Docker named volume `coder-*-home` (excluding `.cache`, `.cargo/registry`, `.rustup/toolchains`, and cached VSIXs) | Written atomically to `data/backups/coder_home.tar.gz`. |
+| **5. Encrypted Restic Snapshot & Prune** | Backrest (`https://backrest.vrg.rocks`) and [`scripts/backup.sh`](../../scripts/backup.sh) run `restic backup /userdata/sol --exclude-file /config/excludes.txt` to `/repos/local-panopticon` and `rclone:OneDrive:Sol-Restic` | Deduplicated, AES-256/Poly1305 encrypted chunks with retention policy `7 daily / 4 weekly / 6 monthly` and automated weekly prune/check schedules. |
 
-> [!IMPORTANT]
-> `--backup-dir` moves every file that the sync would overwrite or delete into `OneDrive:Sol-archive/<TIMESTAMP>`. Each run therefore keeps a point-in-time archive of changed and deleted files instead of discarding them.
-
-### Data Classification: Critical vs. Excluded
+### Data Classification: Critical State (Included) vs. Bulk / Transient Fluff (Excluded)
 
 ```
                                   +---------------------------------------+
@@ -249,116 +255,141 @@ Cross-seeding searches multiple indexers for identical file payloads to seed acr
                          +----------------------------+----------------------------+
                          |                                                         |
                          v                                                         v
-          [ CRITICAL BACKUP TARGETS ]                               [ EXCLUDED / TRANSIENT DATA ]
-          (Synchronized to OneDrive:Sol)                            (Filtered out via filter.txt)
-          ---------------------------------                         ---------------------------------
-          - Database Dumps: data/backups/** (incl. sqlite/)         - Live PG Clusters: data/authentik/**
-          - Preshow Media: data/media/preshows/**                   - Live PG Clusters: data/paperless/db/**
-          - .torrent & .fastresume in data/torrents/**              - Redis Queue: data/paperless/redis/**
-          - .torrent & .fastresume in config/qbittorrent/**         - SQLite WAL & SHM: **/*-wal, **/*-shm
-          - Cross-Seed Cache: config/cross-seed/torrent_cache/**    - Bulk Media: data/media/** (except preshows)
-          - All Compose Stacks (compose/*.yml)                      - Torrent Payloads: data/torrents/** (except metafiles)
-          - Master Orchestrator: docker-compose.yml                 - Jellyfin Cache: config/jellyfin/cache/**
-          - Environment Secrets: .env, .env.example                 - Jellyfin Transcodes: config/jellyfin/data/transcodes/**
-          - Caddy Ingress: Caddyfile, ports.json                    - Jellyfin Metal: config/jellyfin_metal/cache/**, log/**
-          - Paperless Documents: data/paperless/media/**            - Service Logs: logs/**, *.log, config/**/logs/**
-          - Paperless Index & Scripts: data/paperless/data/**       - *arr Artwork: config/**/MediaCover/**
-          - Obsidian Notes: data/ignis/vaults/**                    - Prowlarr Definitions: config/prowlarr/Definitions/**
-          - SQLite DB files (config/**, data/arcane, data/ignis)    - ntfy Cache: data/ntfy/var/cache/**
-          - All Servarr DBs (Radarr, Sonarr, Prowlarr, Bazarr)      - OS Metadata: .DS_Store, ._*, .Spotlight-V100/**, .Trashes/**
-          - Static Web Frontends (web/**) & Scripts (scripts/**)    - Temp & Sockets: *.tmp, *.temp, *.swp, *.sock
-          - coder/main.tf, docs/system_state/**                     - Legacy & Build: _backup_pre_refactor/**, docs/archive/**, node_modules/**, .terraform/**
+          [ TIER 1: INCLUDED SERVER STATE ]                        [ EXCLUDED: MEDIA, LOGS & FLUFF ]
+          (Snapshotted via Backrest/Restic)                        (Filtered via config/backrest/excludes.txt)
+          ---------------------------------                        -------------------------------------------
+          - Staged DB Dumps: data/backups/*.sql.gz                 - Bulk Media: data/media/{movies,tv,music,books,home-videos}
+          - WAL-Complete SQLite: data/backups/sqlite/*             - Torrent Payloads: data/torrents/{movies,tv,books,music,temp,incomplete}
+          - Symlink Tree: data/backups/symlinks_manifest.tsv       - Torrent Link Trees: data/torrents/{cross-seed-links,qui-links}
+          - Coder Home Volume: data/backups/coder_home.tar.gz      - Live PG Clusters: data/authentik, data/paperless/db, config/coder/coderv2/postgres
+          - Saved .torrent Files: data/torrents/files/**           - Live Redis Queue: data/paperless/redis
+          - qBittorrent State: config/qbittorrent/BT_backup/**     - Live SQLite Journals & Log DBs: *-wal, *-shm, *.db-journal, logs.db*
+          - Cinema Preshows: data/media/preshows/**                - Jellyfin Caches/Metadata/Trickplay: cache, temp, transcodes, trickplay, metadata
+          - Paperless Archive: data/paperless/{media,data,scripts} - Servarr & Prowlarr Fluff: MediaCover, config/prowlarr/Definitions
+          - Identity & Auth: data/lldap, data/tinyauth, config/auth- Static Upstream Bundles: web/{pdf,chef,draw,speed,tools} (rebuilt via sync_static_tools.sh)
+          - App Data: data/{ignis,arcane,pocketbase,readeck,airtrail}- Node & Build Caches: quartz/{node_modules,public,.quartz-cache}, code-server/extensions
+          - Personal Web & Quartz Source: web/{fam,scan,aysynbm,mi}- All Logs & OS Trash: logs, log, *.log*, .DS_Store, ._*, .Spotlight-V100, .Trashes
+          - All Declarative IaC, Scripts, Docs & Live .env Secrets
 ```
 
-### Complete Rclone Filter Rules (`config/rclone/filter.txt.example`)
+### Complete Backrest / Restic Exclude Rules ([`config/backrest/excludes.txt.example`](../../config/backrest/excludes.txt.example))
 
-Rclone evaluates rules top to bottom, and the first matching rule wins. `scripts/backup.sh` uses `config/rclone/filter.txt` if present. It falls back to the tracked `filter.txt.example` (`/source/config/rclone/filter.txt.example` inside the container). `scripts/restore.sh` seeds `filter.txt` from the example when it is missing.
+Both Backrest plans (`sol-local-daily` and `sol-onedrive-cloud`) and [`scripts/backup.sh`](../../scripts/backup.sh) apply these exact exclude patterns when snapshotting `/userdata/sol`:
 
+```text
+# 1. Bulk Media & Raw Torrent Payloads (data/torrents/files & data/media/preshows are INCLUDED)
+/userdata/sol/data/torrents/movies
+/userdata/sol/data/torrents/tv
+/userdata/sol/data/torrents/books
+/userdata/sol/data/torrents/music
+/userdata/sol/data/torrents/temp
+/userdata/sol/data/torrents/incomplete
+/userdata/sol/data/torrents/cross-seed-links
+/userdata/sol/data/torrents/qui-links
+/userdata/sol/data/media/movies
+/userdata/sol/data/media/tv
+/userdata/sol/data/media/music
+/userdata/sol/data/media/books
+/userdata/sol/data/media/home-videos
+
+# 2. Live Relational Database & Redis Data Directories (Backed up via data/backups/*.sql.gz)
+/userdata/sol/data/authentik
+/userdata/sol/data/paperless/db
+/userdata/sol/data/paperless/redis
+/userdata/sol/config/coder/coderv2/postgres
+
+# 3. Live SQLite WAL / SHM Journals & Log DBs (Atomic snapshots live in data/backups/sqlite/)
+*-wal
+*-shm
+*.db-journal
+logs.db
+logs.db-wal
+logs.db-shm
+
+# 4. Backrest & Restic Local Cache
+/userdata/sol/data/backrest/cache
+
+# 5. Reproducible Node Modules, Static Tool Bundles & Transcode/Trickplay/Metadata Caches
+/userdata/sol/quartz/node_modules
+/userdata/sol/quartz/public
+/userdata/sol/quartz/.quartz-cache
+/userdata/sol/web/pdf
+/userdata/sol/web/chef
+/userdata/sol/web/draw
+/userdata/sol/web/speed
+/userdata/sol/web/tools
+/userdata/sol/web/fam_backup_20260913
+/userdata/sol/config/jellyfin/cache
+/userdata/sol/config/jellyfin/data/temp
+/userdata/sol/config/jellyfin/data/transcodes
+/userdata/sol/config/jellyfin/data/data/trickplay
+/userdata/sol/config/jellyfin/data/metadata
+/userdata/sol/config/jellyfin_metal/cache
+/userdata/sol/config/jellyfin_metal/data/temp
+/userdata/sol/config/jellyfin_metal/data/transcodes
+/userdata/sol/config/jellyfin_metal/data/data/trickplay
+/userdata/sol/config/jellyfin_metal/data/metadata
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Cache
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Codecs
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Crash Reports
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Diagnostics
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Logs
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Media
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Metadata
+/userdata/sol/config/plex/Library/Application Support/Plex Media Server/Plug-in Support/Caches
+/userdata/sol/config/code-server/extensions
+/userdata/sol/config/code-server/.cache
+/userdata/sol/config/code-server/Library/Caches
+/userdata/sol/config/prowlarr/Definitions
+/userdata/sol/data/ntfy/var/cache
+/userdata/sol/.hist
+/userdata/sol/priv/.hist
+/userdata/sol/_backup_pre_refactor
+/userdata/sol/docs/archive
+MediaCover
+.terraform
+
+# 6. Ephemeral Container & Host Logs
+/userdata/sol/logs
+logs
+log
+Logs
+*.log
+*.log.*
+
+# 7. macOS Metadata & Temporary Files
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+*.tmp
+*.temp
+*.swp
+*.sock
 ```
-# --- 1. OS & Filesystem Metadata Exclusions ---
-- .DS_Store
-- ._*
-- .Spotlight-V100/**
-- .Trashes/**
-- *.tmp
-- *.temp
-- *.swp
-- *.sock
 
-# --- 2. Live Database Cluster & WAL Lock Exclusions ---
-# Live PostgreSQL data directories are excluded because scripts/backup.sh
-# generates consistent logical dumps in data/backups/*.sql.gz.
-- data/authentik/**
-- data/paperless/db/**
-- data/paperless/redis/**
-
-# Live SQLite Write-Ahead Logs (-wal) and Shared Memory (-shm) files
-# are excluded because scripts/backup.sh creates atomic online snapshots
-# via 'sqlite3 .backup' in data/backups/sqlite/ before rclone runs.
-- **/*-wal
-- **/*-shm
-
-# --- 3. Ephemeral Caches, Logs & Transcode Buffers ---
-- logs/**
-- *.log
-- config/jellyfin/cache/**
-- config/jellyfin/data/transcodes/**
-- config/jellyfin_metal/cache/**
-- config/jellyfin_metal/log/**
-- config/**/logs/**
-- config/**/MediaCover/**
-- config/prowlarr/Definitions/**
-- data/ntfy/var/cache/**
-
-# --- 4. Priority Inclusions (Preshows, Database Dumps & Torrent Metafiles) ---
-+ data/backups/**
-+ data/media/preshows/**
-+ data/torrents/**/*.torrent
-+ data/torrents/**/*.fastresume
-+ config/qbittorrent/**/*.torrent
-+ config/qbittorrent/**/*.fastresume
-+ config/cross-seed/torrent_cache/**
-
-# --- 5. Bulk Media & Torrent Payload Exclusions ---
-- data/media/**
-- data/torrents/**
-
-# --- 6. Legacy & Build Exclusions ---
-- _backup_pre_refactor/**
-- docs/archive/**
-- node_modules/**
-- .terraform/**
-
-# --- 7. Default Rule: Include All Remaining Config, State & Repo Files ---
-+ **
-```
-
-> [!NOTE]
-> Rule changes from the previous filter: the live PostgreSQL clusters and SQLite `-wal`/`-shm` files are now excluded (dumps and snapshots replace them). Jellyfin `metadata/**` and `trickplay/**`, and code-server `extensions/**`, are no longer excluded, so they now sync. `docs/archive/**` and `.terraform/**` are newly excluded.
-
-### Disaster Recovery Playbook (`scripts/restore.sh`)
+### Bare-Metal Disaster Recovery Playbook ([`scripts/restore.sh`](../../scripts/restore.sh))
 
 | Step | Action |
 | :--- | :--- |
-| **1. Cloud Pull** | `rclone copy OneDrive:Sol <SOL_ROOT> --links -v --stats 15s`, with `--config ./config/rclone/rclone.conf` if present (else confirms use of global rclone config). `--dry-run` adds `--dry-run` and exits after this step. `--skip-cloud-pull` skips it. Optional arrays expand with the Bash 3.2 `set -u` safe form `${arr[@]+"${arr[@]}"}`. |
-| **2. Structure & Secrets** | `mkdir -p ./logs ./data/backups ./data/backups/sqlite ./data/media/preshows ./data/torrents ./data/paperless/consume ./data/paperless/scripts ./config/rclone`. Seeds `filter.txt` from `filter.txt.example`. Creates `.env` from `.env.example` if missing. Loads `.env` with the safe `load_env` parser. `chmod +x ./scripts/*.sh ./scripts/*.py`. |
-| **3a. SQLite Restore** | For each file in `data/backups/sqlite/`, decodes `__` back to `/` and copies it into place only if the destination database is missing. |
-| **3b. PostgreSQL Import** | Imports when `--restore-dbs` is set, or when `--start-stack` is set and the cluster lacks `PG_VERSION`. Starts the DB container, polls `pg_isready` up to 30 seconds, then runs `gunzip -c ./data/backups/<db>.sql.gz \| docker exec -i <container> psql -U <user> -d <db>`. |
-| **4. Validate & Start** | `docker compose -f docker-compose.yml config` syntax check. With `--start-stack`: `docker compose up -d` (24 active containers, no standby profile) and `docker compose ps`. |
+| **1. Snapshot Pull** | Restores the latest (or specified `--snapshot <id>`) Restic snapshot from `/Volumes/PANOPTICON/backups/sol-restic` (`--from-local`, default when mounted) or `rclone:OneDrive:Sol-Restic` (`--from-cloud`). Supports `--dry-run` to list snapshots without modifying disk, and `--legacy-rclone` as a fallback for older `OneDrive:Sol` mirrors. |
+| **2. Structure, Templates & Static Tools** | Creates required directories, seeds `config/backrest/excludes.txt`, `config/backrest/config.json`, and `config/rclone/filter.txt` from their `.example` templates if missing, and runs [`scripts/sync_static_tools.sh`](../../scripts/sync_static_tools.sh) to repopulate `web/{tools,chef,pdf,speed,draw,mi}`. |
+| **3. Symlink Tree Reconstruction** | Reads `data/backups/symlinks_manifest.tsv` and recreates every missing relative media and cross-seed symlink across `./data/media`, `/Volumes/PANOPTICON/media`, and `cross-seed-links` / `qui-links`. |
+| **4. SQLite, PostgreSQL & Coder Volume Restore** | Restores WAL-complete SQLite snapshots from `data/backups/sqlite/`, imports `paperless_db.sql.gz`, `airtrail_db.sql.gz`, and `authentik_db.sql.gz` into PostgreSQL, restores `coder_home.tar.gz` into the `coder-*-home` Docker volume, and validates + starts the 29 active containers (`--start-stack`). |
 
-In the event of total hardware loss, restore to a fresh machine with these commands:
+In the event of a total Mac reset, restore the entire server with four commands:
 
 ```bash
-# 1. Create/navigate to base directory on the new machine (copy rclone.conf into ./config/rclone/ first)
-mkdir -p /Users/vrg/Documents/Sol && cd /Users/vrg/Documents/Sol
+# 1. Clone the Tier 2 declarative blueprint from GitHub (and place rclone.conf in config/rclone/ if restoring from OneDrive)
+git clone https://github.com/varungupta3009/Sol.git /Users/vrg/Documents/Sol && cd /Users/vrg/Documents/Sol
 
-# 2. Pull the cloud backup and prepare the tree (preview first with --dry-run)
+# 2. Preview available Tier 1 Restic snapshots (auto-selects local PANOPTICON or pass --from-cloud for OneDrive)
 ./scripts/restore.sh --dry-run
-./scripts/restore.sh
 
-# 3. Force PostgreSQL dump import and launch the active container ecosystem
-./scripts/restore.sh --skip-cloud-pull --restore-dbs --start-stack
+# 3. Restore latest Restic snapshot, rebuild PostgreSQL & SQLite DBs, recreate all media symlinks, and start all 29 active services
+./scripts/restore.sh --restore-dbs --start-stack
 
-# 4. Relaunch native Jellyfin Metal (preserves restored jellyfin.db, no --reset)
+# 4. Relaunch native Jellyfin Metal (preserves restored jellyfin.db without --reset)
 python3 ./scripts/setup_jellyfin_metal.py
 ```

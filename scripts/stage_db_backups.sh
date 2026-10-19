@@ -18,6 +18,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Prevent non-interactive SSH / launchd docker calls from hanging on locked macOS Keychain
+mkdir -p /tmp/sol_no_keychain
+printf '#!/bin/sh\necho "{}"\n' > /tmp/sol_no_keychain/docker-credential-osxkeychain
+chmod +x /tmp/sol_no_keychain/docker-credential-osxkeychain
+export PATH="/tmp/sol_no_keychain:/usr/local/bin:/opt/homebrew/bin:$PATH"
+
 load_env() {
     local env_file="$1"
     [ -f "$env_file" ] || return 0
@@ -84,6 +90,21 @@ else
     log "ℹ paperless-db is not running; skipping live dump."
 fi
 
+# 2b. Coder Embedded PostgreSQL Dump
+if docker ps --format '{{.Names}}' | grep -q "^coder$" && [ -f "./config/coder/coderv2/postgres/port" ]; then
+    log "Dumping Coder embedded PostgreSQL database..."
+    CODER_PG_PORT="$(cat ./config/coder/coderv2/postgres/port 2>/dev/null || echo 43235)"
+    CODER_PG_PASS="$(cat ./config/coder/coderv2/postgres/password 2>/dev/null || echo "")"
+    if docker run --rm --network container:coder -e PGPASSWORD="$CODER_PG_PASS" postgres:17-alpine \
+        pg_dump -h ::1 -p "$CODER_PG_PORT" -U coder -d coder --clean --if-exists 2>/dev/null | gzip > ./data/backups/coder_db.sql.gz.tmp; then
+        mv ./data/backups/coder_db.sql.gz.tmp ./data/backups/coder_db.sql.gz
+        log "✓ Coder DB dumped to data/backups/coder_db.sql.gz"
+    else
+        rm -f ./data/backups/coder_db.sql.gz.tmp
+        log "⚠ Warning: Coder DB dump failed."
+    fi
+fi
+
 # 3. Online WAL-Complete SQLite Snapshots (VirtioFS-safe temp copy + .backup)
 if command -v sqlite3 &> /dev/null; then
     log "Creating WAL-complete SQLite snapshots in data/backups/sqlite/..."
@@ -91,6 +112,9 @@ if command -v sqlite3 &> /dev/null; then
     trap 'rm -rf "$SQLITE_TMP_DIR"' EXIT
     while IFS= read -r -d '' db_file; do
         rel_path="${db_file#./}"
+        if [[ "$(basename "$db_file")" == "logs.db" ]]; then
+            continue
+        fi
         safe_name="${rel_path//\//__}"
         if ! head -c 15 "$db_file" 2>/dev/null | grep -q "SQLite format 3"; then
             continue
@@ -105,7 +129,7 @@ if command -v sqlite3 &> /dev/null; then
         else
             log "  ⚠ Skipped locked or non-SQLite file: ${rel_path}"
         fi
-    done < <(find ./config ./data/arcane ./data/tinyauth ./data/readeck ./data/pocketbase ./data/enclosed ./data/ignis ./data/ntfy ./data/copyparty ./data/homebox ./data/beszel ./data/leafwiki -maxdepth 4 \( -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3" \) -type f -print0 2>/dev/null || true)
+    done < <(find ./config ./data/arcane ./data/tinyauth ./data/lldap ./data/readeck ./data/pocketbase ./data/enclosed ./data/ignis ./data/ntfy ./data/copyparty ./data/homebox ./data/beszel ./data/leafwiki -maxdepth 4 \( -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3" \) -type f -print0 2>/dev/null || true)
     rm -rf "$SQLITE_TMP_DIR"
     trap - EXIT
 fi
@@ -115,7 +139,7 @@ log "Capturing media & cross-seed symlink manifest..."
 MANIFEST_TMP="./data/backups/symlinks_manifest.tsv.tmp"
 : > "$MANIFEST_TMP"
 SEARCH_PATHS=()
-for p in ./data/media ./data/torrents/cross-seed-links "${EXTERNAL_DRIVE_00:-/Volumes/PANOPTICON}/media" "${EXTERNAL_DRIVE_00:-/Volumes/PANOPTICON}/torrents/cross-seed-links"; do
+for p in ./data/media ./data/torrents/cross-seed-links ./data/torrents/qui-links "${EXTERNAL_DRIVE_00:-/Volumes/PANOPTICON}/media" "${EXTERNAL_DRIVE_00:-/Volumes/PANOPTICON}/torrents/cross-seed-links" "${EXTERNAL_DRIVE_00:-/Volumes/PANOPTICON}/torrents/qui-links"; do
     [ -d "$p" ] && SEARCH_PATHS+=("$p")
 done
 if [ "${#SEARCH_PATHS[@]}" -gt 0 ]; then
@@ -137,9 +161,13 @@ if [ -n "$CODER_VOL" ]; then
     if docker run --rm -v "${CODER_VOL}:/coder_home:ro" -v "$(pwd)/data/backups:/backups" redis:8-alpine \
         tar -czf /backups/coder_home.tar.gz.tmp \
         --exclude='./.cache' \
-        --exclude='./.local/share/code-server/CachedExtensionVSIXs' \
-        --exclude='./.cargo/registry' \
-        --exclude='./.rustup/toolchains' \
+        --exclude='./.local/share/code-server' \
+        --exclude='./.vscode-server' \
+        --exclude='./.cargo' \
+        --exclude='./.rustup' \
+        --exclude='./.bun' \
+        --exclude='./.npm' \
+        --exclude='node_modules' \
         -C /coder_home . 2>/dev/null; then
         mv ./data/backups/coder_home.tar.gz.tmp ./data/backups/coder_home.tar.gz
         log "✓ Archived Coder home volume to data/backups/coder_home.tar.gz"

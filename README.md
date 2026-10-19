@@ -249,6 +249,7 @@ Linux `link(2)` fails with `EXDEV` across two different mount points, even when 
 │   ├── auth/
 │   │   └── users.json                    # Tracked single-email identity manifest (Tinyauth, lldap, Jellyfin, Seerr, Copyparty)
 │   ├── backrest/
+│   │   ├── config.json.example           # Tracked Backrest repositories, schedules, and plans template
 │   │   └── excludes.txt.example          # Tracked Restic exclude filter template
 │   ├── glance/
 │   │   ├── assets/
@@ -434,7 +435,19 @@ killall jellyfin
 
 ## Backup and Disaster Recovery
 
-### Running Backups ([`scripts/backup.sh`](scripts/backup.sh) & [`scripts/stage_db_backups.sh`](scripts/stage_db_backups.sh))
+### Two-Tier Backup Architecture
+
+Sol uses a two-tier backup architecture designed for zero-bloat version control and 100% deterministic bare-metal state recovery:
+
+1. **Tier 1 — Full Server State Backup (Backrest + Restic to `/Volumes/PANOPTICON` and `OneDrive`):**
+   - Managed via **Backrest (`https://backrest.vrg.rocks`)** and [`scripts/backup.sh`](scripts/backup.sh), paired with the pre-backup staging hook [`scripts/stage_db_backups.sh`](scripts/stage_db_backups.sh) (scheduled via macOS `launchd` `com.vrg.sol.db-stage.plist`).
+   - Backs up the entire `/Users/vrg/Documents/Sol` directory **except** bulk media files (`data/media/{movies,tv,music,books,home-videos}`), raw torrent downloads (`data/torrents/{movies,tv,books,music,temp,incomplete}`), live database binary clusters (which are dumped cleanly into `data/backups/*.sql.gz` and `data/backups/sqlite/*`), logs, and regenerable caches/bundles (`excludes.txt.example`).
+   - **Recovery Guarantee:** After a complete Mac wipe and reset, restoring the Restic snapshot (`./scripts/restore.sh --restore-dbs --start-stack`) with media files in their respective folders brings **100% of the server, databases, secrets (`.env`), `.torrent`/`.fastresume` state, Paperless documents, Obsidian vaults, Coder workspace volume, and media symlink trees** back up and running identically to the time of backup.
+2. **Tier 2 — Declarative Infrastructure Blueprint (`GitHub` `varungupta3009/Sol`):**
+   - Tracks a lean, zero-secret infrastructure-as-code blueprint (`docker-compose.yml`, `compose/*.yml`, `Caddyfile`, `ports.json`, `.env.example`, `config/glance/**`, `config/qui/tracker_registry.json`, `config/auth/users.json`, `config/backrest/*.example`, `config/rclone/filter.txt.example`, `coder/main.tf`, `scripts/*`, and `docs/*`).
+   - Allows provisioning and configuring the entire container topology, routing layer, dashboards, and automation scripts from scratch as of the latest commit without requiring runtime data volumes.
+
+### Running Backups ([`scripts/backup.sh`](scripts/backup.sh), [`scripts/stage_db_backups.sh`](scripts/stage_db_backups.sh) & `https://backrest.vrg.rocks`)
 
 ```bash
 # Run full staged backup to both PANOPTICON and OneDrive (Restic via Backrest)
@@ -442,17 +455,20 @@ killall jellyfin
 
 # Run local-only Restic snapshot to /Volumes/PANOPTICON/backups/sol-restic
 ./scripts/backup.sh --local-only
+
+# Run pre-backup database & symlink staging independently (also triggered by launchd before Backrest schedules)
+./scripts/stage_db_backups.sh
 ```
 
 Pipeline:
 
 1. **Pre-Backup Staging ([`scripts/stage_db_backups.sh`](scripts/stage_db_backups.sh)):**
-   - Dumps `authentik-postgresql` and `paperless-db` with `pg_dump` to `data/backups/authentik_db.sql.gz` and `data/backups/paperless_db.sql.gz` (atomic temp file, then rename).
-   - Copies each SQLite database (`*.db`, `*.sqlite`, `*.sqlite3`) and its `-wal` file (without `-shm`) to a local temp directory and runs `sqlite3 .backup` into `data/backups/sqlite/`, capturing all un-checkpointed WAL transactions without touching guest Linux VM `-shm` mmap files.
-   - Exports all library symlinks in `data/media` and `/Volumes/PANOPTICON/media` to `data/backups/symlinks_manifest.tsv` so relative media symlinks can be reconstructed after a Mac reset.
+   - Dumps `paperless-db` (`paperless` and `airtrail` databases), `coder` (embedded PostgreSQL), and `authentik-postgresql` (if running) with `pg_dump` to `data/backups/{paperless_db,airtrail_db,coder_db,authentik_db}.sql.gz` (atomic temp file, then rename).
+   - Copies each SQLite database (`*.db`, `*.sqlite`, `*.sqlite3`, including `data/lldap/users.db`, `data/tinyauth/tinyauth.db`, `config/qui/qui.db`, and all `*arr` DBs) and its `-wal` file (without `-shm`) to a local temp directory and runs `sqlite3 .backup` into `data/backups/sqlite/`, capturing all un-checkpointed WAL transactions without touching guest Linux VM `-shm` mmap files.
+   - Exports all library and cross-seed symlinks in `data/media`, `data/torrents/{cross-seed-links,qui-links}`, and `/Volumes/PANOPTICON/{media,torrents}` to `data/backups/symlinks_manifest.tsv` so relative media symlinks can be reconstructed after a Mac reset.
    - Archives the persistent Coder workspace Docker volume (`coder-*-home`) to `data/backups/coder_home.tar.gz`.
-2. **Restic Deduplicated Snapshot ([`scripts/backup.sh`](scripts/backup.sh)):**
-   - Runs `restic backup` inside the `backrest` container against `/repos/local-panopticon` (`/Volumes/PANOPTICON/backups/sol-restic`) and `rclone:OneDrive:Sol-Restic` using [`config/backrest/excludes.txt.example`](config/backrest/excludes.txt.example), followed by `restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune`.
+2. **Restic Deduplicated Snapshot (Backrest Plans `sol-local-daily` & `sol-onedrive-cloud`, or [`scripts/backup.sh`](scripts/backup.sh)):**
+   - Snapshots `/userdata/sol` into `/repos/local-panopticon` (`/Volumes/PANOPTICON/backups/sol-restic`) and `rclone:OneDrive:Sol-Restic` using [`config/backrest/excludes.txt.example`](config/backrest/excludes.txt.example), retaining `7 daily / 4 weekly / 6 monthly` snapshots with automated weekly prune and integrity checks.
 
 ### Restoring on a Fresh Machine ([`scripts/restore.sh`](scripts/restore.sh))
 
@@ -471,9 +487,9 @@ git clone https://github.com/varungupta3009/Sol.git /Users/vrg/Documents/Sol && 
 | :--- | :--- |
 | `--dry-run` | Lists Restic snapshots and previews restore plan without mutating files. |
 | `--from-cloud` | Pulls the Restic snapshot from `rclone:OneDrive:Sol-Restic` instead of local `/Volumes/PANOPTICON/backups/sol-restic`. |
-| `--skip-pull` | Uses already-extracted local files under `data/backups/` without running `restic restore`. |
-| `--restore-dbs` | Imports both PostgreSQL `.sql.gz` dumps (`authentik_db.sql.gz`, `paperless_db.sql.gz`) and restores SQLite snapshots. |
-| `--start-stack` | Recreates media symlinks from `symlinks_manifest.tsv`, restores `coder_home.tar.gz`, and starts all 27 active containers. |
+| `--skip-cloud-pull` | Uses already-extracted local files under `data/backups/` without running `restic restore`. |
+| `--restore-dbs` | Imports PostgreSQL `.sql.gz` dumps (`paperless_db.sql.gz`, `airtrail_db.sql.gz`, `authentik_db.sql.gz`), restores WAL-complete SQLite snapshots, and restores `coder_home.tar.gz`. |
+| `--start-stack` | Recreates media symlinks from `symlinks_manifest.tsv`, repopulates static web tools if missing, and starts all 29 active containers. |
 
 ---
 

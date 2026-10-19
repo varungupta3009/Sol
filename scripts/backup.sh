@@ -16,6 +16,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Prevent non-interactive SSH / launchd docker calls from hanging on locked macOS Keychain
+mkdir -p /tmp/sol_no_keychain
+printf '#!/bin/sh\necho "{}"\n' > /tmp/sol_no_keychain/docker-credential-osxkeychain
+chmod +x /tmp/sol_no_keychain/docker-credential-osxkeychain
+export PATH="/tmp/sol_no_keychain:/usr/local/bin:/opt/homebrew/bin:$PATH"
+
 LOCAL_ONLY=false
 CLOUD_ONLY=false
 LEGACY_RCLONE=false

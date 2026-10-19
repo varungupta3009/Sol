@@ -126,7 +126,7 @@ services:
       - ${DOCKER_CONFIG_DIR}/backrest:/config
       - ${DOCKER_DATA_DIR}/backrest/data:/data
       - ${DOCKER_DATA_DIR}/backrest/cache:/cache
-      - ${DOCKER_CONFIG_DIR}/rclone:/rclone:ro
+      - ${DOCKER_CONFIG_DIR}/rclone:/rclone
       - ${DOCKER_BASE_DIR}:/userdata/sol
       - ${EXTERNAL_DRIVE_00}/backups/sol-restic:/repos/local-panopticon
     labels:
