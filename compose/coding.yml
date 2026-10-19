@@ -58,3 +58,32 @@ services:
       glance.icon: sh:visual-studio-code
       glance.url: https://coder.vrg.rocks
       glance.description: Cloud Development Environments
+
+  # ----------------------------------------------------------------
+  # PocketBase: Single-Binary Go + SQLite Realtime Backend Sandbox
+  # ----------------------------------------------------------------
+  pocketbase:
+    container_name: pocketbase
+    image: ghcr.io/muchobien/pocketbase:latest
+    restart: unless-stopped
+    logging: *default-logging
+    user: "${PUID}:${PGID}"
+    environment:
+      PB_HOST: "0.0.0.0"
+      PB_PORT: "8090"
+      PB_ADMIN_EMAIL: ${ACME_EMAIL:-admin@example.com}
+      PB_ADMIN_PASSWORD: ${CORE_PASSWORD}
+    volumes:
+      - ${DOCKER_DATA_DIR}/pocketbase:/pb_data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8090/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      glance.id: pocketbase
+      glance.name: PocketBase
+      glance.icon: sh:pocketbase
+      glance.url: https://pb.vrg.rocks
+      glance.description: Go + SQLite Backend Sandbox

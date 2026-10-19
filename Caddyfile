@@ -46,6 +46,15 @@
 	}
 }
 
+# Tinyauth v5 Forward-Auth Middleware (Parallel Trial on lidarr & inv)
+(tinyauth) {
+	forward_auth tinyauth:3000 {
+		uri /api/auth/caddy
+		copy_headers Remote-User Remote-Name Remote-Email Remote-Groups Remote-Sub
+		trusted_proxies private_ranges
+	}
+}
+
 # Static Website Engine (Handles routing, clean URLs, compression & error fallbacks)
 (static_site) {
 	import optimize
@@ -67,6 +76,13 @@ auth.vrg.rocks {
 	import optimize
 	import security_headers
 	reverse_proxy http://authentik-server:9000
+}
+
+# Tinyauth v5 Login Portal (Parallel Trial)
+login.vrg.rocks {
+	import optimize
+	import security_headers
+	reverse_proxy http://tinyauth:3000
 }
 
 # Arcane Docker Management
@@ -109,13 +125,6 @@ sol.vrg.rocks {
 # 	reverse_proxy http://gatus:8080
 # }
 #
-# kuma.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import authentik
-# 	reverse_proxy http://uptime-kuma:3001
-# }
-#
 # beszel.vrg.rocks {
 # 	import optimize
 # 	import security_headers
@@ -128,20 +137,6 @@ sol.vrg.rocks {
 # 	import security_headers
 # 	import authentik
 # 	reverse_proxy http://dozzle:8080
-# }
-#
-# dockge.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import authentik
-# 	reverse_proxy http://dockge:5001
-# }
-#
-# homarr.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import authentik
-# 	reverse_proxy http://homarr:7575
 # }
 
 # ================================================================
@@ -204,11 +199,11 @@ bazarr.vrg.rocks {
 	reverse_proxy http://bazarr:6767
 }
 
-# Lidarr Music Manager
+# Lidarr Music Manager (Protected by Tinyauth v5 Parallel Trial)
 lidarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://lidarr:8686
 }
 
@@ -265,21 +260,6 @@ cs.vrg.rocks {
 	reverse_proxy http://cross-seed:2468
 }
 
-# --- Standby Download Routes (Uncomment when launching with --profile standby) ---
-# qbm.vrg.rocks, qbit_manage.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import authentik
-# 	reverse_proxy http://qbit_manage:8181
-# }
-#
-# flood.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import authentik
-# 	reverse_proxy http://flood:3000
-# }
-
 # ================================================================
 # 5. DOCUMENT & OCR ENGINE (compose/paperless.yml)
 # ================================================================
@@ -311,6 +291,14 @@ ignis.vrg.rocks {
 	reverse_proxy http://ignis:8080
 }
 
+# Readeck Bookmark & Read-Later Archiver
+links.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://readeck:8000
+}
+
 # --- Standby Knowledge Routes (Uncomment when launching with --profile standby) ---
 # leaf.vrg.rocks {
 # 	import optimize
@@ -324,20 +312,6 @@ ignis.vrg.rocks {
 # 	import security_headers
 # 	import authentik
 # 	reverse_proxy http://kavita:5000
-# }
-#
-# calibre.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import authentik
-# 	reverse_proxy http://calibre:8080
-# }
-#
-# calibre-web.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import authentik
-# 	reverse_proxy http://calibre-web:8083
 # }
 
 # ================================================================
@@ -360,6 +334,14 @@ coder.vrg.rocks {
 	reverse_proxy http://coder:7080
 }
 
+# PocketBase Realtime Go + SQLite Sandbox
+pb.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://pocketbase:8090
+}
+
 # ================================================================
 # 8. STORAGE LOGISTICS & UTILITIES (compose/utilities.yml)
 # ================================================================
@@ -379,11 +361,11 @@ ntfy.vrg.rocks {
 	reverse_proxy http://ntfy:80
 }
 
-# Homebox Physical Inventory Manager (CORS restricted strictly to https://scan.vrg.rocks)
+# Homebox Physical Inventory Manager (Tinyauth v5 Trial; CORS restricted to https://scan.vrg.rocks)
 inv.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 
 	@allowed_origins header Origin https://scan.vrg.rocks
 	header @allowed_origins {
@@ -411,6 +393,21 @@ backrest.vrg.rocks {
 	reverse_proxy http://backrest:9898
 }
 
+# Enclosed Zero-Knowledge Encrypted Notes & File Drops
+send.vrg.rocks {
+	import optimize
+	import security_headers
+	reverse_proxy http://enclosed:8787
+}
+
+# AirTrail Personal Flight Log & Aircraft Registry
+fly.vrg.rocks {
+	import optimize
+	import security_headers
+	import authentik
+	reverse_proxy http://airtrail:3000
+}
+
 # --- Standby Utility Routes (Uncomment when launching with --profile standby) ---
 # Home Assistant (Bridged to Mac Host via OrbStack host.docker.internal)
 # home.vrg.rocks {
@@ -433,16 +430,9 @@ backrest.vrg.rocks {
 # 	import authentik
 # 	reverse_proxy http://n8n:5678
 # }
-#
-# rclone.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import authentik
-# 	reverse_proxy http://rclone-gui:5572
-# }
 
 # ================================================================
-# 9. STATIC WEB APPLICATIONS (Local Mounts)
+# 9. STATIC WEB APPLICATIONS (Local Mounts — 0 MiB Extra RAM)
 # ================================================================
 
 # Quartz Digital Garden
@@ -469,5 +459,50 @@ scan.vrg.rocks {
 # Async Bookmark Manager
 aysynbm.vrg.rocks {
 	root * /aysynbm
+	import static_site
+}
+
+# IT-Tools Developer Utilities Suite (80+ Client-Side Tools)
+tools.vrg.rocks {
+	import authentik
+	root * /tools
+	import static_site
+}
+
+# GCHQ CyberChef Data & Crypto Swiss Army Knife
+chef.vrg.rocks {
+	import authentik
+	root * /chef
+	import static_site
+}
+
+# BentoPDF Client-Side WebAssembly PDF Suite (50+ PDF Tools)
+pdf.vrg.rocks {
+	import authentik
+	root * /pdf
+	import static_site
+}
+
+# OpenSpeedTest HTML5 LAN & Wi-Fi 6 Throughput Benchmark
+speed.vrg.rocks {
+	import authentik
+	root * /speed
+	request_body {
+		max_size 500MB
+	}
+	import static_site
+}
+
+# Excalidraw Hand-Drawn Architecture Whiteboard
+draw.vrg.rocks {
+	import authentik
+	root * /draw
+	import static_site
+}
+
+# Sol MediaInfo WebAssembly 4K HDR / Dolby Vision / Atmos Bitstream Inspector
+mi.vrg.rocks {
+	import authentik
+	root * /mi
 	import static_site
 }

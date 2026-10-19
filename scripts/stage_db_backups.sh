@@ -61,7 +61,7 @@ else
     log "ℹ authentik-postgresql is not running; skipping live dump."
 fi
 
-# 2. Paperless PostgreSQL Dump
+# 2. Paperless & AirTrail PostgreSQL Dumps
 if docker ps --format '{{.Names}}' | grep -q "^paperless-db$"; then
     log "Dumping Paperless PostgreSQL database..."
     if docker exec paperless-db pg_dump --clean --if-exists -U "${PAPERLESS_DB_USER:-paperless}" "${PAPERLESS_DB_NAME:-paperless}" | gzip > ./data/backups/paperless_db.sql.gz.tmp; then
@@ -70,6 +70,15 @@ if docker ps --format '{{.Names}}' | grep -q "^paperless-db$"; then
     else
         rm -f ./data/backups/paperless_db.sql.gz.tmp
         log "⚠ Warning: Paperless DB dump failed."
+    fi
+
+    log "Dumping AirTrail PostgreSQL database..."
+    if docker exec paperless-db pg_dump --clean --if-exists -U "${PAPERLESS_DB_USER:-paperless}" "airtrail" | gzip > ./data/backups/airtrail_db.sql.gz.tmp; then
+        mv ./data/backups/airtrail_db.sql.gz.tmp ./data/backups/airtrail_db.sql.gz
+        log "✓ AirTrail DB dumped to data/backups/airtrail_db.sql.gz"
+    else
+        rm -f ./data/backups/airtrail_db.sql.gz.tmp
+        log "⚠ Warning: AirTrail DB dump failed."
     fi
 else
     log "ℹ paperless-db is not running; skipping live dump."
@@ -96,7 +105,7 @@ if command -v sqlite3 &> /dev/null; then
         else
             log "  ⚠ Skipped locked or non-SQLite file: ${rel_path}"
         fi
-    done < <(find ./config ./data/arcane ./data/ignis ./data/ntfy ./data/copyparty ./data/homebox ./data/beszel ./data/leafwiki -maxdepth 4 \( -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3" \) -type f -print0 2>/dev/null || true)
+    done < <(find ./config ./data/arcane ./data/tinyauth ./data/readeck ./data/pocketbase ./data/enclosed ./data/ignis ./data/ntfy ./data/copyparty ./data/homebox ./data/beszel ./data/leafwiki -maxdepth 4 \( -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3" \) -type f -print0 2>/dev/null || true)
     rm -rf "$SQLITE_TMP_DIR"
     trap - EXIT
 fi

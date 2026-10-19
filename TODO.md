@@ -68,7 +68,14 @@ Run these on `/Users/vrg/Documents/Sol` in the runbook order. Each item links to
 - [x] **Fixed `sonarr` -> `qbittorrent` Authentication (`401:Unauthorized`):** Replaced placeholder `00000000` password in Sonarr's qBittorrent DownloadClient settings with the valid `VRG` credential and verified `/api/v3/downloadclient/testall` returns `isValid: true`.
 - [x] **Fixed `radarr` Movie Collection Root Folders:** Updated 8 Movie Collections in `radarr.db` from stale `/external/Movies` to `/external/media/movies` following the PANOPTICON restructuring.
 - [x] **Hardened `scripts/stage_db_backups.sh` SQLite Snapshot Mode:** Copies `${db_file}` and `${db_file}-wal` (without `-shm`) to a local temp directory before running `sqlite3 .backup` so macOS host `sqlite3` captures all un-checkpointed WAL commits without touching guest Linux VM `-shm` mmap files over VirtioFS.
-- [x] **Disabled Sonarr `enableCompletedDownloadHandling`:** Verified `enableCompletedDownloadHandling: false` in both Sonarr (`sonarr.db`) and Radarr (`radarr.db`) so qBittorrent's `torrent_finished.py` Option A hook handles all media imports without duplicate copies.
+- [x] **Hardened Symlink Topology & Zero-Loss Media Safeguards (`H1`–`H5`, Completed October 2026):**
+  - Converted all 4 TV series directories in `/Volumes/PANOPTICON/media/tv/` (`Impractical Jokers`, `Kochikame: Tokyo Beat Cops`, `Oswald`, `Shin Chan`) from directory symlinks into real directories containing per-file relative symlinks (`432`, `60`, `26`, and `819` links respectively) so destination and source paths never alias the same physical file.
+  - Hardened [`scripts/torrent_finished.py`](scripts/torrent_finished.py), [`scripts/migrate_panopticon_live.py`](scripts/migrate_panopticon_live.py), and `config/{sonarr,radarr}/custom_scripts/arr_symlink_dedupe.sh` with `realpath` equality and directory-symlink abort guards, plus season subfolder preservation in `process_sonarr()`.
+  - Configured `/external/media/.recycle` (`14`-day retention) and verified `enableCompletedDownloadHandling: false` and `removeCompletedDownloads: false` in both Sonarr and Radarr.
+  - Re-pointed `Under the Sea 3D (2009)` in `/Volumes/PANOPTICON/media/movies/` from the `80 MB` `SAMPLE.mkv` to the full `9.59 GB` movie in the torrent folder.
+  - **Re-Download Queue (42 episodes lost during Oct 18 directory-symlink upgrade collision):**
+    - `Oswald` Season 1 (`S01E01`–`S01E26`, 26 files, `4.36 GB`)
+    - `Impractical Jokers` Season 1 (`S01E01`–`S01E16`, 16 files, `6.95 GB`; note `S01E17`, Movie, and all of `S02`–`S09` are 100% intact)
 
 ### J. Known Drift and Follow-Ups
 - [x] **Prowlarr Stale Indexer & App Cleanup + DB Recovery:** Recovered corrupted `prowlarr.db` (`Tree 16 page 5865`), deleted deprecated `TheRARBG` indexer (`ID 5`) and retired `Readarr` application sync (`ID 4`), and added `RADARR__`, `SONARR__`, `LIDARR__`, and `PROWLARR__SERVER__ALLOWEDHOSTS` in `compose/media.yml`.
@@ -95,28 +102,32 @@ Full technical analysis and RAM benchmarks: [10_MEGA_OPTIMIZATION_AND_CONTAINER_
 ### 2. Download, Identity, Backup & Monitoring Replacements
 - [x] **QUI (`qui.vrg.rocks` — DEPLOYED LIVE):** Deployed `ghcr.io/autobrr/qui:latest` (`23.6 MiB` RAM) on port `7476`, initialized user `VRG` with clean `CORE_PASSWORD`, and connected `Sol (qBittorrent)` with local `/data` and `/external` filesystem access. Ready to delete standby `flood` and `qbit_manage`.
 - [x] **Backrest + Restic (`backrest.vrg.rocks` — DEPLOYED LIVE):** Deployed `ghcr.io/garethgeorge/backrest:latest` (`~25 MiB` RAM) on port `9898` and overhauled `scripts/stage_db_backups.sh`, `scripts/backup.sh`, and `scripts/restore.sh` to back up all configs, Postgres/SQLite databases, media symlink manifests, and Coder workspace archives to `/Volumes/PANOPTICON/backups/sol-restic` and `rclone:OneDrive:Sol-Restic` with chunk deduplication and AES-256 encryption.
-- [ ] **Tinyauth v5 Standalone Trial (`ghcr.io/tinyauthapp/tinyauth:v5` — Preserving Silent Google OAuth):**
-  - *Audit Finding:* Pocket ID v2 is strictly passkey-only and does **not** support upstream Google OAuth federation (GitHub #1712). However, **Tinyauth v5 alone (without Pocket ID)** supports upstream Google OAuth with `TINYAUTH_OAUTH_AUTOREDIRECT=google` (silent 302 redirect to `accounts.google.com` with zero intermediate login screen), Caddy forward-auth (`/api/auth/caddy`), and a built-in OpenID Certified OIDC provider (v5.1.0+) with remembered consent (v5.2.0+) for `Jellyfin`, `Paperless-ngx`, and `Arcane` in a single `~15 MiB` Go binary.
-  - Because switching OIDC issuer URLs changes `sub` subject identifiers in `Paperless-ngx`, `Jellyfin`, and `Arcane`, **Authentik remains untouched in production**. Test Tinyauth v5 in parallel on a test subdomain first before migrating OIDC clients.
+- [x] **Tinyauth v5 Parallel Trial (`login.vrg.rocks` — DEPLOYED LIVE on `lidarr.` & `inv.vrg.rocks`):**
+  - Deployed `ghcr.io/tinyauthapp/tinyauth:v5` (`v5.2.0`, `~29 MiB` RAM) in [`compose/core.yml`](compose/core.yml) and added the `(tinyauth)` forward-auth snippet in [`Caddyfile`](Caddyfile).
+  - Active trial routes: `https://lidarr.vrg.rocks` and `https://inv.vrg.rocks` (`homebox`) now authenticate via `https://login.vrg.rocks`, while all other services remain on Authentik untouched.
+  - Pre-configured with your `VRG` (`CORE_PASSWORD`) local user and Google OAuth credentials (`TINYAUTH_OAUTH_WHITELIST=admin@example.com,member1@example.com`). To enable Google OAuth login on `login.vrg.rocks`, add `https://login.vrg.rocks/api/oauth/callback/google` to Authorized Redirect URIs in Google Cloud Console (`APIs & Services -> Credentials`). Once tested, uncomment `TINYAUTH_OAUTH_AUTOREDIRECT=google` in `.env` for zero-click silent redirect.
+- [x] **Wave 2 Standby Bloat Cleanup (Completed October 2026):**
+  - Removed superseded standby services (`dockge`, `uptime-kuma`, `homarr`, `qbit_manage`, `flood`, `calibre`, `calibre-web`, `rclone-gui`) from `compose/*.yml`, `Caddyfile`, and `ports.json`.
 - [ ] **Beszel + Dozzle + Gatus behind `wollomatic/socket-proxy` (Standby / Low Priority):** Keep in `standby` profile until needed (`beszel`, `dozzle`, `gatus`).
 
-### 3. Zero-Container Static Suite (Served Directly by Caddy from `web/` at `0 MiB` RAM)
-- [ ] **BentoPDF (`pdf.vrg.rocks`):** Client-side WebAssembly PDF toolkit (`alam00000/bentopdf`, `0 MiB` server RAM) replacing bloated Java `Stirling-PDF` (`400+ MiB`).
-- [ ] **IT-Tools (`tools.vrg.rocks`):** 80+ client-side developer utilities (`CorentinTh/it-tools`).
-- [ ] **CyberChef (`chef.vrg.rocks`):** GCHQ client-side data encoding and binary analysis web app (`gchq/CyberChef`).
-- [ ] **OpenSpeedTest (`speed.vrg.rocks`):** Static HTML5 LAN and Wi-Fi throughput benchmark (`openspeedtest/Speed-Test`).
-- [ ] **Excalidraw (`draw.vrg.rocks`):** Static virtual whiteboard (`excalidraw/excalidraw`).
-- [ ] **MediaInfo Web (`mi.vrg.rocks`):** Client-side WebAssembly `mediainfo.js` inspector for verifying 4K UHD Remux Dolby Vision Profile 7 FEL vs 8.1, HDR10 MaxCLL/MaxFALL, and TrueHD Atmos bitstreams.
+### 3. Zero-Container Static Suite (Served Directly by Caddy from `web/` at `0 MiB` RAM — DEPLOYED LIVE)
+Managed via [`scripts/sync_static_tools.sh`](scripts/sync_static_tools.sh) and mounted into `caddy` (`compose/core.yml`):
+- [x] **BentoPDF (`pdf.vrg.rocks` — DEPLOYED LIVE):** Client-side WebAssembly PDF toolkit (`alam00000/bentopdf`, `0 MiB` server RAM) replacing bloated Java `Stirling-PDF` (`400+ MiB`).
+- [x] **IT-Tools (`tools.vrg.rocks` — DEPLOYED LIVE):** 80+ client-side developer utilities (`CorentinTh/it-tools`).
+- [x] **CyberChef (`chef.vrg.rocks` — DEPLOYED LIVE):** GCHQ client-side data encoding and binary analysis web app (`gchq/CyberChef`).
+- [x] **OpenSpeedTest (`speed.vrg.rocks` — DEPLOYED LIVE):** Static HTML5 LAN and Wi-Fi throughput benchmark (`openspeedtest/Speed-Test`).
+- [x] **Excalidraw (`draw.vrg.rocks` — DEPLOYED LIVE):** Static virtual whiteboard (`excalidraw/excalidraw`).
+- [x] **MediaInfo Web (`mi.vrg.rocks` — DEPLOYED LIVE):** Custom GM3/Catppuccin Mocha client-side WebAssembly `mediainfo.js` inspector with zero-copy chunked reading for 80 GB+ 4K UHD Remuxes (Dolby Vision Profile, HDR10 MaxCLL/MaxFALL, TrueHD Atmos tracks, JSON/Text export).
 
 ### 4. Knowledge, Bookmarks, RSS & Encrypted Sharing
-- [ ] **Readeck (`links.vrg.rocks`):** Single-binary Go + SQLite bookmark and read-later archiver (`codeberg.org/readeck/readeck:latest`, `~25 MiB` RAM) with full-text extraction and EPUB export (replacing heavy Chromium+Meilisearch `Karakeep`).
+- [x] **Readeck (`links.vrg.rocks` — DEPLOYED LIVE):** Single-binary Go + SQLite bookmark and read-later archiver (`codeberg.org/readeck/readeck:latest`, `~45 MiB` RAM) with full-text extraction and EPUB export. Initialized admin user `VRG` with `CORE_PASSWORD`.
+- [x] **Enclosed (`send.vrg.rocks` — DEPLOYED LIVE):** Zero-knowledge client-side encrypted notes and self-destructing file drops built with Hono + TypeScript (`ghcr.io/corentinth/enclosed:latest`, `~27 MiB` RAM).
+- [x] **PocketBase Sandbox (`pb.vrg.rocks` — DEPLOYED LIVE):** Single-binary Go + SQLite backend (`ghcr.io/muchobien/pocketbase:latest`, `~27 MiB` RAM) for Svelte 5 / Datastar / HTMX rapid prototyping. Initialized superuser `admin@example.com` with `CORE_PASSWORD` at `https://pb.vrg.rocks/_/`.
+- [x] **Retired Standby Desktop `calibre` & `calibre-web`:** Kept `kavita` in standby for EPUB/PDF/Manga/Comics.
 - [ ] **Fusion or Miniflux (`rss.vrg.rocks`):** Go + SQLite RSS/Atom reader (`ghcr.io/0x2e/fusion:latest` or `miniflux/miniflux:latest`, `~25-50 MiB` RAM) with Fever/Google Reader API support.
-- [ ] **Enclosed (`send.vrg.rocks`):** Zero-knowledge client-side encrypted notes and self-destructing file drops built with Hono + TypeScript (`corentinth/enclosed:latest`, `~30 MiB` RAM).
-- [ ] **PocketBase Sandbox (`pb.vrg.rocks`):** Single-binary Go + SQLite backend (`~15 MiB` RAM) for Svelte 5 / Datastar / HTMX rapid prototyping.
-- [ ] **Retire Standby Desktop `calibre` & `calibre-web`:** Keep `kavita` (or `crocodilestick/calibre-web-automated` if Kobo/Kindle wireless sync is needed).
 
 ### 5. Cinema, IMAX & Airbus Flight Deck Passion Projects
-- [ ] **AirTrail (`fly.vrg.rocks`):** Self-hosted personal flight log and aircraft registry built with **SvelteKit** (`ghcr.io/johanohly/airtrail:latest`, sharing `paperless-db`) with Flightradar24/Flighty import and REST API integration for Glance `/radar`.
+- [x] **AirTrail (`fly.vrg.rocks` — DEPLOYED LIVE):** Self-hosted personal flight log and aircraft registry built with **SvelteKit** (`johly/airtrail:latest`, sharing `paperless-db` PostgreSQL 17 `airtrail` database) with Flightradar24/Flighty import and REST API integration.
 - [ ] **adsb-ultrafeeder (`adsb.vrg.rocks` on Raspberry Pi 3B):** Run `ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest` (`readsb` + `tar1090`) on the Raspberry Pi 3B with the RTL-SDR dongle and reverse-proxy `adsb.vrg.rocks` via Sol's Caddy.
 - [ ] **ErsatzTV (`tv.vrg.rocks` Native macOS):** Run ErsatzTV natively on macOS (for Apple VideoToolbox hardware transcoding) to build 24/7 rolling IMAX, Criterion, and Nolan live channels with `data/media/preshows` bumpers in Jellyfin Live TV.
 - [ ] **Jellyfin Intro Skipper & Playback Reporting Plugins:** Install in-process Jellyfin plugins (`0 MB` extra container RAM) for automatic intro skipping and SQLite watch analytics.

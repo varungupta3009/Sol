@@ -143,7 +143,7 @@ load_env "./.env"
 # Step 2: Verify Essential Directories & Permissions
 # ----------------------------------------------------------------
 echo "--- [2/5] Verifying essential directory structure & scripts ---"
-mkdir -p ./logs ./data/backups ./data/backups/sqlite ./data/media/preshows ./data/media/home-videos ./data/torrents ./data/paperless/consume ./data/paperless/scripts ./config/rclone ./config/backrest
+mkdir -p ./logs ./data/backups ./data/backups/sqlite ./data/media/preshows ./data/media/home-videos ./data/torrents ./data/paperless/consume ./data/paperless/scripts ./data/tinyauth ./data/readeck ./data/pocketbase ./data/enclosed ./data/airtrail ./config/rclone ./config/backrest
 
 if [ ! -f "./config/rclone/filter.txt" ] && [ -f "./config/rclone/filter.txt.example" ]; then
     cp ./config/rclone/filter.txt.example ./config/rclone/filter.txt
@@ -233,6 +233,13 @@ if [ -f "./data/backups/paperless_db.sql.gz" ] && [ "$NEED_PAPERLESS_IMPORT" = t
     echo "Importing Paperless database dump..."
     gunzip -c ./data/backups/paperless_db.sql.gz | docker exec -i paperless-db psql -U "${PAPERLESS_DB_USER:-paperless}" -d "${PAPERLESS_DB_NAME:-paperless}"
     echo "✓ Paperless PostgreSQL dump imported."
+    if [ -f "./data/backups/airtrail_db.sql.gz" ]; then
+        echo "Importing AirTrail database dump..."
+        docker exec paperless-db psql -U "${PAPERLESS_DB_USER:-paperless}" -d postgres -c "CREATE DATABASE airtrail;" 2>/dev/null || true
+        docker exec paperless-db psql -U "${PAPERLESS_DB_USER:-paperless}" -d airtrail -c 'CREATE EXTENSION IF NOT EXISTS "unaccent";' 2>/dev/null || true
+        gunzip -c ./data/backups/airtrail_db.sql.gz | docker exec -i paperless-db psql -U "${PAPERLESS_DB_USER:-paperless}" -d airtrail
+        echo "✓ AirTrail PostgreSQL dump imported."
+    fi
 fi
 
 if [ -f "./data/backups/coder_home.tar.gz" ] && [ "$RESTORE_DBS" = true ]; then

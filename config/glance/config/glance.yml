@@ -172,6 +172,9 @@ pages:
                   - title: Paperless-ngx
                     url: https://docs.vrg.rocks
                     icon: sh:paperless-ngx
+                  - title: Readeck Links
+                    url: https://links.vrg.rocks
+                    icon: sh:readeck
                   - title: Ignis Vault
                     url: https://ignis.vrg.rocks
                     icon: sh:obsidian
@@ -187,11 +190,17 @@ pages:
                   - title: Homebox Scanner
                     url: https://scan.vrg.rocks
                     icon: sh:homebox
+                  - title: AirTrail Flights
+                    url: https://fly.vrg.rocks
+                    icon: sh:airtrail
+                  - title: Enclosed Notes
+                    url: https://send.vrg.rocks
+                    icon: sh:enclosed
                   - title: AYSYNBM
                     url: https://aysynbm.vrg.rocks
                     icon: sh:html5
 
-              - title: Workspace & Infrastructure
+              - title: Workspace, Tools & Infrastructure
                 color: 115 54 76
                 links:
                   - title: VS Code Server
@@ -200,6 +209,27 @@ pages:
                   - title: Coder Platform
                     url: https://coder.vrg.rocks
                     icon: sh:coder
+                  - title: PocketBase
+                    url: https://pb.vrg.rocks
+                    icon: sh:pocketbase
+                  - title: IT-Tools
+                    url: https://tools.vrg.rocks
+                    icon: sh:it-tools
+                  - title: CyberChef
+                    url: https://chef.vrg.rocks
+                    icon: sh:cyberchef
+                  - title: BentoPDF
+                    url: https://pdf.vrg.rocks
+                    icon: sh:stirling-pdf
+                  - title: MediaInfo Web
+                    url: https://mi.vrg.rocks
+                    icon: sh:mediainfo
+                  - title: OpenSpeedTest
+                    url: https://speed.vrg.rocks
+                    icon: sh:openspeedtest
+                  - title: Excalidraw
+                    url: https://draw.vrg.rocks
+                    icon: sh:excalidraw
                   - title: Copyparty Files
                     url: https://files.vrg.rocks
                     icon: sh:copyparty
@@ -209,6 +239,9 @@ pages:
                   - title: Authentik SSO
                     url: https://auth.vrg.rocks
                     icon: sh:authentik
+                  - title: Tinyauth Trial
+                    url: https://login.vrg.rocks
+                    icon: sh:tinyauth
                   - title: Arcane Docker
                     url: https://arcane.vrg.rocks
                     icon: sh:arcane
@@ -697,7 +730,7 @@ pages:
                 icon: sh:cross-seed
 
           - type: monitor
-            title: Core, Knowledge, Dev & Utility Mesh (11 Active Services)
+            title: Core, Knowledge, Dev & Utility Mesh (16 Active Services)
             cache: 1m
             style: compact
             sites:
@@ -709,6 +742,10 @@ pages:
                 url: https://auth.vrg.rocks
                 check-url: http://authentik-server:9000/-/health/live/
                 icon: sh:authentik
+              - title: Tinyauth Trial
+                url: https://login.vrg.rocks
+                check-url: http://tinyauth:3000/api/healthz
+                icon: sh:tinyauth
               - title: Arcane Docker
                 url: https://arcane.vrg.rocks
                 check-url: http://arcane:3552
@@ -717,6 +754,10 @@ pages:
                 url: https://docs.vrg.rocks
                 check-url: http://paperless-webserver:8000
                 icon: sh:paperless-ngx
+              - title: Readeck Links
+                url: https://links.vrg.rocks
+                check-url: http://readeck:8000
+                icon: sh:readeck
               - title: Ignis Vault
                 url: https://ignis.vrg.rocks
                 check-url: http://ignis:8080
@@ -729,6 +770,10 @@ pages:
                 url: https://coder.vrg.rocks
                 check-url: http://coder:7080/api/v2/buildinfo
                 icon: sh:coder
+              - title: PocketBase
+                url: https://pb.vrg.rocks
+                check-url: http://pocketbase:8090/api/health
+                icon: sh:pocketbase
               - title: Copyparty Files
                 url: https://files.vrg.rocks
                 check-url: http://copyparty:3923
@@ -741,6 +786,14 @@ pages:
                 url: https://backrest.vrg.rocks
                 check-url: http://backrest:9898
                 icon: sh:restic
+              - title: Enclosed Notes
+                url: https://send.vrg.rocks
+                check-url: http://enclosed:8787
+                icon: sh:enclosed
+              - title: AirTrail Flights
+                url: https://fly.vrg.rocks
+                check-url: http://airtrail:3000
+                icon: sh:airtrail
               - title: ntfy Alerts
                 url: https://ntfy.vrg.rocks
                 check-url: http://ntfy:80/v1/health

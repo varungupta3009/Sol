@@ -39,6 +39,14 @@
     "status": "active",
     "category": "core"
   },
+  "tinyauth": {
+    "internal_port": 3000,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://login.vrg.rocks",
+    "status": "active",
+    "category": "core"
+  },
   "glance": {
     "internal_port": 8080,
     "host_port": null,
@@ -175,6 +183,14 @@
     "status": "active",
     "category": "knowledge"
   },
+  "readeck": {
+    "internal_port": 8000,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://links.vrg.rocks",
+    "status": "active",
+    "category": "knowledge"
+  },
   "code-server": {
     "internal_port": 8443,
     "host_port": null,
@@ -188,6 +204,14 @@
     "host_port": null,
     "protocol": "HTTP",
     "url": "https://coder.vrg.rocks",
+    "status": "active",
+    "category": "coding"
+  },
+  "pocketbase": {
+    "internal_port": 8090,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://pb.vrg.rocks",
     "status": "active",
     "category": "coding"
   },
@@ -220,6 +244,22 @@
     "host_port": null,
     "protocol": "HTTP",
     "url": "https://backrest.vrg.rocks",
+    "status": "active",
+    "category": "utilities"
+  },
+  "enclosed": {
+    "internal_port": 8787,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://send.vrg.rocks",
+    "status": "active",
+    "category": "utilities"
+  },
+  "airtrail": {
+    "internal_port": 3000,
+    "host_port": null,
+    "protocol": "HTTP",
+    "url": "https://fly.vrg.rocks",
     "status": "active",
     "category": "utilities"
   },
@@ -268,33 +308,6 @@
     "profile": "standby",
     "category": "monitoring"
   },
-  "dockge": {
-    "internal_port": 5001,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://dockge.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
-    "category": "monitoring"
-  },
-  "uptime-kuma": {
-    "internal_port": 3001,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://kuma.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
-    "category": "monitoring"
-  },
-  "homarr": {
-    "internal_port": 7575,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://homarr.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
-    "category": "monitoring"
-  },
   "recyclarr": {
     "internal_port": null,
     "host_port": null,
@@ -318,24 +331,6 @@
     "host_port": null,
     "protocol": "Daemon",
     "url": null,
-    "status": "standby",
-    "profile": "standby",
-    "category": "download"
-  },
-  "qbit_manage": {
-    "internal_port": 8181,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://qbm.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
-    "category": "download"
-  },
-  "flood": {
-    "internal_port": 3000,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://flood.vrg.rocks",
     "status": "standby",
     "profile": "standby",
     "category": "download"
@@ -385,24 +380,6 @@
     "profile": "standby",
     "category": "knowledge"
   },
-  "calibre": {
-    "internal_port": 8080,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://calibre.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
-    "category": "knowledge"
-  },
-  "calibre-web": {
-    "internal_port": 8083,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://calibre-web.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
-    "category": "knowledge"
-  },
   "vaultwarden": {
     "internal_port": 80,
     "host_port": null,
@@ -437,15 +414,6 @@
     "url": null,
     "status": "standby",
     "profile": "ops, standby",
-    "category": "utilities"
-  },
-  "rclone-gui": {
-    "internal_port": 5572,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://rclone.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
     "category": "utilities"
   }
 }

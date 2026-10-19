@@ -126,6 +126,56 @@ services:
       glance.description: Encrypted Restic Backup Engine
 
   # ----------------------------------------------------------------
+  # Enclosed: Zero-Knowledge Client-Side Encrypted Notes & File Drops (Hono)
+  # ----------------------------------------------------------------
+  enclosed:
+    container_name: enclosed
+    image: ghcr.io/corentinth/enclosed:latest
+    restart: unless-stopped
+    logging: *default-logging
+    user: "${PUID}:${PGID}"
+    environment:
+      PUBLIC_IS_AUTHENTICATION_REQUIRED: "false"
+      STORAGE_DRIVER_FS_LITE_PATH: /app/.data
+    volumes:
+      - ${DOCKER_DATA_DIR}/enclosed:/app/.data
+    labels:
+      glance.id: enclosed
+      glance.name: Enclosed
+      glance.icon: sh:enclosed
+      glance.url: https://send.vrg.rocks
+      glance.description: Zero-Knowledge Encrypted Notes & Drops
+
+  # ----------------------------------------------------------------
+  # AirTrail: Personal Flight Log, Airbus Telemetry & Passport Map (SvelteKit)
+  # Shares paperless-db (PostgreSQL 17 Alpine) via dedicated 'airtrail' DB
+  # ----------------------------------------------------------------
+  airtrail:
+    container_name: airtrail
+    image: johly/airtrail:latest
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+    environment:
+      ORIGIN: https://fly.vrg.rocks
+      ADDRESS_HEADER: X-Forwarded-For
+      DB_URL: postgres://${PAPERLESS_DB_USER:-paperless}:${PAPERLESS_DB_PASS:-paperless}@paperless-db:5432/airtrail
+      UPLOAD_LOCATION: /app/uploads
+      BODY_SIZE_LIMIT: 20M
+      PUID: ${PUID:-501}
+      PGID: ${PGID:-20}
+    volumes:
+      - ${DOCKER_DATA_DIR}/airtrail:/app/uploads
+    labels:
+      glance.id: airtrail
+      glance.name: AirTrail
+      glance.icon: sh:airtrail
+      glance.url: https://fly.vrg.rocks
+      glance.description: Personal Flight Log & Aircraft Registry
+
+  # ----------------------------------------------------------------
   # Standby Utilities & Automation (Launch via: docker compose --profile standby up -d <service>)
   # ----------------------------------------------------------------
 
@@ -205,28 +255,5 @@ services:
     ports:
       - "127.0.0.1:53682:53682"
     labels:
-      glance.name: Sync Worker
-      glance.parent: rclone-gui
-
-  rclone-gui:
-    container_name: rclone-gui
-    image: rclone/rclone:latest
-    profiles: ["standby"]
-    command: >
-      rcd
-      --rc-web-gui
-      --rc-addr :5572
-      --rc-user ${RCLONE_GUI_USER:-admin}
-      --rc-pass ${CORE_PASSWORD:-admin}
-    restart: unless-stopped
-    logging: *default-logging
-    user: "${PUID}:${PGID}"
-    volumes:
-      - ${DOCKER_CONFIG_DIR}/rclone:/config/rclone
-      - ${DOCKER_BASE_DIR}:/source:ro
-    labels:
-      glance.id: rclone-gui
-      glance.name: Rclone GUI
-      glance.icon: sh:rclone
-      glance.url: https://rclone.vrg.rocks
-      glance.description: Cloud Storage & Sync Management
+      glance.name: Rclone CLI
+      glance.parent: backrest

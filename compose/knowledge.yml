@@ -32,6 +32,35 @@ services:
       glance.description: Obsidian Vault Synchronization
 
   # ----------------------------------------------------------------
+  # Readeck: Read-Later, Article Archiver & Bookmark Manager (Go + SQLite)
+  # ----------------------------------------------------------------
+  readeck:
+    container_name: readeck
+    image: codeberg.org/readeck/readeck:latest
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      READECK_LOG_LEVEL: info
+      READECK_SERVER_HOST: "0.0.0.0"
+      READECK_SERVER_PORT: "8000"
+      READECK_ALLOWED_HOSTS: "links.vrg.rocks"
+      READECK_USE_X_FORWARDED: "true"
+    volumes:
+      - ${DOCKER_DATA_DIR}/readeck:/readeck
+    healthcheck:
+      test: ["CMD", "/bin/readeck", "healthcheck", "-config", "config.toml"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      glance.id: readeck
+      glance.name: Readeck
+      glance.icon: sh:readeck
+      glance.url: https://links.vrg.rocks
+      glance.description: Read-Later & Article Archiver
+
+  # ----------------------------------------------------------------
   # Standby Knowledge & E-Book Services (Launch via: docker compose --profile standby up -d <service>)
   # ----------------------------------------------------------------
   leafwiki:
@@ -73,44 +102,3 @@ services:
       glance.icon: sh:kavita
       glance.url: https://kavita.vrg.rocks
       glance.description: Digital Book & Manga Reader
-
-  calibre:
-    container_name: calibre
-    image: lscr.io/linuxserver/calibre:latest
-    profiles: ["standby"]
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      PUID: ${PUID}
-      PGID: ${PGID}
-      TZ: ${TZ}
-    volumes:
-      - ${DOCKER_CONFIG_DIR}/calibre:/config
-      - ${DOCKER_DATA_DIR}/media/books:/books
-    labels:
-      glance.id: calibre
-      glance.name: Calibre
-      glance.icon: sh:calibre
-      glance.url: https://calibre.vrg.rocks
-      glance.description: E-Book Desktop VM
-
-  calibre-web:
-    container_name: calibre-web
-    image: lscr.io/linuxserver/calibre-web:latest
-    profiles: ["standby"]
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      PUID: ${PUID}
-      PGID: ${PGID}
-      TZ: ${TZ}
-      OAUTHLIB_RELAX_TOKEN_SCOPE: 1
-    volumes:
-      - ${DOCKER_CONFIG_DIR}/calibre-web:/config
-      - ${DOCKER_DATA_DIR}/media/books:/books
-    labels:
-      glance.id: calibre-web
-      glance.name: Calibre-Web
-      glance.icon: sh:calibre
-      glance.url: https://calibre-web.vrg.rocks
-      glance.description: Web E-Book Reader

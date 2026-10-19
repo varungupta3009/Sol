@@ -32,6 +32,13 @@ services:
       - ${DOCKER_BASE_DIR}/web/fam:/fam:ro
       - ${DOCKER_BASE_DIR}/web/scan:/scan:ro
       - ${DOCKER_BASE_DIR}/web/aysynbm:/aysynbm:ro
+      # Wave 1: Zero-Container Static Developer & Media Suite (0 MiB RAM)
+      - ${DOCKER_BASE_DIR}/web/tools:/tools:ro
+      - ${DOCKER_BASE_DIR}/web/chef:/chef:ro
+      - ${DOCKER_BASE_DIR}/web/pdf:/pdf:ro
+      - ${DOCKER_BASE_DIR}/web/speed:/speed:ro
+      - ${DOCKER_BASE_DIR}/web/draw:/draw:ro
+      - ${DOCKER_BASE_DIR}/web/mi:/mi:ro
     labels:
       glance.id: caddy
       glance.name: Caddy
@@ -175,3 +182,35 @@ services:
       glance.icon: sh:arcane
       glance.url: https://arcane.vrg.rocks
       glance.description: Modern Docker Management
+
+  # ----------------------------------------------------------------
+  # Tinyauth v5: Lightweight Forward-Auth + Google OAuth (Parallel Trial)
+  # Staged alongside Authentik; tested on lidarr.vrg.rocks and inv.vrg.rocks
+  # ----------------------------------------------------------------
+  tinyauth:
+    container_name: tinyauth
+    image: ghcr.io/tinyauthapp/tinyauth:${TINYAUTH_TAG:-v5}
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      TINYAUTH_APPURL: ${TINYAUTH_APPURL:-https://login.vrg.rocks}
+      TINYAUTH_AUTH_USERS: ${TINYAUTH_USERS:?TINYAUTH_USERS required}
+      TINYAUTH_AUTH_SECURECOOKIE: "true"
+      TINYAUTH_AUTH_SESSIONEXPIRY: "2592000"
+      TINYAUTH_AUTH_TRUSTEDPROXIES: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"
+      TINYAUTH_OAUTH_PROVIDERS_GOOGLE_CLIENTID: ${GOOGLE_OAUTH_CLIENT_ID:?}
+      TINYAUTH_OAUTH_PROVIDERS_GOOGLE_CLIENTSECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:?}
+      TINYAUTH_OAUTH_PROVIDERS_GOOGLE_NAME: Google
+      TINYAUTH_OAUTH_WHITELIST: ${TINYAUTH_OAUTH_WHITELIST:?}
+      TINYAUTH_OAUTH_AUTOREDIRECT: ${TINYAUTH_OAUTH_AUTOREDIRECT:-}
+      TINYAUTH_LABELPROVIDER: none
+      TINYAUTH_ANALYTICS_ENABLED: "false"
+      TINYAUTH_UI_TITLE: Sol
+    volumes:
+      - ${DOCKER_DATA_DIR}/tinyauth:/data
+    labels:
+      glance.id: tinyauth
+      glance.name: Tinyauth
+      glance.icon: sh:tinyauth
+      glance.url: https://login.vrg.rocks
+      glance.description: Forward-Auth & Google SSO (Trial)

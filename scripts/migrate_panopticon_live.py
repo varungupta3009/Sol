@@ -286,12 +286,27 @@ def main():
         s_folder = os.path.basename(spath.rstrip("/"))
         clean_tv_name = title
         dst_tv_folder = os.path.join(PAN_MEDIA, "tv", clean_tv_name)
-        rel_target = f"../../../torrents/tv/{s_folder}"
-        print(f"  [TV LINK] {title} -> {rel_target}")
+        src_tv_payload = os.path.join(PAN_TORRENTS, "tv", s_folder)
+        print(f"  [TV PER-FILE LINKS] {title} -> torrents/tv/{s_folder}")
         if APPLY:
-            if os.path.exists(dst_tv_folder) or os.path.islink(dst_tv_folder):
-                os.remove(dst_tv_folder)
-            os.symlink(rel_target, dst_tv_folder)
+            if os.path.islink(dst_tv_folder):
+                os.unlink(dst_tv_folder)
+            os.makedirs(dst_tv_folder, exist_ok=True)
+            if os.path.isdir(src_tv_payload):
+                for root, _, files in os.walk(src_tv_payload):
+                    for f in files:
+                        if f.startswith("."):
+                            continue
+                        src_file = os.path.join(root, f)
+                        rel_sub = os.path.relpath(src_file, src_tv_payload)
+                        dst_link = os.path.join(dst_tv_folder, rel_sub)
+                        dst_parent = os.path.dirname(dst_link)
+                        os.makedirs(dst_parent, exist_ok=True)
+                        rel_target = os.path.relpath(src_file, dst_parent)
+                        if os.path.islink(dst_link):
+                            os.unlink(dst_link)
+                        if not os.path.exists(dst_link):
+                            os.symlink(rel_target, dst_link)
         
         sonarr_path_updates.append((f"/external/media/tv/{clean_tv_name}", sid))
 

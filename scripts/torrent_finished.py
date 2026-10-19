@@ -156,16 +156,38 @@ def process_radarr(torrent_name, content_path, save_path):
         target_dir = f"/external/media/movies/{folder_name}"
         logging.info("No direct Radarr match; using derived folder: %s", target_dir)
 
+    if os.path.islink(target_dir):
+        logging.error("SAFETY ABORT: target_dir '%s' is a directory symlink. Refusing to modify.", target_dir)
+        return
+
     os.makedirs(target_dir, exist_ok=True)
 
-    # Create relative symlinks
+    real_target_dir = os.path.realpath(target_dir)
+    real_content_path = os.path.realpath(content_path)
+    if real_target_dir == real_content_path or real_target_dir.startswith(real_content_path + os.sep):
+        logging.error(
+            "SAFETY ABORT: target_dir '%s' (realpath '%s') aliases content_path '%s' (realpath '%s').",
+            target_dir, real_target_dir, content_path, real_content_path
+        )
+        return
+
+    # Create relative symlinks (never delete real files)
     for f in media_files:
         fname = os.path.basename(f)
         link_path = os.path.join(target_dir, fname)
         rel_target = os.path.relpath(f, target_dir)
         try:
             if os.path.lexists(link_path):
-                os.remove(link_path)
+                if os.path.exists(link_path) and os.path.realpath(link_path) == os.path.realpath(f):
+                    if os.path.islink(link_path):
+                        logging.info("Symlink already points to target %s; skipping.", link_path)
+                    else:
+                        logging.error("SAFETY GUARD: %s is the same physical file as %s; skipping.", link_path, f)
+                    continue
+                if not os.path.islink(link_path):
+                    logging.warning("SAFETY GUARD: refusing to unlink real file %s", link_path)
+                    continue
+                os.unlink(link_path)
             os.symlink(rel_target, link_path)
             logging.info("Created relative symlink: %s -> %s", link_path, rel_target)
         except Exception as e:
@@ -226,15 +248,40 @@ def process_sonarr(torrent_name, content_path, save_path):
         target_dir = f"/external/media/tv/{torrent_name}"
         logging.info("No direct Sonarr match; using derived folder: %s", target_dir)
 
+    if os.path.islink(target_dir):
+        logging.error("SAFETY ABORT: target_dir '%s' is a directory symlink. Refusing to modify.", target_dir)
+        return
+
     os.makedirs(target_dir, exist_ok=True)
 
+    real_target_dir = os.path.realpath(target_dir)
+    real_content_path = os.path.realpath(content_path)
+    if real_target_dir == real_content_path or real_target_dir.startswith(real_content_path + os.sep):
+        logging.error(
+            "SAFETY ABORT: target_dir '%s' (realpath '%s') aliases content_path '%s' (realpath '%s').",
+            target_dir, real_target_dir, content_path, real_content_path
+        )
+        return
+
+    is_dir_payload = os.path.isdir(content_path)
     for f in media_files:
-        fname = os.path.basename(f)
-        link_path = os.path.join(target_dir, fname)
-        rel_target = os.path.relpath(f, target_dir)
+        rel_subpath = os.path.relpath(f, content_path) if is_dir_payload else os.path.basename(f)
+        link_path = os.path.join(target_dir, rel_subpath)
+        link_parent = os.path.dirname(link_path)
+        os.makedirs(link_parent, exist_ok=True)
+        rel_target = os.path.relpath(f, link_parent)
         try:
             if os.path.lexists(link_path):
-                os.remove(link_path)
+                if os.path.exists(link_path) and os.path.realpath(link_path) == os.path.realpath(f):
+                    if os.path.islink(link_path):
+                        logging.info("Symlink already points to target %s; skipping.", link_path)
+                    else:
+                        logging.error("SAFETY GUARD: %s is the same physical file as %s; skipping.", link_path, f)
+                    continue
+                if not os.path.islink(link_path):
+                    logging.warning("SAFETY GUARD: refusing to unlink real file %s", link_path)
+                    continue
+                os.unlink(link_path)
             os.symlink(rel_target, link_path)
             logging.info("Created relative symlink: %s -> %s", link_path, rel_target)
         except Exception as e:

@@ -46,8 +46,9 @@ At a glance:
 
 | Item | Value |
 | :--- | :--- |
-| Active containers (default `docker compose up -d`) | 27 |
-| Profile-gated containers (`standby`, plus `ops` for `rclone`) | 25 |
+| Active containers (default `docker compose up -d`) | 32 |
+| Profile-gated containers (`standby`, plus `ops` for `rclone`) | 17 |
+| Zero-container static web apps (served directly by `caddy`) | 10 (`mind.`, `fam.`, `scan.`, `aysynbm.`, `tools.`, `chef.`, `pdf.`, `speed.`, `draw.`, `mi.vrg.rocks`) |
 | Native host processes | 1 (`jellyfin-metal` on port `8097`) |
 | Compose project and network | `sol`, `sol_default` |
 | Public domain | `*.vrg.rocks` |
@@ -56,7 +57,7 @@ At a glance:
 
 - **Apple Silicon tuning:** Concurrency is set per service. Paperless runs `PAPERLESS_TASK_WORKERS: 2` and `PAPERLESS_THREADS_PER_WORKER: 2`. Authentik runs `AUTHENTIK_WEB__WORKERS: 2`. Both PostgreSQL clusters use `shared_buffers=256MB`, `work_mem=16MB`, and `effective_cache_size=1GB`. Caddy uses 32 KB streaming buffers on the Jellyfin routes.
 - **Modular Compose:** The root `docker-compose.yml` loads 8 domain files under `compose/` with Compose V2 `include:` and `x-logging` JSON log rotation (`max-size: 10m`, `max-file: 3`). Containers reach each other by name on `sol_default` (for example `http://radarr:7878` or `http://authentik-server:9000`).
-- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 52, and only the 27 active ones start by default.
+- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 49, and only the 32 active ones start by default.
 - **Zero-copy file moves:** A unified `/data` mount on APFS lets downloads hardlink into the media library with no second copy.
 - **Edge security:** Caddy terminates TLS and checks sessions against the Authentik embedded outpost before it forwards requests to admin dashboards. Authentik host ports listen on `127.0.0.1` only.
 - **State vs configuration:** Version control tracks declarative infrastructure only. Application state is backed up through `scripts/backup.sh` and `backrest` (`backrest.vrg.rocks`) as encrypted, deduplicated Restic snapshots (containing PostgreSQL dumps, WAL-complete SQLite snapshots, media symlink manifests, and Coder workspace archives) to `/Volumes/PANOPTICON/backups/sol-restic` and `rclone:OneDrive:Sol-Restic`.
@@ -119,59 +120,64 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 ### 1. Ingress and Identity ([`compose/core.yml`](compose/core.yml))
 
-- **[Caddy v2](https://caddyserver.com/)** (`caddy:${CADDY_TAG:-2}`): Edge reverse proxy with Let's Encrypt TLS, HTTP/3, `zstd`/`gzip` compression, security headers, and static file hosting.
-- **[Authentik](https://goauthentik.io/)** (`${AUTHENTIK_IMAGE}:${AUTHENTIK_TAG:-2026.5.3}`): Identity provider on PostgreSQL 16 (`postgres:16-alpine`). Provides forward auth through the embedded outpost and OIDC for Arcane and Paperless. The worker runs without root and without the Docker socket.
+- **[Caddy v2](https://caddyserver.com/)** (`caddy:${CADDY_TAG:-2}`): Edge reverse proxy with Let's Encrypt TLS, HTTP/3, `zstd`/`gzip` compression, security headers, and static file hosting for 10 zero-container web apps (`/mind`, `/fam`, `/scan`, `/aysynbm`, `/tools`, `/chef`, `/pdf`, `/speed`, `/draw`, `/mi`).
+- **[Authentik](https://goauthentik.io/)** (`${AUTHENTIK_IMAGE}:${AUTHENTIK_TAG:-2026.5.3}`): Primary identity provider on PostgreSQL 16 (`postgres:16-alpine`). Provides silent Google SSO forward auth through the embedded outpost and OIDC for Arcane, Jellyfin, and Paperless-ngx. The worker runs without root and without the Docker socket.
+- **[Tinyauth v5](https://tinyauth.app/)** (`ghcr.io/tinyauthapp/tinyauth:${TINYAUTH_TAG:-v5}`): Lightweight Go forward-auth trial (`login.vrg.rocks`, `~29 MiB` RAM) running in parallel with Authentik and currently gating `lidarr.vrg.rocks` and `inv.vrg.rocks` (`homebox`) via the `(tinyauth)` Caddy snippet.
 - **[Arcane](https://github.com/getarcaneapp/arcane)** (`arcane:${ARCANE_TAG:-latest}`): Docker stack manager with Authentik OIDC, SQLite in WAL mode, and `LOG_LEVEL: info`.
 
 ### 2. Monitoring and Dashboards ([`compose/monitoring.yml`](compose/monitoring.yml))
 
-- **[Glance](https://github.com/glanceapp/glance):** Declarative 3-page command center ([`config/glance/config/glance.yml`](config/glance/config/glance.yml)) with `Sol` (`/sol`), `Stats & Ops` (`/stats`), and `Radar` (`/radar`), custom Catppuccin Mocha / GM3 theme presets ([`config/glance/assets/user.css`](config/glance/assets/user.css)), internal Docker bridge health monitors, `custom-api` telemetry for Jellyfin, Seerr, Radarr, Sonarr, Prowlarr, and Paperless-ngx, live Docker socket container status, and `/media/panopticon` 2TB ExFAT drive telemetry (`dash.vrg.rocks`, `sol.vrg.rocks`).
-- *Standby:* Gatus, Dozzle, Beszel, Beszel Agent, Dockge, Uptime Kuma, Homarr.
+- **[Glance](https://github.com/glanceapp/glance):** Declarative 3-page command center ([`config/glance/config/glance.yml`](config/glance/config/glance.yml)) with `Sol` (`/sol`), `Stats & Ops` (`/stats`), and `Radar` (`/radar`), custom Catppuccin Mocha / GM3 theme presets ([`config/glance/assets/user.css`](config/glance/assets/user.css)), internal Docker bridge health monitors across 25 services, `custom-api` telemetry for Jellyfin, Seerr, Radarr, Sonarr, Prowlarr, and Paperless-ngx, live Docker socket container status, and `/media/panopticon` 2TB ExFAT drive telemetry (`dash.vrg.rocks`, `sol.vrg.rocks`).
+- *Standby:* Gatus, Dozzle, Beszel, Beszel Agent.
 
 ### 3. Media and Servarr ([`compose/media.yml`](compose/media.yml))
 
 - **[Jellyfin](https://jellyfin.org/) (container):** Main streaming server (`watch.vrg.rocks`, `jellyfin.vrg.rocks`, port `8096`).
 - **Jellyfin Metal (native macOS):** Host process with Apple VideoToolbox hardware transcoding and HDR tone mapping (`metal.vrg.rocks`, port `8097`). Managed by [`scripts/setup_jellyfin_metal.py`](scripts/setup_jellyfin_metal.py).
 - **[Seerr](https://github.com/seerr-team/seerr):** Request and discovery portal (`request.vrg.rocks`). Keeps the network alias `jellyseerr`.
-- **[Radarr](https://radarr.video/), [Sonarr](https://sonarr.tv/), [Lidarr](https://lidarr.audio/), [Bazarr](https://www.bazarr.media/):** Movie, TV, music, and subtitle managers on the unified `/data` mount.
+- **[Radarr](https://radarr.video/), [Sonarr](https://sonarr.tv/), [Lidarr](https://lidarr.audio/), [Bazarr](https://www.bazarr.media/):** Movie, TV, music, and subtitle managers on the unified `/data` and `/external` mounts with `/external/media/.recycle` 14-day recycle bin protection.
 - **[Prowlarr](https://prowlarr.com/):** Indexer manager.
 - **[Byparr](https://github.com/ThePhaseless/Byparr)** (`ghcr.io/thephaseless/byparr:latest`): Cloudflare Turnstile solver on port `8191`. It holds the network alias `flaresolverr`, so Prowlarr's proxy URL `http://flaresolverr:8191` is unchanged.
 - *Standby:* FlareSolverr (legacy solver), Recyclarr, Wizarr.
 
 ### 4. Downloads and Cross-Seeding ([`compose/download.yml`](compose/download.yml))
 
-- **[qBittorrent](https://www.qbittorrent.org/):** Torrent client with WAN peer port `42069` TCP/UDP and the WebUI on `8080`.
+- **[qBittorrent](https://www.qbittorrent.org/):** Torrent client with WAN peer port `42069` TCP/UDP and the WebUI on `8080`, paired with the hardened `config/qbittorrent/scripts/torrent_finished.py` Option A completion hook.
 - **[QUI](https://github.com/autobrr/qui)** (`ghcr.io/autobrr/qui:latest`): Single-binary Go WebUI for qBittorrent and Cross-Seed on port `7476` (`qui.vrg.rocks`) with multi-instance support, orphan file scanning, and hardlink/reflink inspection.
 - **[Cross-Seed](https://cross-seed.org/)** (`cross-seed:6`): Daemon that finds and injects matching torrents across trackers. Runs as `${PUID}:${PGID}`.
 - All three mount `${DOCKER_DATA_DIR}:/data` and `${EXTERNAL_DRIVE_00}:/external` (the legacy `/downloads` mount has been retired after migrating all 289 `.fastresume` files to `/data/torrents` and `/external/torrents`).
-- *Standby:* Unpackerr, qbit_manage, Flood.
+- *Standby:* Unpackerr.
 
 ### 5. Document Management and OCR ([`compose/paperless.yml`](compose/paperless.yml))
 
-- **[Paperless-ngx](https://docs.paperless-ngx.com/)** (`paperless-ngx:${PAPERLESS_TAG:-2}`): Document archive with OCR (`eng`, plus `hin kan pan`) and Authentik OIDC.
+- **[Paperless-ngx](https://docs.paperless-ngx.com/)** (`paperless-ngx:${PAPERLESS_TAG:-3.3}`): Document archive with OCR (`eng`, plus `hin kan pan`) and Authentik OIDC.
 - **Redis broker:** `redis:8-alpine`.
-- **PostgreSQL 17:** `postgres:17-alpine` (migrated via `pg_dump` and `pg_restore` in October 2026).
+- **PostgreSQL 17:** `postgres:17-alpine` (migrated via `pg_dump` and `pg_restore` in October 2026; also hosts the `airtrail` database).
 - **Pre-consumption hook (`pre-consumption.py`):** Uses `pikepdf` to decrypt statement PDFs and extract embedded attachments.
 - **Push notifications (`ntfy_notify.sh`):** Sends an ntfy alert when a document finishes processing.
 - *Standby:* Gotenberg, Apache Tika, Paperless-AI.
 
-### 6. Knowledge and Notes ([`compose/knowledge.yml`](compose/knowledge.yml))
+### 6. Knowledge and Bookmarks ([`compose/knowledge.yml`](compose/knowledge.yml))
 
-- **[Ignis](https://github.com/nobbe/ignis):** Obsidian vault sync.
-- *Standby:* LeafWiki, Kavita, Calibre, Calibre-Web.
+- **[Ignis](https://github.com/nobbe/ignis):** Obsidian vault sync (`ignis.vrg.rocks`).
+- **[Readeck](https://codeberg.org/readeck/readeck)** (`codeberg.org/readeck/readeck:${READECK_TAG:-latest}`): Single-binary Go + SQLite bookmark and read-later article archiver (`links.vrg.rocks`, port `8000`) with full-text reader mode, highlights, and EPUB export.
+- *Standby:* LeafWiki, Kavita.
 
-### 7. Developer Workspaces ([`compose/coding.yml`](compose/coding.yml))
+### 7. Developer Workspaces & Backend Sandboxes ([`compose/coding.yml`](compose/coding.yml))
 
 - **[code-server](https://github.com/coder/code-server):** Browser VS Code with the Sol repo at `/Server` and `/Users/vrg/Documents` at `/Documents`. Gated by Authentik and the code-server password.
 - **[Coder](https://coder.com/)** (`coder:${CODER_TAG:-latest}`): Workspace platform at `https://coder.vrg.rocks`. The Docker template lives in [`coder/main.tf`](coder/main.tf). See [coder/README.md](coder/README.md).
+- **[PocketBase](https://pocketbase.io/)** (`ghcr.io/muchobien/pocketbase:${POCKETBASE_TAG:-latest}`): Single-binary Go + SQLite backend sandbox (`pb.vrg.rocks`, port `8090`) with real-time subscriptions, auth, and admin UI (`/_/`) for rapid Svelte 5 / Datastar / HTMX prototyping.
 
-### 8. Storage and Utilities ([`compose/utilities.yml`](compose/utilities.yml))
+### 8. Storage, Aviation & Utilities ([`compose/utilities.yml`](compose/utilities.yml))
 
 - **[Copyparty](https://github.com/9001/copyparty):** File server and WebDAV for `data/copyparty`, `data/media`, `data/torrents`, and the external drive.
-- **[Homebox](https://github.com/sysadminsmedia/homebox):** Physical asset and home inventory manager (`inv.vrg.rocks`), paired with the mobile barcode scanner PWA (`scan.vrg.rocks`).
+- **[Homebox](https://github.com/sysadminsmedia/homebox):** Physical asset and home inventory manager (`inv.vrg.rocks`, gated by Tinyauth v5), paired with the mobile barcode scanner PWA (`scan.vrg.rocks`).
 - **[Backrest](https://github.com/garethgeorge/backrest)** (`ghcr.io/garethgeorge/backrest:latest`): Single-binary Go WebUI and scheduler for encrypted, deduplicated Restic backups on port `9898` (`backrest.vrg.rocks`) to `/Volumes/PANOPTICON/backups/sol-restic` and `rclone:OneDrive:Sol-Restic`.
+- **[Enclosed](https://github.com/CorentinTh/enclosed)** (`ghcr.io/corentinth/enclosed:${ENCLOSED_TAG:-latest}`): Zero-knowledge client-side encrypted notes and self-destructing file drops built on Hono (`send.vrg.rocks`, port `8787`).
+- **[AirTrail](https://github.com/johanohly/AirTrail)** (`johly/airtrail:${AIRTRAIL_TAG:-latest}`): Personal flight log and aircraft registry built with SvelteKit (`fly.vrg.rocks`, port `3000`, sharing `paperless-db` PostgreSQL 17).
 - **[ntfy](https://ntfy.sh/):** Local pub/sub push notifications.
-- *Standby:* Vaultwarden, n8n, Home Assistant, Rclone (`ops` and `standby`), Rclone GUI.
+- *Standby:* Vaultwarden, n8n, Home Assistant, Rclone (`ops` and `standby`).
 
 ---
 
@@ -179,8 +185,9 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 | Set | Count | Services |
 | :--- | :--- | :--- |
-| Active | 27 | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `qui`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `code-server`, `coder`, `copyparty`, `homebox`, `backrest`, `ntfy` |
-| Standby | 25 | `gatus`, `dozzle`, `beszel`, `beszel-agent`, `dockge`, `uptime-kuma`, `homarr`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `qbit_manage`, `flood`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `calibre`, `calibre-web`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`), `rclone-gui` |
+| Active | 32 | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `tinyauth`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `qui`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `readeck`, `code-server`, `coder`, `pocketbase`, `copyparty`, `homebox`, `backrest`, `enclosed`, `airtrail`, `ntfy` |
+| Standby | 17 | `gatus`, `dozzle`, `beszel`, `beszel-agent`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`) |
+| Static Web | 10 | `mind.vrg.rocks`, `fam.vrg.rocks`, `scan.vrg.rocks`, `aysynbm.vrg.rocks`, `tools.vrg.rocks` (IT-Tools), `chef.vrg.rocks` (CyberChef), `pdf.vrg.rocks` (BentoPDF), `speed.vrg.rocks` (OpenSpeedTest), `draw.vrg.rocks` (Excalidraw), `mi.vrg.rocks` (MediaInfo Web WASM) |
 | Native | 1 | `jellyfin-metal` |
 
 Each standby service has a matching commented vhost in the [`Caddyfile`](Caddyfile) under a `--- Standby ... Routes ---` header. To bring one online:
