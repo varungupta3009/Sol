@@ -45,7 +45,7 @@ These services store their full operational configuration in plain-text, YAML, J
 
 | Container / Artifact | Primary Configuration Path | Format | Status | What Has Been Fully Inspected & Understood |
 | :--- | :--- | :--- | :--- | :--- |
-| **`caddy`** | `./Caddyfile` | Caddyfile | Active | 27 active site blocks, 18 commented standby vhosts, TLS, HTTP/3, `(security_headers)`, `(optimize)`, `(authentik)`, `(static_site)` snippets, streaming transport for `watch`/`metal`, Homebox CORS restricted to `https://scan.vrg.rocks`. |
+| **`caddy`** | `./Caddyfile` | Caddyfile | Active | 27 active site blocks, 18 commented standby vhosts, TLS, HTTP/3, `(security_headers)`, `(optimize)`, `(forward_auth)`, `(static_site)` snippets, streaming transport for `watch`/`metal`, Homebox CORS restricted to `https://scan.vrg.rocks`. |
 | **Compose stacks** | `docker-compose.yml`, `compose/*.yml` | YAML | Active | `include:` of 8 domain files, 24 active services, 26 services under `profiles: ["standby"]` / `["ops", "standby"]`, `glance.*` labels, DNS overrides, network aliases (`flaresolverr` on `byparr`, `jellyseerr` on `seerr`). |
 | **`ports.json`** | `./ports.json` | JSON | Active | Per-service `internal_port`, `host_port`, `protocol`, `url`, `status` (`active` / `standby`), `profile`, `category`. Includes `jellyfin-metal` and `byparr`. |
 | **`glance`** | `config/glance/config/glance.yml` | YAML | Active | Homepage feeds, weather, system monitors, container discovery labels, and dashboard bookmarks. |

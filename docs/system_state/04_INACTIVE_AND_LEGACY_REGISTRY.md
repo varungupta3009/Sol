@@ -111,7 +111,7 @@ These services exist as full definitions in `compose/*.yml` and stay stopped unl
 * **Original Function:** Modern Node.js web alternative frontend for qBittorrent.
 * **Original Ports / Proxy:** Internal `3000/tcp` (previously host `42024:3000`), routed at `https://flood.vrg.rocks` (commented).
 * **Sidelining Rationale:** Native qBittorrent Web UI (`https://qb.vrg.rocks`) is preferred for lower overhead and direct API feature access.
-* **Reactivation Notes:** Command flags `--auth=none`, `--qburl=http://qbittorrent:${QBITTORRENT_WEBUI_PORT:-8080}`, `--qbuser=${FLOOD_QBITTORRENT_USERNAME:-VRG}`, `--qbpass=${CORE_PASSWORD:-}`. Uses `restart: always` and `depends_on: qbittorrent`. Because `--auth=none`, keep `import authentik` on its vhost.
+* **Reactivation Notes:** Command flags `--auth=none`, `--qburl=http://qbittorrent:${QBITTORRENT_WEBUI_PORT:-8080}`, `--qbuser=${FLOOD_QBITTORRENT_USERNAME:-VRG}`, `--qbpass=${CORE_PASSWORD:-}`. Uses `restart: always` and `depends_on: qbittorrent`. Because `--auth=none`, keep `import forward_auth` on its vhost.
 
 ---
 
@@ -129,7 +129,7 @@ These services exist as full definitions in `compose/*.yml` and stay stopped unl
 ### `paperless-ai` (`compose/paperless.yml`)
 * **Image:** `clusterzx/paperless-ai:latest`
 * **Original Function:** Automated AI document analysis, tagging, correspondent classification, and summarizing through local or remote LLMs with ChromaDB vector search.
-* **Original Ports / Proxy:** Internal `3000/tcp`, routed at `https://paperless-ai.vrg.rocks` (commented, with `import authentik`).
+* **Original Ports / Proxy:** Internal `3000/tcp`, routed at `https://paperless-ai.vrg.rocks` (commented, with `import forward_auth`).
 * **Sidelining Rationale:** Disabled to avoid continuous LLM API usage and memory pressure. Paperless rule-based matching with pre-consumption scripts covers document sorting needs.
 * **Reactivation Notes:** Database and vector index persist in `data/paperless-ai`.
 
@@ -138,7 +138,7 @@ These services exist as full definitions in `compose/*.yml` and stay stopped unl
 ### `gatus` (`compose/monitoring.yml`)
 * **Image:** `twinproduction/gatus:latest`
 * **Original Function:** Service health and status page.
-* **Original Ports / Proxy:** `expose: 8080`, routed at `https://status.vrg.rocks` (commented, no `import authentik`, public status page).
+* **Original Ports / Proxy:** `expose: 8080`, routed at `https://status.vrg.rocks` (commented, no `import forward_auth`, public status page).
 * **Sidelining Rationale:** Preserved under the standby profile alongside the other monitoring tools. Glance covers day-to-day container health.
 * **Reactivation Notes:** Endpoint definitions live in `config/gatus`. Shares internal port `8080` with `glance`, `qbittorrent`, `ignis`, `dozzle`, `leafwiki`, and `calibre`, which is safe on the bridge.
 
@@ -151,7 +151,7 @@ These services exist as full definitions in `compose/*.yml` and stay stopped unl
 * **Sidelining Rationale:** `Arcane` provides integrated container logging, terminal shell execution, and Docker Compose management with Authentik OIDC, so a standalone log viewer is redundant.
 * **Reactivation Notes:**
   - `docker compose --profile standby up -d dozzle`, then uncomment `dozzle.vrg.rocks` in `Caddyfile`.
-  - Shell actions are enabled, so keep `import authentik` on the vhost.
+  - Shell actions are enabled, so keep `import forward_auth` on the vhost.
 
 ---
 
@@ -264,7 +264,7 @@ These services exist as full definitions in `compose/*.yml` and stay stopped unl
 * **Original Function:** Rclone web interface (`5572/tcp`, `rcd --rc-web-gui --rc-addr :5572 --rc-user ${RCLONE_GUI_USER:-admin} --rc-pass ${CORE_PASSWORD:-admin}`) and OAuth token callback server (`127.0.0.1:53682`).
 * **Profiles:** `rclone` uses `profiles: ["ops", "standby"]` with `restart: "no"`. `rclone-gui` uses `profiles: ["standby"]`.
 * **Sidelining Rationale:** Not persistent containers. `scripts/backup.sh` prefers the native host `rclone` CLI and falls back to an ephemeral container: `docker compose --profile ops run --rm rclone sync /source OneDrive:Sol --filter-from <filter> --backup-dir OneDrive:Sol-archive/<TIMESTAMP> ...`.
-* **Reactivation Notes:** Configuration lives in `config/rclone/rclone.conf` and `config/rclone/filter.txt` (template `filter.txt.example`). `rclone-gui` exposes `--rc-pass` from `CORE_PASSWORD`, so keep `import authentik` on `rclone.vrg.rocks`.
+* **Reactivation Notes:** Configuration lives in `config/rclone/rclone.conf` and `config/rclone/filter.txt` (template `filter.txt.example`). `rclone-gui` exposes `--rc-pass` from `CORE_PASSWORD`, so keep `import forward_auth` on `rclone.vrg.rocks`.
 
 ---
 

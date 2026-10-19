@@ -72,7 +72,7 @@
 1. **Edge Routing & Ingress (`Caddy`):**
    - Serves as the sole public gateway (`80/tcp`, `443/tcp`, `443/udp` for HTTP/3).
    - Issues Let's Encrypt TLS certificates per subdomain under `vrg.rocks` (no wildcard certificate).
-   - Enforces forward authentication against the Authentik embedded outpost through the `(authentik)` snippet.
+   - Enforces forward authentication against the Authentik embedded outpost through the `(forward_auth)` snippet.
    - Applies the `(security_headers)` snippet (`nosniff`, `SAMEORIGIN`, `strict-origin-when-cross-origin`, HSTS `max-age=31536000; includeSubDomains; preload`, `-Server`).
    - Hosts static web applications (`Quartz`, `Family Vault`, `Scan`, `Aysynbm`) through the `(static_site)` snippet and `file_server`.
    - Runs 27 active site blocks. The 18 standby vhosts stay commented out until the matching `--profile standby` container starts.
@@ -99,7 +99,7 @@
    - Post-consumption hook (`ntfy_notify.sh`) sends structured push notifications through **ntfy**.
 
 5. **Developer Workspaces & File Logistics:**
-   - **code-server** provides browser VS Code with `/Users/vrg/Documents/Sol` at `/Server` and `/Users/vrg/Documents` at `/Documents`. `code.vrg.rocks` enforces `import authentik` in front of the code-server Argon2 password.
+   - **code-server** provides browser VS Code with `/Users/vrg/Documents/Sol` at `/Server` and `/Users/vrg/Documents` at `/Documents`. `code.vrg.rocks` enforces `import forward_auth` in front of the code-server Argon2 password.
    - **Coder v2** provisions container workspaces from local Terraform (`coder/main.tf`). The duplicate `coder/default.tf` is removed. Workspaces download the prebuilt `jj` `v0.28.2` musl binary instead of compiling with `cargo install`.
    - **Copyparty** provides multi-user, authenticated WebDAV and file sharing across the internal SSD and external media drives.
    - **Homebox** (physical inventory) is in `profiles: ["standby"]` pending local SQLite database repair. Its `inv.vrg.rocks` vhost is commented out, and its CORS rule is restricted to `Origin https://scan.vrg.rocks`.

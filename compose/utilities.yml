@@ -92,7 +92,7 @@ services:
       HBOX_OPTIONS_ALLOW_REGISTRATION: "false"
       HBOX_OIDC_ENABLED: "true"
       HBOX_OIDC_AUTO_REDIRECT: "true"
-      HBOX_OIDC_ISSUER_URL: ${TINYAUTH_APPURL:-https://login.vrg.rocks}
+      HBOX_OIDC_ISSUER_URL: ${TINYAUTH_APPURL:-https://auth.vrg.rocks}
       HBOX_OIDC_CLIENT_ID: ${TINYAUTH_OIDC_HOMEBOX_CLIENT_ID}
       HBOX_OIDC_CLIENT_SECRET: ${TINYAUTH_OIDC_HOMEBOX_CLIENT_SECRET}
       HBOX_OIDC_SCOPE: "openid profile email"
@@ -178,7 +178,7 @@ services:
       PUID: ${PUID:-501}
       PGID: ${PGID:-20}
       OAUTH_ENABLED: "true"
-      OAUTH_ISSUER_URL: ${TINYAUTH_APPURL:-https://login.vrg.rocks}
+      OAUTH_ISSUER_URL: ${TINYAUTH_APPURL:-https://auth.vrg.rocks}
       OAUTH_CLIENT_ID: ${TINYAUTH_OIDC_AIRTRAIL_CLIENT_ID}
       OAUTH_CLIENT_SECRET: ${TINYAUTH_OIDC_AIRTRAIL_CLIENT_SECRET}
       OAUTH_SCOPE: "openid profile email"

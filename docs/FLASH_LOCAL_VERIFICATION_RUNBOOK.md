@@ -547,7 +547,7 @@ docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfi
 
 ## Task 4: Byparr Cutover Verification
 
-`compose/media.yml` now runs `byparr` (`ghcr.io/thephaseless/byparr:latest`) as the active Cloudflare Turnstile solver on port `8191`. It holds the Docker network alias `flaresolverr`, so Prowlarr's existing proxy URL `http://flaresolverr:8191` needs no change. The legacy `flaresolverr` service moved to the `standby` profile. Caddy routes `byparr.vrg.rocks` and `flaresolverr.vrg.rocks` to `http://byparr:8191` behind `import authentik`.
+`compose/media.yml` now runs `byparr` (`ghcr.io/thephaseless/byparr:latest`) as the active Cloudflare Turnstile solver on port `8191`. It holds the Docker network alias `flaresolverr`, so Prowlarr's existing proxy URL `http://flaresolverr:8191` needs no change. The legacy `flaresolverr` service moved to the `standby` profile. Caddy routes `byparr.vrg.rocks` and `flaresolverr.vrg.rocks` to `http://byparr:8191` behind `import forward_auth`.
 
 ### 4.1 Record the Prowlarr proxy settings
 

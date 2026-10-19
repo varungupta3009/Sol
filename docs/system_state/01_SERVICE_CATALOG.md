@@ -183,7 +183,7 @@ volumes:
 | **Container Name** | `arcane` |
 | **Base Image** | `ghcr.io/getarcaneapp/arcane:${ARCANE_TAG:-latest}` |
 | **Restart Policy** | `unless-stopped` |
-| **Internal Port** | `3552/tcp` (Routed via Caddy at `https://arcane.vrg.rocks` with `import authentik`) |
+| **Internal Port** | `3552/tcp` (Routed via Caddy at `https://arcane.vrg.rocks` with `import forward_auth`) |
 
 ```yaml
 # Environment Configuration (.env & compose)
@@ -222,7 +222,7 @@ volumes:
 | **Container Name** | `glance` |
 | **Base Image** | `glanceapp/glance:latest` |
 | **Restart Policy** | `unless-stopped` |
-| **Internal Port** | `8080/tcp` (Routed via Caddy at `https://dash.vrg.rocks` with `import authentik`) |
+| **Internal Port** | `8080/tcp` (Routed via Caddy at `https://dash.vrg.rocks` with `import forward_auth`) |
 
 ```yaml
 # Environment Configuration
@@ -465,7 +465,7 @@ volumes:
 | **Restart Policy** | `unless-stopped` |
 | **DNS Overrides** | `1.1.1.1`, `9.9.9.9` |
 | **Network Aliases** | `flaresolverr` (existing Prowlarr indexer proxy settings work with zero changes) |
-| **Internal Port** | `8191/tcp` (Prowlarr calls `http://flaresolverr:8191`. Caddy routes `https://byparr.vrg.rocks` and `https://flaresolverr.vrg.rocks` with `import authentik`.) |
+| **Internal Port** | `8191/tcp` (Prowlarr calls `http://flaresolverr:8191`. Caddy routes `https://byparr.vrg.rocks` and `https://flaresolverr.vrg.rocks` with `import forward_auth`.) |
 
 ```yaml
 # Environment Configuration
@@ -489,7 +489,7 @@ LOG_LEVEL: "info"
 | **Host Ports** | `${QBITTORRENT_TORRENTING_PORT:-42069}` TCP and UDP (`42069:42069`, `42069:42069/udp`) |
 | **DNS Overrides** | `1.1.1.1`, `9.9.9.9` (Fast tracker announces) |
 | **Internal Web Port**| `${QBITTORRENT_WEBUI_PORT:-8080}/tcp` (Routed via Caddy at `https://qb.vrg.rocks` and `https://qbittorrent.vrg.rocks`) |
-| **Edge Auth** | qBittorrent Native Auth only. `import authentik` is intentionally omitted so the Android mobile torrent client can connect directly to `qb.vrg.rocks`. |
+| **Edge Auth** | qBittorrent Native Auth only. `import forward_auth` is intentionally omitted so the Android mobile torrent client can connect directly to `qb.vrg.rocks`. |
 
 ```yaml
 # Environment Configuration (.env)
@@ -552,7 +552,7 @@ volumes:
 | **Container Name** | `paperless-webserver` |
 | **Base Image** | `ghcr.io/paperless-ngx/paperless-ngx:${PAPERLESS_TAG:-2}` |
 | **Restart Policy** | `unless-stopped` |
-| **Internal Port** | `8000/tcp` (Routed via Caddy at `https://docs.vrg.rocks` and `https://paperless.vrg.rocks`, native OIDC, no `import authentik`) |
+| **Internal Port** | `8000/tcp` (Routed via Caddy at `https://docs.vrg.rocks` and `https://paperless.vrg.rocks`, native OIDC, no `import forward_auth`) |
 | **Dependencies** | `paperless-db` (`condition: service_healthy`), `paperless-broker` (`condition: service_healthy`). `paperless-gotenberg` and `paperless-tika` dependencies are commented. |
 | **Concurrency** | `PAPERLESS_TASK_WORKERS: 2`, `PAPERLESS_THREADS_PER_WORKER: 2` (M1 Pro: 6 Performance + 2 Efficiency cores) |
 
@@ -683,7 +683,7 @@ volumes:
 | **Base Image** | `lscr.io/linuxserver/code-server:latest` |
 | **Restart Policy** | `unless-stopped` |
 | **Internal Port** | `8443/tcp` (Routed via Caddy at `https://code.vrg.rocks`) |
-| **Edge Auth** | `import authentik` at Caddy, then code-server `AUTH: password` (Argon2 hash) |
+| **Edge Auth** | `import forward_auth` at Caddy, then code-server `AUTH: password` (Argon2 hash) |
 
 ```yaml
 # Environment Configuration (.env)
@@ -714,7 +714,7 @@ volumes:
 | **Base Image** | `ghcr.io/coder/coder:${CODER_TAG:-latest}` |
 | **Restart Policy** | `unless-stopped` |
 | **Group Add** | `20` (`${PGID}`) |
-| **Internal Port** | `7080/tcp` (Routed via Caddy at `https://coder.vrg.rocks` with `import authentik`) |
+| **Internal Port** | `7080/tcp` (Routed via Caddy at `https://coder.vrg.rocks` with `import forward_auth`) |
 | **Template** | `coder/main.tf` only. `coder/default.tf` is removed, which eliminates duplicate Terraform resource definitions. |
 
 ```yaml
@@ -801,21 +801,21 @@ These frontends do not run as standalone containers. They are mounted read-only 
 * **FQDN / Proxy Route:** `https://mind.vrg.rocks`
 * **Host Source Directory:** `${DOCKER_BASE_DIR}/quartz/public`
 * **Container Mount:** `/mind:ro`
-* **Authentication:** Authentik Forward Auth (`import authentik`)
+* **Authentication:** Authentik Forward Auth (`import forward_auth`)
 * **Routing Logic:** `try_files {path} {path}.html {path}/ =404` with custom 404 rewrite `/{err.status_code}.html`.
 
 ### Family Data Vault
 * **FQDN / Proxy Route:** `https://fam.vrg.rocks`
 * **Host Source Directory:** `${DOCKER_BASE_DIR}/web/fam` (pre-refactor path `/Users/vrg/Documents/Sol/vault` is retired)
 * **Container Mount:** `/fam:ro`
-* **Authentication:** Authentik Forward Auth (`import authentik`)
+* **Authentication:** Authentik Forward Auth (`import forward_auth`)
 * **Routing Logic:** `try_files {path} {path}.html {path}/ =404` with custom error handler.
 
 ### Homebox Barcode Scanner PWA
 * **FQDN / Proxy Route:** `https://scan.vrg.rocks`
 * **Host Source Directory:** `${DOCKER_BASE_DIR}/web/scan` (pre-refactor path `/Users/vrg/Documents/Sol/scan` is retired)
 * **Container Mount:** `/scan:ro`
-* **Authentication:** Authentik Forward Auth (`import authentik`)
+* **Authentication:** Authentik Forward Auth (`import forward_auth`)
 * **Routing Logic:** PWA manifest with `index.html`, `scanner.html`, `queue.html`, `settings.html`.
 * **Backend Dependency:** Calls `https://inv.vrg.rocks` (Homebox). Homebox is in standby, so scanner API lookups fail until Homebox and its vhost are restored.
 
@@ -823,7 +823,7 @@ These frontends do not run as standalone containers. They are mounted read-only 
 * **FQDN / Proxy Route:** `https://aysynbm.vrg.rocks`
 * **Host Source Directory:** `${DOCKER_BASE_DIR}/web/aysynbm` (pre-refactor path `/Users/vrg/Documents/Sol/aysynbm` is retired)
 * **Container Mount:** `/aysynbm:ro`
-* **Authentication:** Direct static access with compression (no `import authentik`)
+* **Authentication:** Direct static access with compression (no `import forward_auth`)
 * **Routing Logic:** `try_files {path} {path}.html {path}/ =404`.
 
 ---

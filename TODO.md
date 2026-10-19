@@ -102,7 +102,7 @@ Full technical analysis and RAM benchmarks: [10_MEGA_OPTIMIZATION_AND_CONTAINER_
 ### 2. Download, Identity, Backup & Monitoring Replacements
 - [x] **QUI (`qui.vrg.rocks` — DEPLOYED LIVE):** Deployed `ghcr.io/autobrr/qui:latest` (`23.6 MiB` RAM) on port `7476`, initialized user `VRG` with clean `CORE_PASSWORD`, and connected `Sol (qBittorrent)` with local `/data` and `/external` filesystem access. Ready to delete standby `flood` and `qbit_manage`.
 - [x] **Backrest + Restic (`backrest.vrg.rocks` — DEPLOYED LIVE):** Deployed `ghcr.io/garethgeorge/backrest:latest` (`~25 MiB` RAM) on port `9898` and overhauled `scripts/stage_db_backups.sh`, `scripts/backup.sh`, and `scripts/restore.sh` to back up all configs, Postgres/SQLite databases, media symlink manifests, and Coder workspace archives to `/Volumes/PANOPTICON/backups/sol-restic` and `rclone:OneDrive:Sol-Restic` with chunk deduplication and AES-256 encryption.
-- [x] **Tinyauth v5 Full Production Cutover & Native OIDC / External Auth Upgrade (`login.vrg.rocks` — DEPLOYED LIVE):**
+- [x] **Tinyauth v5 Full Production Cutover & Native OIDC / External Auth Upgrade (`auth.vrg.rocks` — DEPLOYED LIVE):**
   - Migrated all `*.vrg.rocks` services from Authentik (`~502 MiB` RAM moved to `profiles: ["standby"]`) to `ghcr.io/tinyauthapp/tinyauth:v5` (`v5.2.0`, `~29.4 MiB` RAM) in [`compose/core.yml`](compose/core.yml) and [`Caddyfile`](Caddyfile).
   - Configured 7 built-in OIDC clients on Tinyauth (`paperless-ngx`, `arcane`, `homebox`, `airtrail`, `coder`, `readeck`, `jellyfin`) with pre-seeded `oidc_consents` in `/data/tinyauth/tinyauth.db` and app-level auto-redirect (`PAPERLESS_REDIRECT_LOGIN_TO_SSO=true`, `OIDC_AUTO_REDIRECT_TO_PROVIDER=true`, `HBOX_OIDC_AUTO_REDIRECT=true`, `OAUTH_AUTO_LOGIN=true`, Coder `/login` 302 redirect) for 100% zero-click login.
   - Upgraded `copyparty` (`--idp-h-usr Remote-Email` + `--idp-hm-usr`), `qui` (`QUI__AUTH_DISABLED=true`), `code-server` (`AUTH=none`), `backrest` (`auth.disabled=true`), `radarr`, `sonarr`, `lidarr`, `prowlarr` (`<AuthenticationMethod>External</AuthenticationMethod>`), and `bazarr` (`auth.type: null`) so there are zero double-login screens behind Tinyauth forward-auth.
@@ -148,7 +148,7 @@ Full record: [09_ARCHITECTURAL_AUDIT_AND_UPGRADE_PLAN.md](docs/system_state/09_A
 
 ### Phase 2: Caddy and Authentik Hardening
 - [x] `inv.vrg.rocks` CORS allows only `https://scan.vrg.rocks` (no origin reflection with credentials).
-- [x] `import authentik` on `dash.vrg.rocks` and `code.vrg.rocks`. `qb.vrg.rocks` keeps qBittorrent native auth for the Android app.
+- [x] `import forward_auth` on `dash.vrg.rocks` and `code.vrg.rocks`. `qb.vrg.rocks` keeps qBittorrent native auth for the Android app.
 - [x] `authentik-server` ports `9000` and `9443` bound to `127.0.0.1`.
 - [x] `authentik-worker` runs without `user: root` and without `/var/run/docker.sock` (Caddy uses the embedded outpost).
 - [x] `arcane` `LOG_LEVEL: debug` changed to `info`.
@@ -277,7 +277,7 @@ Start any of these with `docker compose --profile standby up -d <service>`, then
 - [ ] **Design notes:**
   - **Image:** Replace `caddy:${CADDY_TAG:-2}` in `compose/core.yml` with `lucaslorentz/caddy-docker-proxy` (multi-arch ARM64).
   - **Docker socket:** Mount `/var/run/docker.sock:/var/run/docker.sock:ro` into Caddy (or reuse the planned socket proxy).
-  - **Hybrid Caddyfile:** Keep a small base `Caddyfile` for global options, the `(authentik)` snippet, and the static sites (`/mind`, `/fam`, `/scan`, `/aysynbm`).
+  - **Hybrid Caddyfile:** Keep a small base `Caddyfile` for global options, the `(forward_auth)` snippet, and the static sites (`/mind`, `/fam`, `/scan`, `/aysynbm`).
   - **Label format:**
     ```yaml
     labels:

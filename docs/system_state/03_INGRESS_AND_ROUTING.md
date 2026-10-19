@@ -63,8 +63,8 @@ Caddy is the single ingress gateway for the Sol home server. It inspects, authen
 	}
 }
 
-# (authentik) Snippet: Forward authentication against the Authentik embedded outpost
-(authentik) {
+# (forward_auth) Snippet: Forward authentication against the Authentik embedded outpost
+(forward_auth) {
 	forward_auth authentik-server:9000 {
 		uri /outpost.goauthentik.io/auth/caddy
 		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
@@ -173,10 +173,10 @@ Each vhost below is commented out in `Caddyfile`. Uncomment it only after `docke
 
 | Hostname | Previous Policy | Current Policy | Effect |
 | :--- | :--- | :--- | :--- |
-| `dash.vrg.rocks` | Direct / Dashboard | `import authentik` | Glance (which reads the Docker socket `ro`) requires SSO at the edge |
-| `code.vrg.rocks` | code-server Argon2 Hash only | `import authentik` + Argon2 Hash | Two factors in series: Authentik SSO, then the code-server password (Caddyfile comment: "Gated by Authentik SSO + code-server password") |
-| `router.vrg.rocks` | Router Native Auth only | `import authentik` + Router Native | Router admin UI requires SSO before the router login page loads |
-| `byparr.vrg.rocks`, `flaresolverr.vrg.rocks` | Direct Internal API | `import authentik` | Edge access requires SSO. Prowlarr is unaffected because it calls `http://flaresolverr:8191` on the bridge, not through Caddy. |
+| `dash.vrg.rocks` | Direct / Dashboard | `import forward_auth` | Glance (which reads the Docker socket `ro`) requires SSO at the edge |
+| `code.vrg.rocks` | code-server Argon2 Hash only | `import forward_auth` + Argon2 Hash | Two factors in series: Authentik SSO, then the code-server password (Caddyfile comment: "Gated by Authentik SSO + code-server password") |
+| `router.vrg.rocks` | Router Native Auth only | `import forward_auth` + Router Native | Router admin UI requires SSO before the router login page loads |
+| `byparr.vrg.rocks`, `flaresolverr.vrg.rocks` | Direct Internal API | `import forward_auth` | Edge access requires SSO. Prowlarr is unaffected because it calls `http://flaresolverr:8191` on the bridge, not through Caddy. |
 | `qb.vrg.rocks`, `qbittorrent.vrg.rocks` | qBittorrent Native | qBittorrent Native (unchanged, documented exception) | Caddyfile comment: the Android mobile torrent client connects directly and cannot follow SSO redirects |
 | `inv.vrg.rocks` | Authentik + wildcard CORS reflection | Commented out, CORS restricted to `https://scan.vrg.rocks` | Homebox is in standby. Credentialed CORS no longer reflects arbitrary origins. |
 
@@ -252,7 +252,7 @@ The Homebox vhost is commented out while Homebox stays in standby. Its CORS rule
 # inv.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import forward_auth
 #
 # 	@allowed_origins header Origin https://scan.vrg.rocks
 # 	header @allowed_origins {

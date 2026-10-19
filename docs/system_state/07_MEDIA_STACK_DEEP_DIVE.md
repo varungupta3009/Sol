@@ -129,7 +129,7 @@
 * **Image:** `ghcr.io/thephaseless/byparr:latest`
 * **Role:** Active Cloudflare Turnstile solver for Prowlarr. Drop-in replacement for FlareSolverr.
 * **Environment:** `TZ: ${TZ}`, `LOG_LEVEL: info`. DNS `1.1.1.1`, `9.9.9.9`.
-* **Edge Access:** `byparr.vrg.rocks` and `flaresolverr.vrg.rocks` with `import authentik`.
+* **Edge Access:** `byparr.vrg.rocks` and `flaresolverr.vrg.rocks` with `import forward_auth`.
 * **Fallback:** `flaresolverr` (`ghcr.io/flaresolverr/flaresolverr:latest`) under `profiles: ["standby"]`. Stop `byparr` before you start it, because both answer the `flaresolverr` name.
 
 ---
@@ -182,7 +182,7 @@
 
 ### ⚡ 9. qBittorrent (`http://qbittorrent:8080` / `https://qb.vrg.rocks`)
 * **WAN Port:** `42069` (TCP & UDP Port Forwarded).
-* **Edge Auth:** qBittorrent Native Auth only. `import authentik` is intentionally omitted so the Android mobile torrent client can connect directly.
+* **Edge Auth:** qBittorrent Native Auth only. `import forward_auth` is intentionally omitted so the Android mobile torrent client can connect directly.
 * **Container DNS:** `1.1.1.1`, `9.9.9.9`.
 * **Mounts:** `${DOCKER_DATA_DIR}/torrents:/downloads` and `${DOCKER_DATA_DIR}:/data` (same host directory reachable as `/downloads` and `/data/torrents`).
 * **Save Paths:** `/downloads/` (`/data/torrents`), Temp: `/downloads/incomplete/`.

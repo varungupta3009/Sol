@@ -237,7 +237,7 @@ pages:
                     url: https://ntfy.vrg.rocks
                     icon: sh:ntfy
                   - title: Tinyauth SSO
-                    url: https://login.vrg.rocks
+                    url: https://auth.vrg.rocks
                     icon: sh:tinyauth
                   - title: Arcane Docker
                     url: https://arcane.vrg.rocks
@@ -322,7 +322,7 @@ pages:
                 check-url: http://caddy:80
                 icon: sh:caddy
               - title: Tinyauth SSO
-                url: https://login.vrg.rocks
+                url: https://auth.vrg.rocks
                 check-url: http://tinyauth:3000/api/healthz
                 icon: sh:tinyauth
               - title: Arcane Docker
@@ -736,7 +736,7 @@ pages:
                 check-url: http://caddy:80
                 icon: sh:caddy
               - title: Tinyauth SSO
-                url: https://login.vrg.rocks
+                url: https://auth.vrg.rocks
                 check-url: http://tinyauth:3000/api/healthz
                 icon: sh:tinyauth
               - title: Arcane Docker

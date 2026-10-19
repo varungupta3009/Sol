@@ -1,7 +1,7 @@
 # Sol Authentication, Zero-Click SSO & OIDC Strategy (`Tinyauth v5.2.0`)
 
 **Status:** Active Production Standard (October 2026)
-**Primary Identity & OIDC Provider:** `tinyauth` (`ghcr.io/tinyauthapp/tinyauth:v5` v5.2.0 at `https://login.vrg.rocks`, ~29.4 MiB RAM)
+**Primary Identity & OIDC Provider:** `tinyauth` (`ghcr.io/tinyauthapp/tinyauth:v5` v5.2.0 at `https://auth.vrg.rocks`, ~29.4 MiB RAM)
 **Standby Legacy Provider:** `authentik-server` + `authentik-worker` + `authentik-postgresql` (`profiles: ["standby"]` in `compose/core.yml`, ~502 MiB RAM saved)
 
 ---
@@ -17,8 +17,8 @@ Sol's authentication architecture enforces four strict invariants across all `*.
    - Varun (`admin@example.com` / `admin-alias@example.com`) is the only administrator across all infrastructure and application databases (`VRG`, superuser/owner).
    - Admin-only forward-auth subdomains (`code`, `backrest`, `qui`, `radarr`, `sonarr`, `lidarr`, `prowlarr`, `bazarr`, `cs`, `byparr`, `pb`, `router`) are locked down at the Caddy/Tinyauth edge via `TINYAUTH_APPS_<APP>_OAUTH_WHITELIST` so even allowlisted family accounts cannot access infrastructure consoles.
 3. **Strict Email Allowlist & Approval Gate:**
-   - No user can authenticate through `login.vrg.rocks` unless their email address is explicitly listed in `/Users/vrg/Documents/Sol/data/tinyauth/whitelist.txt` (and `TINYAUTH_OAUTH_WHITELIST`).
-   - Any unapproved login attempt is rejected at the OAuth callback (`https://login.vrg.rocks/unauthorized`) and logged via `TINYAUTH_LOG_STREAMS_AUDIT_ENABLED=true`.
+   - No user can authenticate through `auth.vrg.rocks` unless their email address is explicitly listed in `/Users/vrg/Documents/Sol/data/tinyauth/whitelist.txt` (and `TINYAUTH_OAUTH_WHITELIST`).
+   - Any unapproved login attempt is rejected at the OAuth callback (`https://auth.vrg.rocks/unauthorized`) and logged via `TINYAUTH_LOG_STREAMS_AUDIT_ENABLED=true`.
    - Approving a new user is a single idempotent command (`./scripts/allowlist_user.sh add <email>`) that updates `whitelist.txt` and `.env`, pre-seeds 0-click OIDC consent rows for all 7 OIDC clients, and restarts `tinyauth` in ~1 second without invalidating active sessions.
 4. **Native OIDC / Trusted-Header Upgrade First:**
    - Every container that supports native OpenID Connect (OIDC) or trusted reverse-proxy headers / external auth uses its native integration instead of double-login forward-auth.
@@ -27,23 +27,23 @@ Sol's authentication architecture enforces four strict invariants across all `*.
 
 ## 2. Three-Tier Authentication Matrix Across All Services
 
-### Tier A: Native OpenID Connect (OIDC) Clients (`https://login.vrg.rocks/.well-known/openid-configuration`)
+### Tier A: Native OpenID Connect (OIDC) Clients (`https://auth.vrg.rocks/.well-known/openid-configuration`)
 
 Tinyauth v5.2.0 runs a built-in OpenID Certified OIDC Provider backed by RS256 signing keys at `/data/tinyauth/oidc/key.pem`. It computes a deterministic, pairwise `sub` claim for each `(username, client_id)` pair using UUIDv5 (`uuid.uuid5(uuid.NAMESPACE_URL, f"{tinyauth_username}:{client_id}")`), where `tinyauth_username` is the user's email with `@` replaced by `_` (for example `admin_example.com`).
 
 | Service | Domain | OIDC Env / Config | Zero-Click Mechanism | Admin (`VRG`) Enforcement |
 | :--- | :--- | :--- | :--- | :--- |
 | **Paperless-ngx** | `docs.vrg.rocks` | `PAPERLESS_SOCIALACCOUNT_PROVIDERS` (`provider_id: "tinyauth"`) | `PAPERLESS_REDIRECT_LOGIN_TO_SSO: "true"` + `PAPERLESS_DISABLE_REGULAR_LOGIN: "true"` | `auth_user.id=3` (`VRG`, `is_superuser=t`) linked in `socialaccount_socialaccount`. Family accounts (`Member3`, `Member2`, `Member1`) are non-superuser. |
-| **Arcane** | `arcane.vrg.rocks` | `OIDC_ENABLED: "true"`, `OIDC_ISSUER_URL: https://login.vrg.rocks` | `OIDC_AUTO_REDIRECT_TO_PROVIDER: "true"` + `authLocalEnabled=false` in `arcane.db` | `users.username='VRG'` (`roles=["admin"]`, `oidc_subject_id` bound to Tinyauth `sub`). |
-| **Homebox** | `inv.vrg.rocks` | `HBOX_OIDC_ENABLED: "true"`, `HBOX_OIDC_ISSUER_URL: https://login.vrg.rocks` | `HBOX_OIDC_AUTO_REDIRECT: "true"` + `HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "false"` + `HBOX_OPTIONS_TRUST_PROXY: "true"` | `users.email='admin@example.com'` (`is_superuser=1`). `HBOX_OPTIONS_ALLOW_REGISTRATION: "false"`. |
-| **AirTrail** | `fly.vrg.rocks` | `OAUTH_ENABLED: "true"`, `OAUTH_ISSUER_URL: https://login.vrg.rocks`, callback `https://fly.vrg.rocks/login` | `OAUTH_AUTO_LOGIN: "true"` + `OAUTH_HIDE_PASSWORD_FORM: "true"` | `"user"` table pre-seeded with `VRG` (`is_owner=true, role_id=NULL`) and family (`is_owner=false, role_id='role-user'`). |
-| **Coder** | `coder.vrg.rocks` | `CODER_HTTP_ADDRESS: "0.0.0.0:7080"`, `CODER_OIDC_ISSUER_URL: https://login.vrg.rocks`, `CODER_DISABLE_PASSWORD_AUTH: "true"` | Caddy `redir /login /api/v2/users/oidc/callback 302` | `users.email='admin@example.com'` (`rbac_roles={owner}`, `login_type='oidc'`). New OIDC users default to `member`. |
-| **Readeck** | `links.vrg.rocks` | `[[auth.oidc.providers]]` (`id = "tinyauth"`, `url = "https://login.vrg.rocks"`, `issuer = "https://login.vrg.rocks"`) in `data/readeck/config.toml` | Native OIDC provider (`https://login.vrg.rocks`) + Tinyauth edge protection | `VRG` (`admin@example.com`) created with `-a` (admin) flag. |
-| **Jellyfin** | `watch.vrg.rocks` | `SSO-Auth.xml` (`google-sso` pointing to `https://login.vrg.rocks`) | SSO button / `/sso/OID/start/google-sso` (no Caddy forward-auth so TV/mobile apps work natively) | `VRG` (`IsAdministrator=1`), `Member1` & `Member2` (`IsAdministrator=0`). |
+| **Arcane** | `arcane.vrg.rocks` | `OIDC_ENABLED: "true"`, `OIDC_ISSUER_URL: https://auth.vrg.rocks` | `OIDC_AUTO_REDIRECT_TO_PROVIDER: "true"` + `authLocalEnabled=false` in `arcane.db` | `users.username='VRG'` (`roles=["admin"]`, `oidc_subject_id` bound to Tinyauth `sub`). |
+| **Homebox** | `inv.vrg.rocks` | `HBOX_OIDC_ENABLED: "true"`, `HBOX_OIDC_ISSUER_URL: https://auth.vrg.rocks` | `HBOX_OIDC_AUTO_REDIRECT: "true"` + `HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "false"` + `HBOX_OPTIONS_TRUST_PROXY: "true"` | `users.email='admin@example.com'` (`is_superuser=1`). `HBOX_OPTIONS_ALLOW_REGISTRATION: "false"`. |
+| **AirTrail** | `fly.vrg.rocks` | `OAUTH_ENABLED: "true"`, `OAUTH_ISSUER_URL: https://auth.vrg.rocks`, callback `https://fly.vrg.rocks/login` | `OAUTH_AUTO_LOGIN: "true"` + `OAUTH_HIDE_PASSWORD_FORM: "true"` | `"user"` table pre-seeded with `VRG` (`is_owner=true, role_id=NULL`) and family (`is_owner=false, role_id='role-user'`). |
+| **Coder** | `coder.vrg.rocks` | `CODER_HTTP_ADDRESS: "0.0.0.0:7080"`, `CODER_OIDC_ISSUER_URL: https://auth.vrg.rocks`, `CODER_DISABLE_PASSWORD_AUTH: "true"` | Caddy `redir /login /api/v2/users/oidc/callback 302` | `users.email='admin@example.com'` (`rbac_roles={owner}`, `login_type='oidc'`). New OIDC users default to `member`. |
+| **Readeck** | `links.vrg.rocks` | `[[auth.oidc.providers]]` (`id = "tinyauth"`, `url = "https://auth.vrg.rocks"`, `issuer = "https://auth.vrg.rocks"`) in `data/readeck/config.toml` | Native OIDC provider (`https://auth.vrg.rocks`) + Tinyauth edge protection | `VRG` (`admin@example.com`) created with `-a` (admin) flag. |
+| **Jellyfin** | `watch.vrg.rocks` | `SSO-Auth.xml` (`google-sso` pointing to `https://auth.vrg.rocks`) | SSO button / `/sso/OID/start/google-sso` (no Caddy forward-auth so TV/mobile apps work natively) | `VRG` (`IsAdministrator=1`), `Member1` & `Member2` (`IsAdministrator=0`). |
 
 ### Tier B: Trusted-Header & External Auth Behind Tinyauth Forward-Auth
 
-These containers do not need a secondary password prompt because they either read `Remote-Email` / `Remote-User` injected by Caddy's `(tinyauth)` snippet or set their internal auth mode to `External` / `none`:
+These containers do not need a secondary password prompt because they either read `Remote-Email` / `Remote-User` injected by Caddy's `(forward_auth)` snippet or set their internal auth mode to `External` / `none`:
 
 | Service | Domain | Native Integration Setting | Edge ACL Policy |
 | :--- | :--- | :--- | :--- |
@@ -56,9 +56,9 @@ These containers do not need a secondary password prompt because they either rea
 
 ### Tier C: Stateless Apps, Shared Apps & Mobile-Direct Exceptions
 
-- **Stateless Web & Dashboard Apps (`dash`, `ignis`, `mind`, `fam`, `scan`, `tools`, `chef`, `pdf`, `speed`, `draw`, `mi`):** Protected by `import tinyauth` in `Caddyfile`. Open in 0 clicks for allowlisted users.
-- **Admin Infrastructure Endpoints (`router`, `cs`, `byparr`, `pb`):** Protected by `import tinyauth` + `TINYAUTH_APPS_<APP>_OAUTH_WHITELIST` restricting access strictly to `VRG`.
-- **Seerr (`request.vrg.rocks`):** Protected by `import tinyauth` at the edge plus persistent `connect.sid` session cookie (`VRG` = Admin, `Member1` & `Member2` = Request user).
+- **Stateless Web & Dashboard Apps (`dash`, `ignis`, `mind`, `fam`, `scan`, `tools`, `chef`, `pdf`, `speed`, `draw`, `mi`):** Protected by `import forward_auth` in `Caddyfile`. Open in 0 clicks for allowlisted users.
+- **Admin Infrastructure Endpoints (`router`, `cs`, `byparr`, `pb`):** Protected by `import forward_auth` + `TINYAUTH_APPS_<APP>_OAUTH_WHITELIST` restricting access strictly to `VRG`.
+- **Seerr (`request.vrg.rocks`):** Protected by `import forward_auth` at the edge plus persistent `connect.sid` session cookie (`VRG` = Admin, `Member1` & `Member2` = Request user).
 - **Intentional Mobile/Public Exceptions (No Browser Forward-Auth):**
   - `qb.vrg.rocks` (`qbittorrent`): Uses qBittorrent native auth so the Android mobile client (`qBitController`) can connect without browser OAuth redirects (`qui.vrg.rocks` is the 0-click web UI).
   - `ntfy.vrg.rocks` (`ntfy`): Accessed directly by the iOS/Android `ntfy` mobile push daemon.

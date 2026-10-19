@@ -37,23 +37,20 @@
 	}
 }
 
-# Tinyauth v5 Forward-Auth Middleware (Zero-Click Google OAuth + Per-App ACLs)
-(tinyauth) {
+# Forward-Auth Middleware (Provider-Agnostic: Tinyauth Active / Authentik Standby)
+(forward_auth) {
 	forward_auth tinyauth:3000 {
 		uri /api/auth/caddy
 		copy_headers Remote-User Remote-Name Remote-Email Remote-Groups Remote-Sub
 		trusted_proxies private_ranges
 	}
+	# Standby Authentik body (swap in when running --profile standby authentik-server):
+	# forward_auth authentik-server:9000 {
+	# 	uri /outpost.goauthentik.io/auth/caddy
+	# 	copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+	# 	trusted_proxies private_ranges
+	# }
 }
-
-# Standby Authentik Forward-Auth Middleware (Preserved for --profile standby)
-# (authentik) {
-# 	forward_auth authentik-server:9000 {
-# 		uri /outpost.goauthentik.io/auth/caddy
-# 		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
-# 		trusted_proxies private_ranges
-# 	}
-# }
 
 # Static Website Engine (Handles routing, clean URLs, compression & error fallbacks)
 (static_site) {
@@ -71,11 +68,18 @@
 # 1. CORE INFRASTRUCTURE (compose/core.yml)
 # ================================================================
 
-# Tinyauth v5 Login Portal & OpenID Connect (OIDC) Provider
-login.vrg.rocks {
+# Primary Identity & OpenID Connect (OIDC) Provider (Tinyauth v5)
+auth.vrg.rocks {
 	import optimize
 	import security_headers
 	reverse_proxy http://tinyauth:3000
+}
+
+# Auth Domain Aliases -> Canonical auth.vrg.rocks
+login.vrg.rocks, tinyauth.vrg.rocks {
+	import optimize
+	import security_headers
+	redir https://auth.vrg.rocks{uri} permanent
 }
 
 # Arcane Docker Management (Protected via Native OIDC with OIDC_AUTO_REDIRECT_TO_PROVIDER=true)
@@ -89,16 +93,9 @@ arcane.vrg.rocks {
 router.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://192.168.50.1
 }
-
-# --- Standby Core Routes (Uncomment when launching Authentik with --profile standby) ---
-# auth.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	reverse_proxy http://authentik-server:9000
-# }
 
 # ================================================================
 # 2. MONITORING & DASHBOARDS (compose/monitoring.yml)
@@ -108,7 +105,7 @@ router.vrg.rocks {
 dash.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://glance:8080
 }
 
@@ -127,14 +124,14 @@ sol.vrg.rocks {
 # beszel.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import tinyauth
+# 	import forward_auth
 # 	reverse_proxy http://beszel:8090
 # }
 #
 # dozzle.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import tinyauth
+# 	import forward_auth
 # 	reverse_proxy http://dozzle:8080
 # }
 
@@ -170,7 +167,7 @@ metal.vrg.rocks {
 request.vrg.rocks, jellyseerr.vrg.rocks, seerr.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://seerr:5055
 }
 
@@ -178,7 +175,7 @@ request.vrg.rocks, jellyseerr.vrg.rocks, seerr.vrg.rocks {
 radarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://radarr:7878
 }
 
@@ -186,7 +183,7 @@ radarr.vrg.rocks {
 sonarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://sonarr:8989
 }
 
@@ -194,7 +191,7 @@ sonarr.vrg.rocks {
 bazarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://bazarr:6767
 }
 
@@ -202,7 +199,7 @@ bazarr.vrg.rocks {
 lidarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://lidarr:8686
 }
 
@@ -210,7 +207,7 @@ lidarr.vrg.rocks {
 prowlarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://prowlarr:9696
 }
 
@@ -218,7 +215,7 @@ prowlarr.vrg.rocks {
 byparr.vrg.rocks, flaresolverr.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://byparr:8191
 }
 
@@ -226,7 +223,7 @@ byparr.vrg.rocks, flaresolverr.vrg.rocks {
 # wizarr.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import tinyauth
+# 	import forward_auth
 # 	reverse_proxy http://wizarr:5690
 # }
 
@@ -247,7 +244,7 @@ qb.vrg.rocks, qbittorrent.vrg.rocks {
 qui.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://qui:7476
 }
 
@@ -255,7 +252,7 @@ qui.vrg.rocks {
 cs.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://cross-seed:2468
 }
 
@@ -274,7 +271,7 @@ docs.vrg.rocks, paperless.vrg.rocks {
 # paperless-ai.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import tinyauth
+# 	import forward_auth
 # 	reverse_proxy http://paperless-ai:3000
 # }
 
@@ -286,7 +283,7 @@ docs.vrg.rocks, paperless.vrg.rocks {
 ignis.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://ignis:8080
 }
 
@@ -294,7 +291,7 @@ ignis.vrg.rocks {
 links.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://readeck:8000
 }
 
@@ -302,14 +299,14 @@ links.vrg.rocks {
 # leaf.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import tinyauth
+# 	import forward_auth
 # 	reverse_proxy http://leafwiki:8080
 # }
 #
 # kavita.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import tinyauth
+# 	import forward_auth
 # 	reverse_proxy http://kavita:5000
 # }
 
@@ -321,7 +318,7 @@ links.vrg.rocks {
 code.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://code-server:8443
 }
 
@@ -337,7 +334,7 @@ coder.vrg.rocks {
 pb.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://pocketbase:8090
 }
 
@@ -349,7 +346,7 @@ pb.vrg.rocks {
 files.vrg.rocks, copyparty.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://copyparty:3923
 }
 
@@ -387,7 +384,7 @@ inv.vrg.rocks {
 backrest.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
+	import forward_auth
 	reverse_proxy http://backrest:9898
 }
 
@@ -410,21 +407,21 @@ fly.vrg.rocks {
 # home.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import tinyauth
+# 	import forward_auth
 # 	reverse_proxy http://host.docker.internal:8123
 # }
 #
 # vault.vrg.rocks, pass.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import tinyauth
+# 	import forward_auth
 # 	reverse_proxy http://vaultwarden:80
 # }
 #
 # n8n.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import tinyauth
+# 	import forward_auth
 # 	reverse_proxy http://n8n:5678
 # }
 
@@ -434,21 +431,21 @@ fly.vrg.rocks {
 
 # Quartz Digital Garden
 mind.vrg.rocks {
-	import tinyauth
+	import forward_auth
 	root * /mind
 	import static_site
 }
 
 # Family Data Vault
 fam.vrg.rocks {
-	import tinyauth
+	import forward_auth
 	root * /fam
 	import static_site
 }
 
 # Homebox Mobile Barcode Scanner PWA
 scan.vrg.rocks {
-	import tinyauth
+	import forward_auth
 	root * /scan
 	import static_site
 }
@@ -461,28 +458,28 @@ aysynbm.vrg.rocks {
 
 # IT-Tools Developer Utilities Suite (80+ Client-Side Tools)
 tools.vrg.rocks {
-	import tinyauth
+	import forward_auth
 	root * /tools
 	import static_site
 }
 
 # GCHQ CyberChef Data & Crypto Swiss Army Knife
 chef.vrg.rocks {
-	import tinyauth
+	import forward_auth
 	root * /chef
 	import static_site
 }
 
 # BentoPDF Client-Side WebAssembly PDF Suite (50+ PDF Tools)
 pdf.vrg.rocks {
-	import tinyauth
+	import forward_auth
 	root * /pdf
 	import static_site
 }
 
 # OpenSpeedTest HTML5 LAN & Wi-Fi 6 Throughput Benchmark
 speed.vrg.rocks {
-	import tinyauth
+	import forward_auth
 	root * /speed
 	request_body {
 		max_size 500MB
@@ -492,14 +489,14 @@ speed.vrg.rocks {
 
 # Excalidraw Hand-Drawn Architecture Whiteboard
 draw.vrg.rocks {
-	import tinyauth
+	import forward_auth
 	root * /draw
 	import static_site
 }
 
 # Sol MediaInfo WebAssembly 4K HDR / Dolby Vision / Atmos Bitstream Inspector
 mi.vrg.rocks {
-	import tinyauth
+	import forward_auth
 	root * /mi
 	import static_site
 }
