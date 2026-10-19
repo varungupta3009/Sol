@@ -108,7 +108,7 @@ services:
       TINYAUTH_OIDC_CLIENTS_JELLYFIN_CLIENTID: ${TINYAUTH_OIDC_JELLYFIN_CLIENT_ID:?}
       TINYAUTH_OIDC_CLIENTS_JELLYFIN_CLIENTSECRET: ${TINYAUTH_OIDC_JELLYFIN_CLIENT_SECRET:?}
       TINYAUTH_OIDC_CLIENTS_JELLYFIN_NAME: "Jellyfin"
-      TINYAUTH_OIDC_CLIENTS_JELLYFIN_TRUSTEDREDIRECTURIS: "https://watch.vrg.rocks/sso/OID/r/google-sso,https://jellyfin.vrg.rocks/sso/OID/r/google-sso,https://watch.vrg.rocks/sso/OID/redirect/google-sso"
+      TINYAUTH_OIDC_CLIENTS_JELLYFIN_TRUSTEDREDIRECTURIS: "https://watch.vrg.rocks/sso/OID/redirect/google-sso,https://jellyfin.vrg.rocks/sso/OID/redirect/google-sso,https://watch.vrg.rocks/sso/OID/r/google-sso,https://jellyfin.vrg.rocks/sso/OID/r/google-sso"
       # --- Per-App Forward-Auth Admin Lockdown (VRG Only) ---
       TINYAUTH_APPS_CODE_CONFIG_DOMAIN: code.vrg.rocks
       TINYAUTH_APPS_CODE_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}

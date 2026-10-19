@@ -375,6 +375,8 @@ def sync_jellyfin(data: dict, env: dict) -> bool:
         edits.append("SSO-Auth DefaultProvider -> LDAP-Auth")
     if (pc.findtext("DefaultUsernameClaim") or "").strip() != "email":
         edits.append("SSO-Auth DefaultUsernameClaim -> email")
+    if (pc.findtext("SchemeOverride") or "").strip() != "https":
+        edits.append("SSO-Auth SchemeOverride -> https")
     if have_links != want_links:
         edits.append(f"SSO-Auth CanonicalLinks -> {len(want_links)} email links")
     if branding_tree and branding_disc != JF_SSO_DISCLAIMER:
@@ -402,6 +404,7 @@ def sync_jellyfin(data: dict, env: dict) -> bool:
             el.text = text
         setel("DefaultProvider", LDAP_PROVIDER)
         setel("DefaultUsernameClaim", "email")
+        setel("SchemeOverride", "https")
         if cl is None:
             cl = ET.SubElement(pc, "CanonicalLinks")
         for child in list(cl):
