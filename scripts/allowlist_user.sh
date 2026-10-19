@@ -5,13 +5,15 @@
 # Usage:
 #   ./scripts/allowlist_user.sh list
 #   ./scripts/allowlist_user.sh add <email> <uid> [Display] [admin|user]
-#        new uid  -> new person (lldap user, Jellyfin + Seerr account, OIDC consents, Copyparty mapping)
+#        new uid  -> new person (lldap user, Jellyfin + Seerr + OIDC accounts, Copyparty mapping)
 #        old uid  -> extra email (alias) for that person
 #   ./scripts/allowlist_user.sh remove <email>
-#   ./scripts/allowlist_user.sh sync [--apply]      (dry-run without --apply)
+#   ./scripts/allowlist_user.sh sync [--apply]         (users.json -> lldap + Tinyauth + OIDC + Jellyfin + Seerr)
+#   ./scripts/allowlist_user.sh from-lldap [--apply]   (lldap -> users.json + Tinyauth + OIDC + Jellyfin + Seerr)
 #
-# Source of truth: config/auth/users.json. All writes go through
-# scripts/identity_sync.py, which syncs Tinyauth, lldap, Jellyfin, Seerr, and Copyparty.
+# Users can be added or edited either in the lldap Web UI (https://ldap.vrg.rocks,
+# which triggers the com.vrg.sol.identity-sync launchd watcher automatically) or
+# via this CLI. All writes go through scripts/identity_sync.py.
 # Compatible with macOS /bin/bash 3.2 (no associative arrays, no ${arr[@]} under -u).
 # ================================================================
 set -euo pipefail
@@ -71,8 +73,11 @@ PY
   sync)
     shift; python3 "${SYNC}" "$@"
     ;;
+  from-lldap)
+    shift; python3 "${SYNC}" --from-lldap "$@"
+    ;;
   *)
-    echo "Usage: $0 {list|add <email> [uid] [Display] [admin|user]|remove <email>|sync [--apply]}" >&2
+    echo "Usage: $0 {list|add <email> [uid] [Display] [admin|user]|remove <email>|sync [--apply]|from-lldap [--apply]}" >&2
     exit 1
     ;;
 esac
