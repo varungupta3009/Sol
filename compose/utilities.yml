@@ -73,7 +73,7 @@ services:
       glance.description: Push Notification Service
 
   # ----------------------------------------------------------------
-  # Homebox: Physical Asset & Home Inventory Management
+  # Homebox: Physical Asset & Home Inventory Management (Native OIDC)
   # ----------------------------------------------------------------
   homebox:
     container_name: homebox
@@ -86,6 +86,17 @@ services:
       HBOX_WEB_MAX_FILE_UPLOAD: 10
       HBOX_OPTIONS_ALLOW_ANALYTICS: "false"
       HBOX_AUTH_API_KEY_PEPPER: ${HBOX_AUTH_API_KEY_PEPPER}
+      HBOX_OPTIONS_HOSTNAME: inv.vrg.rocks
+      HBOX_OPTIONS_TRUST_PROXY: "true"
+      HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "false"
+      HBOX_OPTIONS_ALLOW_REGISTRATION: "false"
+      HBOX_OIDC_ENABLED: "true"
+      HBOX_OIDC_AUTO_REDIRECT: "true"
+      HBOX_OIDC_ISSUER_URL: ${TINYAUTH_APPURL:-https://login.vrg.rocks}
+      HBOX_OIDC_CLIENT_ID: ${TINYAUTH_OIDC_HOMEBOX_CLIENT_ID}
+      HBOX_OIDC_CLIENT_SECRET: ${TINYAUTH_OIDC_HOMEBOX_CLIENT_SECRET}
+      HBOX_OIDC_SCOPE: "openid profile email"
+      HBOX_OIDC_BUTTON_TEXT: "Continue with Google SSO"
     volumes:
       - ${DOCKER_DATA_DIR}/homebox:/data/
     labels:
@@ -166,6 +177,16 @@ services:
       BODY_SIZE_LIMIT: 20M
       PUID: ${PUID:-501}
       PGID: ${PGID:-20}
+      OAUTH_ENABLED: "true"
+      OAUTH_ISSUER_URL: ${TINYAUTH_APPURL:-https://login.vrg.rocks}
+      OAUTH_CLIENT_ID: ${TINYAUTH_OIDC_AIRTRAIL_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${TINYAUTH_OIDC_AIRTRAIL_CLIENT_SECRET}
+      OAUTH_SCOPE: "openid profile email"
+      OAUTH_TOKEN_ENDPOINT_AUTH_METHOD: "client_secret_post"
+      OAUTH_AUTO_REGISTER: "true"
+      OAUTH_AUTO_LOGIN: "true"
+      OAUTH_HIDE_PASSWORD_FORM: "true"
+      OAUTH_BUTTON_TEXT: "Continue with Google SSO"
     volumes:
       - ${DOCKER_DATA_DIR}/airtrail:/app/uploads
     labels:

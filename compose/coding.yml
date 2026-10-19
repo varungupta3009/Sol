@@ -21,8 +21,7 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
-      AUTH: password
-      HASHED_PASSWORD: ${CODE_SERVER_HASHED_PASSWORD}
+      AUTH: none
       PROXY_DOMAIN: code.vrg.rocks
       PWA_APPNAME: VRGCode
     volumes:
@@ -47,7 +46,18 @@ services:
     group_add:
       - "${PGID}"
     environment:
+      CODER_HTTP_ADDRESS: "0.0.0.0:7080"
       CODER_ACCESS_URL: ${CODER_ACCESS_URL:-https://coder.vrg.rocks}
+      CODER_DISABLE_PASSWORD_AUTH: "true"
+      CODER_OIDC_ISSUER_URL: ${TINYAUTH_APPURL:-https://login.vrg.rocks}
+      CODER_OIDC_CLIENT_ID: ${TINYAUTH_OIDC_CODER_CLIENT_ID}
+      CODER_OIDC_CLIENT_SECRET: ${TINYAUTH_OIDC_CODER_CLIENT_SECRET}
+      CODER_OIDC_ALLOW_SIGNUPS: "true"
+      CODER_OIDC_SCOPES: "openid,profile,email"
+      CODER_OIDC_EMAIL_FIELD: "email"
+      CODER_OIDC_USERNAME_FIELD: "preferred_username"
+      CODER_OIDC_IGNORE_EMAIL_VERIFIED: "true"
+      CODER_OIDC_SIGN_IN_TEXT: "Continue with Google SSO"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${DOCKER_CONFIG_DIR}/coder:/home/coder/.config

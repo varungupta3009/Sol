@@ -47,16 +47,146 @@ services:
       glance.description: Reverse Proxy & Ingress Gateway
 
   # ----------------------------------------------------------------
-  # Authentik: Relational PostgreSQL 16 Database
+  # Tinyauth v5: Primary Forward-Auth & OpenID Connect (OIDC) Provider
+  # Enforces zero-click Google SSO, email allowlisting, and per-app ACLs
+  # ----------------------------------------------------------------
+  tinyauth:
+    container_name: tinyauth
+    image: ghcr.io/tinyauthapp/tinyauth:${TINYAUTH_TAG:-v5}
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      TINYAUTH_APPURL: ${TINYAUTH_APPURL:-https://login.vrg.rocks}
+      TINYAUTH_AUTH_USERS: ${TINYAUTH_USERS:?TINYAUTH_USERS required}
+      TINYAUTH_AUTH_SECURECOOKIE: "true"
+      TINYAUTH_AUTH_SESSIONEXPIRY: "2592000"
+      TINYAUTH_AUTH_TRUSTEDPROXIES: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"
+      # Upstream Google OAuth 2.0 (Silent Zero-Click Auto-Redirect)
+      TINYAUTH_OAUTH_PROVIDERS_GOOGLE_CLIENTID: ${GOOGLE_OAUTH_CLIENT_ID:?}
+      TINYAUTH_OAUTH_PROVIDERS_GOOGLE_CLIENTSECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:?}
+      TINYAUTH_OAUTH_PROVIDERS_GOOGLE_NAME: Google
+      TINYAUTH_OAUTH_WHITELIST: ${TINYAUTH_OAUTH_WHITELIST:?}
+      TINYAUTH_OAUTH_WHITELISTFILE: /data/whitelist.txt
+      TINYAUTH_OAUTH_AUTOREDIRECT: ${TINYAUTH_OAUTH_AUTOREDIRECT:-google}
+      # Audit logging for unapproved login attempts (watched for ntfy alerts)
+      TINYAUTH_LOG_STREAMS_AUDIT_ENABLED: "true"
+      TINYAUTH_LABELPROVIDER: none
+      TINYAUTH_ANALYTICS_ENABLED: "false"
+      TINYAUTH_UI_TITLE: Sol
+      # --- Built-in OIDC Provider Clients (RS256 keys at /data/oidc/key.pem) ---
+      # 1. Paperless-ngx (docs.vrg.rocks)
+      TINYAUTH_OIDC_CLIENTS_PAPERLESS_CLIENTID: ${TINYAUTH_OIDC_PAPERLESS_CLIENT_ID:?}
+      TINYAUTH_OIDC_CLIENTS_PAPERLESS_CLIENTSECRET: ${TINYAUTH_OIDC_PAPERLESS_CLIENT_SECRET:?}
+      TINYAUTH_OIDC_CLIENTS_PAPERLESS_NAME: "Paperless-ngx"
+      TINYAUTH_OIDC_CLIENTS_PAPERLESS_TRUSTEDREDIRECTURIS: "https://docs.vrg.rocks/accounts/oidc/tinyauth/login/callback/,https://paperless.vrg.rocks/accounts/oidc/tinyauth/login/callback/"
+      # 2. Arcane Docker Manager (arcane.vrg.rocks)
+      TINYAUTH_OIDC_CLIENTS_ARCANE_CLIENTID: ${TINYAUTH_OIDC_ARCANE_CLIENT_ID:?}
+      TINYAUTH_OIDC_CLIENTS_ARCANE_CLIENTSECRET: ${TINYAUTH_OIDC_ARCANE_CLIENT_SECRET:?}
+      TINYAUTH_OIDC_CLIENTS_ARCANE_NAME: "Arcane"
+      TINYAUTH_OIDC_CLIENTS_ARCANE_TRUSTEDREDIRECTURIS: "https://arcane.vrg.rocks/auth/oidc/callback,arcane-mobile://oidc-callback"
+      # 3. Homebox Inventory (inv.vrg.rocks)
+      TINYAUTH_OIDC_CLIENTS_HOMEBOX_CLIENTID: ${TINYAUTH_OIDC_HOMEBOX_CLIENT_ID:?}
+      TINYAUTH_OIDC_CLIENTS_HOMEBOX_CLIENTSECRET: ${TINYAUTH_OIDC_HOMEBOX_CLIENT_SECRET:?}
+      TINYAUTH_OIDC_CLIENTS_HOMEBOX_NAME: "Homebox"
+      TINYAUTH_OIDC_CLIENTS_HOMEBOX_TRUSTEDREDIRECTURIS: "https://inv.vrg.rocks/api/v1/users/login/oidc/callback"
+      # 4. AirTrail Flight Log (fly.vrg.rocks)
+      TINYAUTH_OIDC_CLIENTS_AIRTRAIL_CLIENTID: ${TINYAUTH_OIDC_AIRTRAIL_CLIENT_ID:?}
+      TINYAUTH_OIDC_CLIENTS_AIRTRAIL_CLIENTSECRET: ${TINYAUTH_OIDC_AIRTRAIL_CLIENT_SECRET:?}
+      TINYAUTH_OIDC_CLIENTS_AIRTRAIL_NAME: "AirTrail"
+      TINYAUTH_OIDC_CLIENTS_AIRTRAIL_TRUSTEDREDIRECTURIS: "https://fly.vrg.rocks/login"
+      # 5. Coder CDE Platform (coder.vrg.rocks)
+      TINYAUTH_OIDC_CLIENTS_CODER_CLIENTID: ${TINYAUTH_OIDC_CODER_CLIENT_ID:?}
+      TINYAUTH_OIDC_CLIENTS_CODER_CLIENTSECRET: ${TINYAUTH_OIDC_CODER_CLIENT_SECRET:?}
+      TINYAUTH_OIDC_CLIENTS_CODER_NAME: "Coder"
+      TINYAUTH_OIDC_CLIENTS_CODER_TRUSTEDREDIRECTURIS: "https://coder.vrg.rocks/api/v2/users/oidc/callback"
+      # 6. Readeck Read-Later Archiver (links.vrg.rocks)
+      TINYAUTH_OIDC_CLIENTS_READECK_CLIENTID: ${TINYAUTH_OIDC_READECK_CLIENT_ID:?}
+      TINYAUTH_OIDC_CLIENTS_READECK_CLIENTSECRET: ${TINYAUTH_OIDC_READECK_CLIENT_SECRET:?}
+      TINYAUTH_OIDC_CLIENTS_READECK_NAME: "Readeck"
+      TINYAUTH_OIDC_CLIENTS_READECK_TRUSTEDREDIRECTURIS: "https://links.vrg.rocks/login/oidc"
+      # 7. Jellyfin Media Server SSO Plugin (watch.vrg.rocks)
+      TINYAUTH_OIDC_CLIENTS_JELLYFIN_CLIENTID: ${TINYAUTH_OIDC_JELLYFIN_CLIENT_ID:?}
+      TINYAUTH_OIDC_CLIENTS_JELLYFIN_CLIENTSECRET: ${TINYAUTH_OIDC_JELLYFIN_CLIENT_SECRET:?}
+      TINYAUTH_OIDC_CLIENTS_JELLYFIN_NAME: "Jellyfin"
+      TINYAUTH_OIDC_CLIENTS_JELLYFIN_TRUSTEDREDIRECTURIS: "https://watch.vrg.rocks/sso/OID/r/google-sso,https://jellyfin.vrg.rocks/sso/OID/r/google-sso,https://watch.vrg.rocks/sso/OID/redirect/google-sso"
+      # --- Per-App Forward-Auth Admin Lockdown (VRG Only) ---
+      TINYAUTH_APPS_CODE_CONFIG_DOMAIN: code.vrg.rocks
+      TINYAUTH_APPS_CODE_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_BACKREST_CONFIG_DOMAIN: backrest.vrg.rocks
+      TINYAUTH_APPS_BACKREST_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_QUI_CONFIG_DOMAIN: qui.vrg.rocks
+      TINYAUTH_APPS_QUI_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_RADARR_CONFIG_DOMAIN: radarr.vrg.rocks
+      TINYAUTH_APPS_RADARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_SONARR_CONFIG_DOMAIN: sonarr.vrg.rocks
+      TINYAUTH_APPS_SONARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_LIDARR_CONFIG_DOMAIN: lidarr.vrg.rocks
+      TINYAUTH_APPS_LIDARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_PROWLARR_CONFIG_DOMAIN: prowlarr.vrg.rocks
+      TINYAUTH_APPS_PROWLARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_BAZARR_CONFIG_DOMAIN: bazarr.vrg.rocks
+      TINYAUTH_APPS_BAZARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_CS_CONFIG_DOMAIN: cs.vrg.rocks
+      TINYAUTH_APPS_CS_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_BYPARR_CONFIG_DOMAIN: byparr.vrg.rocks
+      TINYAUTH_APPS_BYPARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_PB_CONFIG_DOMAIN: pb.vrg.rocks
+      TINYAUTH_APPS_PB_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_ROUTER_CONFIG_DOMAIN: router.vrg.rocks
+      TINYAUTH_APPS_ROUTER_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+    volumes:
+      - ${DOCKER_DATA_DIR}/tinyauth:/data
+    labels:
+      glance.id: tinyauth
+      glance.name: Tinyauth
+      glance.icon: sh:tinyauth
+      glance.url: https://login.vrg.rocks
+      glance.description: Forward-Auth & OIDC Provider
+
+  # ----------------------------------------------------------------
+  # Arcane: Modern Docker Stack & Container Manager with Native OIDC
+  # ----------------------------------------------------------------
+  arcane:
+    container_name: arcane
+    image: ghcr.io/getarcaneapp/arcane:${ARCANE_TAG:-latest}
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      APP_URL: https://arcane.vrg.rocks
+      PUID: ${PUID}
+      PGID: ${PGID}
+      ENCRYPTION_KEY: ${ARCANE_ENCRYPTION_KEY}
+      LOG_LEVEL: info
+      LOG_JSON: "false"
+      OIDC_ENABLED: "true"
+      OIDC_AUTO_REDIRECT_TO_PROVIDER: "true"
+      OIDC_CLIENT_ID: ${ARCANE_OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${ARCANE_OIDC_CLIENT_SECRET}
+      OIDC_ISSUER_URL: ${ARCANE_OIDC_ISSUER_URL:-https://login.vrg.rocks}
+      OIDC_PROVIDER_NAME: ${ARCANE_OIDC_PROVIDER_NAME:-Google SSO}
+      OIDC_SCOPES: "openid email profile"
+      OIDC_MERGE_ACCOUNTS: "true"
+      DATABASE_URL: file:data/arcane.db?_pragma=journal_mode(WAL)&_pragma=busy_timeout(2500)&_txlock=immediate
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_DATA_DIR}/arcane:/app/data
+    labels:
+      glance.id: arcane
+      glance.name: Arcane
+      glance.icon: sh:arcane
+      glance.url: https://arcane.vrg.rocks
+      glance.description: Modern Docker Management
+
+  # ----------------------------------------------------------------
+  # Standby Authentik Stack (Preserved intact; replaced by Tinyauth v5)
+  # Launch via: docker compose --profile standby up -d authentik-postgresql authentik-server authentik-worker
   # ----------------------------------------------------------------
   authentik-postgresql:
     container_name: authentik-postgresql
     image: docker.io/library/postgres:16-alpine
+    profiles: ["standby"]
     restart: unless-stopped
     logging: *default-logging
-    # Database Performance Tuning for Apple Silicon M1 Pro (16GB Unified RAM)
-    # shared_buffers: 256MB dedicated memory cache for fast auth session lookups
-    # work_mem / effective_cache_size: optimizes sorting and OS cache utilization
     command:
       - "postgres"
       - "-c"
@@ -87,16 +217,14 @@ services:
       glance.name: PostgreSQL
       glance.parent: authentik
 
-  # ----------------------------------------------------------------
-  # Authentik: Identity Provider & SSO Server
-  # ----------------------------------------------------------------
   authentik-server:
     container_name: authentik-server
     image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.5.3}
+    profiles: ["standby"]
     command: server
     restart: unless-stopped
     logging: *default-logging
-    shm_size: 512mb # Prevents Python Gunicorn worker crashes during heavy SSO flows
+    shm_size: 512mb
     depends_on:
       authentik-postgresql:
         condition: service_healthy
@@ -106,12 +234,11 @@ services:
       AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-      AUTHENTIK_WEB__WORKERS: 2 # M1 Pro Concurrency: 2 Gunicorn web workers (upstream nested env var)
+      AUTHENTIK_WEB__WORKERS: 2
     volumes:
       - ${DOCKER_CONFIG_DIR}/authentik/data:/data
       - ${DOCKER_CONFIG_DIR}/authentik/custom-templates:/templates
     ports:
-      # Bound to loopback only; external and LAN traffic enters through Caddy (auth.vrg.rocks)
       - "127.0.0.1:${COMPOSE_PORT_HTTP:-9000}:9000"
       - "127.0.0.1:${COMPOSE_PORT_HTTPS:-9443}:9443"
     labels:
@@ -119,20 +246,16 @@ services:
       glance.name: Authentik
       glance.icon: sh:authentik
       glance.url: https://auth.vrg.rocks
-      glance.description: Identity & SSO Provider
+      glance.description: Identity & SSO Provider (Standby)
 
-  # ----------------------------------------------------------------
-  # Authentik: Background Worker
-  # ----------------------------------------------------------------
   authentik-worker:
     container_name: authentik-worker
     image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.5.3}
+    profiles: ["standby"]
     command: worker
     restart: unless-stopped
     logging: *default-logging
-    # Note: Caddy uses the embedded outpost on authentik-server:9000, so root and
-    # /var/run/docker.sock are omitted to avoid host-root privilege exposure.
-    shm_size: 512mb # Prevents shared memory exhaustion during background sync tasks
+    shm_size: 512mb
     depends_on:
       authentik-postgresql:
         condition: service_healthy
@@ -149,68 +272,3 @@ services:
     labels:
       glance.name: Worker
       glance.parent: authentik
-
-  # ----------------------------------------------------------------
-  # Arcane: Modern Docker Stack & Container Manager with OIDC
-  # ----------------------------------------------------------------
-  arcane:
-    container_name: arcane
-    image: ghcr.io/getarcaneapp/arcane:${ARCANE_TAG:-latest}
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      APP_URL: https://arcane.vrg.rocks
-      PUID: ${PUID}
-      PGID: ${PGID}
-      ENCRYPTION_KEY: ${ARCANE_ENCRYPTION_KEY}
-      LOG_LEVEL: info
-      LOG_JSON: "false"
-      OIDC_ENABLED: "true"
-      OIDC_CLIENT_ID: ${ARCANE_OIDC_CLIENT_ID}
-      OIDC_CLIENT_SECRET: ${ARCANE_OIDC_CLIENT_SECRET}
-      OIDC_ISSUER_URL: ${ARCANE_OIDC_ISSUER_URL}
-      OIDC_PROVIDER_NAME: ${ARCANE_OIDC_PROVIDER_NAME:-authentik}
-      OIDC_SCOPES: "openid email profile"
-      OIDC_MERGE_ACCOUNTS: "true"
-      DATABASE_URL: file:data/arcane.db?_pragma=journal_mode(WAL)&_pragma=busy_timeout(2500)&_txlock=immediate
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${DOCKER_DATA_DIR}/arcane:/app/data
-    labels:
-      glance.id: arcane
-      glance.name: Arcane
-      glance.icon: sh:arcane
-      glance.url: https://arcane.vrg.rocks
-      glance.description: Modern Docker Management
-
-  # ----------------------------------------------------------------
-  # Tinyauth v5: Lightweight Forward-Auth + Google OAuth (Parallel Trial)
-  # Staged alongside Authentik; tested on lidarr.vrg.rocks and inv.vrg.rocks
-  # ----------------------------------------------------------------
-  tinyauth:
-    container_name: tinyauth
-    image: ghcr.io/tinyauthapp/tinyauth:${TINYAUTH_TAG:-v5}
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      TINYAUTH_APPURL: ${TINYAUTH_APPURL:-https://login.vrg.rocks}
-      TINYAUTH_AUTH_USERS: ${TINYAUTH_USERS:?TINYAUTH_USERS required}
-      TINYAUTH_AUTH_SECURECOOKIE: "true"
-      TINYAUTH_AUTH_SESSIONEXPIRY: "2592000"
-      TINYAUTH_AUTH_TRUSTEDPROXIES: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"
-      TINYAUTH_OAUTH_PROVIDERS_GOOGLE_CLIENTID: ${GOOGLE_OAUTH_CLIENT_ID:?}
-      TINYAUTH_OAUTH_PROVIDERS_GOOGLE_CLIENTSECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:?}
-      TINYAUTH_OAUTH_PROVIDERS_GOOGLE_NAME: Google
-      TINYAUTH_OAUTH_WHITELIST: ${TINYAUTH_OAUTH_WHITELIST:?}
-      TINYAUTH_OAUTH_AUTOREDIRECT: ${TINYAUTH_OAUTH_AUTOREDIRECT:-google}
-      TINYAUTH_LABELPROVIDER: none
-      TINYAUTH_ANALYTICS_ENABLED: "false"
-      TINYAUTH_UI_TITLE: Sol
-    volumes:
-      - ${DOCKER_DATA_DIR}/tinyauth:/data
-    labels:
-      glance.id: tinyauth
-      glance.name: Tinyauth
-      glance.icon: sh:tinyauth
-      glance.url: https://login.vrg.rocks
-      glance.description: Forward-Auth & Google SSO (Trial)

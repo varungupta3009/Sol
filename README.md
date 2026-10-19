@@ -7,9 +7,9 @@
 [![Host](https://img.shields.io/badge/Host-macOS%20Apple%20Silicon%20(M1%20Pro)-000000?style=for-the-badge&logo=apple&logoColor=white)](#)
 [![Docker](https://img.shields.io/badge/Docker-Compose%20V2%20(include%20%2B%20profiles)-2496ED?style=for-the-badge&logo=docker&logoColor=white)](#)
 [![Reverse Proxy](https://img.shields.io/badge/Ingress-Caddy%20v2%20(HTTP%2F3%20%2B%20TLS)-1F88C0?style=for-the-badge&logo=caddy&logoColor=white)](#)
-[![Identity](https://img.shields.io/badge/Auth-Authentik%20SSO%20%26%20OIDC-FD4B2D?style=for-the-badge&logo=authentik&logoColor=white)](#)
+[![Identity](https://img.shields.io/badge/Auth-Tinyauth%20v5%20SSO%20%26%20OIDC-10B981?style=for-the-badge)](#)
 [![Filesystem](https://img.shields.io/badge/Storage-APFS%20Zero--Copy%20Hardlinks-34D058?style=for-the-badge)](#)
-[![Backup](https://img.shields.io/badge/Backup-Rclone%20to%20OneDrive-0078D4?style=for-the-badge&logo=microsoftonedrive&logoColor=white)](#)
+[![Backup](https://img.shields.io/badge/Backup-Backrest%20%2B%20Restic-0078D4?style=for-the-badge)](#)
 
 ---
 
@@ -36,7 +36,7 @@
 Sol is a single-node home server on an 8-core Apple Silicon M1 Pro Mac (6 performance and 2 efficiency cores, 16 GB unified memory) running OrbStack. It provides:
 
 - Reverse proxy routing with automatic HTTPS and HTTP/3
-- Identity and SSO through Authentik
+- Zero-click Google SSO, native OpenID Connect (OIDC), and email allowlisting through Tinyauth v5 (`~29 MiB` RAM)
 - Automated media requests, downloads, and cross-seeding
 - Document archiving with OCR
 - Browser IDEs and Coder workspaces
@@ -46,8 +46,8 @@ At a glance:
 
 | Item | Value |
 | :--- | :--- |
-| Active containers (default `docker compose up -d`) | 32 |
-| Profile-gated containers (`standby`, plus `ops` for `rclone`) | 17 |
+| Active containers (default `docker compose up -d`) | 29 |
+| Profile-gated containers (`standby`, plus `ops` for `rclone`) | 20 (includes `authentik-postgresql`, `authentik-server`, `authentik-worker`) |
 | Zero-container static web apps (served directly by `caddy`) | 10 (`mind.`, `fam.`, `scan.`, `aysynbm.`, `tools.`, `chef.`, `pdf.`, `speed.`, `draw.`, `mi.vrg.rocks`) |
 | Native host processes | 1 (`jellyfin-metal` on port `8097`) |
 | Compose project and network | `sol`, `sol_default` |
@@ -55,11 +55,11 @@ At a glance:
 
 ### Key Principles
 
-- **Apple Silicon tuning:** Concurrency is set per service. Paperless runs `PAPERLESS_TASK_WORKERS: 2` and `PAPERLESS_THREADS_PER_WORKER: 2`. Authentik runs `AUTHENTIK_WEB__WORKERS: 2`. Both PostgreSQL clusters use `shared_buffers=256MB`, `work_mem=16MB`, and `effective_cache_size=1GB`. Caddy uses 32 KB streaming buffers on the Jellyfin routes.
-- **Modular Compose:** The root `docker-compose.yml` loads 8 domain files under `compose/` with Compose V2 `include:` and `x-logging` JSON log rotation (`max-size: 10m`, `max-file: 3`). Containers reach each other by name on `sol_default` (for example `http://radarr:7878` or `http://authentik-server:9000`).
-- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 49, and only the 32 active ones start by default.
+- **Apple Silicon tuning:** Concurrency is set per service. Paperless runs `PAPERLESS_TASK_WORKERS: 2` and `PAPERLESS_THREADS_PER_WORKER: 2`. PostgreSQL 17 (`paperless-db`) uses `shared_buffers=256MB`, `work_mem=16MB`, and `effective_cache_size=1GB`. Caddy uses 32 KB streaming buffers on the Jellyfin routes.
+- **Modular Compose:** The root `docker-compose.yml` loads 8 domain files under `compose/` with Compose V2 `include:` and `x-logging` JSON log rotation (`max-size: 10m`, `max-file: 3`). Containers reach each other by name on `sol_default` (for example `http://radarr:7878` or `http://tinyauth:3000`).
+- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 49, and only the 29 active ones start by default.
 - **Zero-copy file moves:** A unified `/data` mount on APFS lets downloads hardlink into the media library with no second copy.
-- **Edge security:** Caddy terminates TLS and checks sessions against the Authentik embedded outpost before it forwards requests to admin dashboards. Authentik host ports listen on `127.0.0.1` only.
+- **Zero-click edge & OIDC security:** Caddy and Tinyauth v5 (`login.vrg.rocks`) enforce zero-click Google OAuth, pre-seeded OIDC consent for 7 native OIDC clients (`paperless-ngx`, `arcane`, `homebox`, `airtrail`, `coder`, `readeck`, `jellyfin`), trusted-header / external auth on `copyparty`, `qui`, `code-server`, `backrest`, `radarr`, `sonarr`, `lidarr`, `prowlarr`, and `bazarr`, and per-app admin ACLs (`VRG` only). See [`11_AUTHENTICATION_AND_SSO_STRATEGY.md`](docs/system_state/11_AUTHENTICATION_AND_SSO_STRATEGY.md).
 - **State vs configuration:** Version control tracks declarative infrastructure only. Application state is backed up through `scripts/backup.sh` and `backrest` (`backrest.vrg.rocks`) as encrypted, deduplicated Restic snapshots (containing PostgreSQL dumps, WAL-complete SQLite snapshots, media symlink manifests, and Coder workspace archives) to `/Volumes/PANOPTICON/backups/sol-restic` and `rclone:OneDrive:Sol-Restic`.
 
 ---
@@ -121,9 +121,9 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 ### 1. Ingress and Identity ([`compose/core.yml`](compose/core.yml))
 
 - **[Caddy v2](https://caddyserver.com/)** (`caddy:${CADDY_TAG:-2}`): Edge reverse proxy with Let's Encrypt TLS, HTTP/3, `zstd`/`gzip` compression, security headers, and static file hosting for 10 zero-container web apps (`/mind`, `/fam`, `/scan`, `/aysynbm`, `/tools`, `/chef`, `/pdf`, `/speed`, `/draw`, `/mi`).
-- **[Authentik](https://goauthentik.io/)** (`${AUTHENTIK_IMAGE}:${AUTHENTIK_TAG:-2026.5.3}`): Primary identity provider on PostgreSQL 16 (`postgres:16-alpine`). Provides silent Google SSO forward auth through the embedded outpost and OIDC for Arcane, Jellyfin, and Paperless-ngx. The worker runs without root and without the Docker socket.
-- **[Tinyauth v5](https://tinyauth.app/)** (`ghcr.io/tinyauthapp/tinyauth:${TINYAUTH_TAG:-v5}`): Lightweight Go forward-auth trial (`login.vrg.rocks`, `~29 MiB` RAM) running in parallel with Authentik and currently gating `lidarr.vrg.rocks` and `inv.vrg.rocks` (`homebox`) via the `(tinyauth)` Caddy snippet.
-- **[Arcane](https://github.com/getarcaneapp/arcane)** (`arcane:${ARCANE_TAG:-latest}`): Docker stack manager with Authentik OIDC, SQLite in WAL mode, and `LOG_LEVEL: info`.
+- **[Tinyauth v5](https://tinyauth.app/)** (`ghcr.io/tinyauthapp/tinyauth:${TINYAUTH_TAG:-v5}`): Primary forward-auth and OpenID Connect (OIDC) provider (`login.vrg.rocks`, `~29 MiB` RAM) with silent zero-click Google OAuth (`TINYAUTH_OAUTH_AUTOREDIRECT=google`), strict email allowlisting (`data/tinyauth/whitelist.txt` managed via [`scripts/allowlist_user.sh`](scripts/allowlist_user.sh)), 7 built-in OIDC clients (`paperless-ngx`, `arcane`, `homebox`, `airtrail`, `coder`, `readeck`, `jellyfin`), and per-app admin ACLs (`VRG` only).
+- **[Arcane](https://github.com/getarcaneapp/arcane)** (`arcane:${ARCANE_TAG:-latest}`): Docker stack manager with zero-click Tinyauth OIDC (`OIDC_AUTO_REDIRECT_TO_PROVIDER: "true"`), SQLite in WAL mode, and `LOG_LEVEL: info`.
+- *Standby:* Authentik (`authentik-server`, `authentik-worker`, `authentik-postgresql` preserved intact in `profiles: ["standby"]`).
 
 ### 2. Monitoring and Dashboards ([`compose/monitoring.yml`](compose/monitoring.yml))
 
@@ -185,8 +185,8 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 | Set | Count | Services |
 | :--- | :--- | :--- |
-| Active | 32 | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `tinyauth`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `qui`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `readeck`, `code-server`, `coder`, `pocketbase`, `copyparty`, `homebox`, `backrest`, `enclosed`, `airtrail`, `ntfy` |
-| Standby | 17 | `gatus`, `dozzle`, `beszel`, `beszel-agent`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`) |
+| Active | 29 | `caddy`, `tinyauth`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `qui`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `readeck`, `code-server`, `coder`, `pocketbase`, `copyparty`, `homebox`, `backrest`, `enclosed`, `airtrail`, `ntfy` |
+| Standby | 20 | `authentik-postgresql`, `authentik-server`, `authentik-worker`, `gatus`, `dozzle`, `beszel`, `beszel-agent`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`) |
 | Static Web | 10 | `mind.vrg.rocks`, `fam.vrg.rocks`, `scan.vrg.rocks`, `aysynbm.vrg.rocks`, `tools.vrg.rocks` (IT-Tools), `chef.vrg.rocks` (CyberChef), `pdf.vrg.rocks` (BentoPDF), `speed.vrg.rocks` (OpenSpeedTest), `draw.vrg.rocks` (Excalidraw), `mi.vrg.rocks` (MediaInfo Web WASM) |
 | Native | 1 | `jellyfin-metal` |
 
@@ -490,6 +490,7 @@ git clone https://github.com/varungupta3009/Sol.git /Users/vrg/Documents/Sol && 
 | [`docs/system_state/00` to `08`](docs/system_state) | Topology, service catalog, storage, ingress, legacy registry, migration plan, config taxonomy, media stack, performance |
 | [`09_ARCHITECTURAL_AUDIT_AND_UPGRADE_PLAN.md`](docs/system_state/09_ARCHITECTURAL_AUDIT_AND_UPGRADE_PLAN.md) | October 2026 `/double-agent` review, five upgrade phases, open live-host checks |
 | [`10_MEGA_OPTIMIZATION_AND_CONTAINER_ROADMAP.md`](docs/system_state/10_MEGA_OPTIMIZATION_AND_CONTAINER_ROADMAP.md) | Live infrastructure audit, SQLite/Servarr/Cross-Seed repairs, `qui` deployment, "Lean is Sexy" 2026 container replacement matrix, and dossier-inspired passion projects |
+| [`11_AUTHENTICATION_AND_SSO_STRATEGY.md`](docs/system_state/11_AUTHENTICATION_AND_SSO_STRATEGY.md) | Zero-click Google SSO, Tinyauth v5 OIDC & forward-auth architecture, per-app admin ACLs, and `scripts/allowlist_user.sh` approval workflow |
 | [`FLASH_LOCAL_VERIFICATION_RUNBOOK.md`](docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md) | Live host playbook: `.env` reconciliation, backups, Authentik, Byparr, `/data` cutover, Alpine trial, Homebox repair |
 | [`TODO.md`](TODO.md) | Roadmap and open tasks |
 | [`coder/README.md`](coder/README.md) | Coder workspace template |

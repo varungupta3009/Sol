@@ -236,10 +236,7 @@ pages:
                   - title: ntfy Alerts
                     url: https://ntfy.vrg.rocks
                     icon: sh:ntfy
-                  - title: Authentik SSO
-                    url: https://auth.vrg.rocks
-                    icon: sh:authentik
-                  - title: Tinyauth Trial
+                  - title: Tinyauth SSO
                     url: https://login.vrg.rocks
                     icon: sh:tinyauth
                   - title: Arcane Docker
@@ -324,10 +321,10 @@ pages:
                 url: https://dash.vrg.rocks
                 check-url: http://caddy:80
                 icon: sh:caddy
-              - title: Authentik SSO
-                url: https://auth.vrg.rocks
-                check-url: http://authentik-server:9000/-/health/live/
-                icon: sh:authentik
+              - title: Tinyauth SSO
+                url: https://login.vrg.rocks
+                check-url: http://tinyauth:3000/api/healthz
+                icon: sh:tinyauth
               - title: Arcane Docker
                 url: https://arcane.vrg.rocks
                 check-url: http://arcane:3552
@@ -730,7 +727,7 @@ pages:
                 icon: sh:cross-seed
 
           - type: monitor
-            title: Core, Knowledge, Dev & Utility Mesh (16 Active Services)
+            title: Core, Knowledge, Dev & Utility Mesh (15 Active Services)
             cache: 1m
             style: compact
             sites:
@@ -738,11 +735,7 @@ pages:
                 url: https://dash.vrg.rocks
                 check-url: http://caddy:80
                 icon: sh:caddy
-              - title: Authentik SSO
-                url: https://auth.vrg.rocks
-                check-url: http://authentik-server:9000/-/health/live/
-                icon: sh:authentik
-              - title: Tinyauth Trial
+              - title: Tinyauth SSO
                 url: https://login.vrg.rocks
                 check-url: http://tinyauth:3000/api/healthz
                 icon: sh:tinyauth

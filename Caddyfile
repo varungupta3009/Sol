@@ -3,7 +3,7 @@
 # ================================================================
 # Host: Apple Silicon M1 Pro (macOS / OrbStack)
 # Reverse Proxy: Caddy v2 with HTTP/3 (QUIC) & Let's Encrypt TLS
-# Auth Middleware: Authentik Forward Auth & Native OIDC
+# Auth Engine: Tinyauth v5 (Zero-Click Google SSO, Native OIDC & Forward Auth)
 # ================================================================
 
 # ----------------------------------------------------------------
@@ -37,16 +37,7 @@
 	}
 }
 
-# Authentik Forward-Auth Middleware
-(authentik) {
-	forward_auth authentik-server:9000 {
-		uri /outpost.goauthentik.io/auth/caddy
-		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
-		trusted_proxies private_ranges
-	}
-}
-
-# Tinyauth v5 Forward-Auth Middleware (Parallel Trial on lidarr & inv)
+# Tinyauth v5 Forward-Auth Middleware (Zero-Click Google OAuth + Per-App ACLs)
 (tinyauth) {
 	forward_auth tinyauth:3000 {
 		uri /api/auth/caddy
@@ -54,6 +45,15 @@
 		trusted_proxies private_ranges
 	}
 }
+
+# Standby Authentik Forward-Auth Middleware (Preserved for --profile standby)
+# (authentik) {
+# 	forward_auth authentik-server:9000 {
+# 		uri /outpost.goauthentik.io/auth/caddy
+# 		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+# 		trusted_proxies private_ranges
+# 	}
+# }
 
 # Static Website Engine (Handles routing, clean URLs, compression & error fallbacks)
 (static_site) {
@@ -71,35 +71,34 @@
 # 1. CORE INFRASTRUCTURE (compose/core.yml)
 # ================================================================
 
-# Authentik SSO & Identity Provider
-auth.vrg.rocks {
-	import optimize
-	import security_headers
-	reverse_proxy http://authentik-server:9000
-}
-
-# Tinyauth v5 Login Portal (Parallel Trial)
+# Tinyauth v5 Login Portal & OpenID Connect (OIDC) Provider
 login.vrg.rocks {
 	import optimize
 	import security_headers
 	reverse_proxy http://tinyauth:3000
 }
 
-# Arcane Docker Management
+# Arcane Docker Management (Protected via Native OIDC with OIDC_AUTO_REDIRECT_TO_PROVIDER=true)
 arcane.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
 	reverse_proxy http://arcane:3552
 }
 
-# Physical Router Gateway
+# Physical Router Gateway (Admin-Only via Tinyauth Per-App ACL)
 router.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://192.168.50.1
 }
+
+# --- Standby Core Routes (Uncomment when launching Authentik with --profile standby) ---
+# auth.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	reverse_proxy http://authentik-server:9000
+# }
 
 # ================================================================
 # 2. MONITORING & DASHBOARDS (compose/monitoring.yml)
@@ -109,7 +108,7 @@ router.vrg.rocks {
 dash.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://glance:8080
 }
 
@@ -128,14 +127,14 @@ sol.vrg.rocks {
 # beszel.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import tinyauth
 # 	reverse_proxy http://beszel:8090
 # }
 #
 # dozzle.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import tinyauth
 # 	reverse_proxy http://dozzle:8080
 # }
 
@@ -143,7 +142,7 @@ sol.vrg.rocks {
 # 3. MEDIA & SERVARR SUITE (compose/media.yml)
 # ================================================================
 
-# Jellyfin Media Streaming Server (Optimized streaming buffers; native direct-play bypass)
+# Jellyfin Media Streaming Server (Protected via Jellyfin Native Auth & OIDC SSO Plugin)
 watch.vrg.rocks, jellyfin.vrg.rocks {
 	import security_headers
 	reverse_proxy http://jellyfin:8096 {
@@ -171,35 +170,35 @@ metal.vrg.rocks {
 request.vrg.rocks, jellyseerr.vrg.rocks, seerr.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://seerr:5055
 }
 
-# Radarr Movie Manager
+# Radarr Movie Manager (External Auth + Tinyauth Admin ACL)
 radarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://radarr:7878
 }
 
-# Sonarr TV Series Manager
+# Sonarr TV Series Manager (External Auth + Tinyauth Admin ACL)
 sonarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://sonarr:8989
 }
 
-# Bazarr Subtitle Sync
+# Bazarr Subtitle Sync (External Auth + Tinyauth Admin ACL)
 bazarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://bazarr:6767
 }
 
-# Lidarr Music Manager (Protected by Tinyauth v5 Parallel Trial)
+# Lidarr Music Manager (External Auth + Tinyauth Admin ACL)
 lidarr.vrg.rocks {
 	import optimize
 	import security_headers
@@ -207,19 +206,19 @@ lidarr.vrg.rocks {
 	reverse_proxy http://lidarr:8686
 }
 
-# Prowlarr Indexer Proxy
+# Prowlarr Indexer Proxy (External Auth + Tinyauth Admin ACL)
 prowlarr.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://prowlarr:9696
 }
 
-# Byparr / FlareSolverr Cloudflare Turnstile Proxy
+# Byparr / FlareSolverr Cloudflare Turnstile Proxy (Tinyauth Admin ACL)
 byparr.vrg.rocks, flaresolverr.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://byparr:8191
 }
 
@@ -227,7 +226,7 @@ byparr.vrg.rocks, flaresolverr.vrg.rocks {
 # wizarr.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import tinyauth
 # 	reverse_proxy http://wizarr:5690
 # }
 
@@ -236,27 +235,27 @@ byparr.vrg.rocks, flaresolverr.vrg.rocks {
 # ================================================================
 
 # qBittorrent Web UI
-# Note: Authentik Forward Auth is intentionally omitted here because the Android
-# mobile torrent client connects directly to qb.vrg.rocks and cannot follow SSO redirects.
+# Note: Forward Auth is intentionally omitted here because the Android mobile
+# torrent client connects directly to qb.vrg.rocks and cannot follow SSO redirects.
 qb.vrg.rocks, qbittorrent.vrg.rocks {
 	import optimize
 	import security_headers
 	reverse_proxy http://qbittorrent:8080
 }
 
-# QUI Modern Go Web UI for qBittorrent
+# QUI Modern Go Web UI for qBittorrent (Zero-Click via QUI__AUTH_DISABLED=true + Tinyauth Admin ACL)
 qui.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://qui:7476
 }
 
-# Cross-Seed Multi-Tracker Daemon
+# Cross-Seed Multi-Tracker Daemon (Tinyauth Admin ACL)
 cs.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://cross-seed:2468
 }
 
@@ -264,7 +263,7 @@ cs.vrg.rocks {
 # 5. DOCUMENT & OCR ENGINE (compose/paperless.yml)
 # ================================================================
 
-# Paperless-ngx (Protected via Native OpenID Connect to Authentik)
+# Paperless-ngx (Protected via Native OIDC to Tinyauth with PAPERLESS_REDIRECT_LOGIN_TO_SSO=true)
 docs.vrg.rocks, paperless.vrg.rocks {
 	import optimize
 	import security_headers
@@ -275,7 +274,7 @@ docs.vrg.rocks, paperless.vrg.rocks {
 # paperless-ai.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import tinyauth
 # 	reverse_proxy http://paperless-ai:3000
 # }
 
@@ -287,15 +286,15 @@ docs.vrg.rocks, paperless.vrg.rocks {
 ignis.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://ignis:8080
 }
 
-# Readeck Bookmark & Read-Later Archiver
+# Readeck Bookmark & Read-Later Archiver (Native OIDC + Tinyauth Edge Gate)
 links.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://readeck:8000
 }
 
@@ -303,14 +302,14 @@ links.vrg.rocks {
 # leaf.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import tinyauth
 # 	reverse_proxy http://leafwiki:8080
 # }
 #
 # kavita.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import tinyauth
 # 	reverse_proxy http://kavita:5000
 # }
 
@@ -318,27 +317,27 @@ links.vrg.rocks {
 # 7. DEVELOPER WORKSPACES (compose/coding.yml)
 # ================================================================
 
-# code-server Browser VS Code IDE (Gated by Authentik SSO + code-server password)
+# code-server Browser VS Code IDE (Zero-Click via AUTH=none + Tinyauth Admin ACL)
 code.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://code-server:8443
 }
 
-# Coder v2 Cloud Development Environments
+# Coder v2 Cloud Development Environments (Zero-Click Native OIDC via /login redirect)
 coder.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	redir /login /api/v2/users/oidc/callback 302
 	reverse_proxy http://coder:7080
 }
 
-# PocketBase Realtime Go + SQLite Sandbox
+# PocketBase Realtime Go + SQLite Sandbox (Tinyauth Admin ACL)
 pb.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://pocketbase:8090
 }
 
@@ -346,26 +345,25 @@ pb.vrg.rocks {
 # 8. STORAGE LOGISTICS & UTILITIES (compose/utilities.yml)
 # ================================================================
 
-# Copyparty High-Speed File Server & WebDAV
+# Copyparty High-Speed File Server & WebDAV (Zero-Click Trusted Header Auth via Remote-Email)
 files.vrg.rocks, copyparty.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://copyparty:3923
 }
 
-# ntfy Push Notification Service
+# ntfy Push Notification Service (Direct Mobile Client Access)
 ntfy.vrg.rocks {
 	import optimize
 	import security_headers
 	reverse_proxy http://ntfy:80
 }
 
-# Homebox Physical Inventory Manager (Tinyauth v5 Trial; CORS restricted to https://scan.vrg.rocks)
+# Homebox Physical Inventory Manager (Protected via Native OIDC with HBOX_OIDC_AUTO_REDIRECT=true)
 inv.vrg.rocks {
 	import optimize
 	import security_headers
-	import tinyauth
 
 	@allowed_origins header Origin https://scan.vrg.rocks
 	header @allowed_origins {
@@ -385,26 +383,25 @@ inv.vrg.rocks {
 	reverse_proxy http://homebox:7745
 }
 
-# Backrest Encrypted Restic Backup Engine & WebUI
+# Backrest Encrypted Restic Backup Engine & WebUI (Zero-Click via auth.disabled=true + Tinyauth Admin ACL)
 backrest.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
+	import tinyauth
 	reverse_proxy http://backrest:9898
 }
 
-# Enclosed Zero-Knowledge Encrypted Notes & File Drops
+# Enclosed Zero-Knowledge Encrypted Notes & File Drops (Public Client-Side E2EE)
 send.vrg.rocks {
 	import optimize
 	import security_headers
 	reverse_proxy http://enclosed:8787
 }
 
-# AirTrail Personal Flight Log & Aircraft Registry
+# AirTrail Personal Flight Log & Aircraft Registry (Protected via Native OIDC with OAUTH_AUTO_LOGIN=true)
 fly.vrg.rocks {
 	import optimize
 	import security_headers
-	import authentik
 	reverse_proxy http://airtrail:3000
 }
 
@@ -413,21 +410,21 @@ fly.vrg.rocks {
 # home.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import tinyauth
 # 	reverse_proxy http://host.docker.internal:8123
 # }
 #
 # vault.vrg.rocks, pass.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import tinyauth
 # 	reverse_proxy http://vaultwarden:80
 # }
 #
 # n8n.vrg.rocks {
 # 	import optimize
 # 	import security_headers
-# 	import authentik
+# 	import tinyauth
 # 	reverse_proxy http://n8n:5678
 # }
 
@@ -437,21 +434,21 @@ fly.vrg.rocks {
 
 # Quartz Digital Garden
 mind.vrg.rocks {
-	import authentik
+	import tinyauth
 	root * /mind
 	import static_site
 }
 
 # Family Data Vault
 fam.vrg.rocks {
-	import authentik
+	import tinyauth
 	root * /fam
 	import static_site
 }
 
 # Homebox Mobile Barcode Scanner PWA
 scan.vrg.rocks {
-	import authentik
+	import tinyauth
 	root * /scan
 	import static_site
 }
@@ -464,28 +461,28 @@ aysynbm.vrg.rocks {
 
 # IT-Tools Developer Utilities Suite (80+ Client-Side Tools)
 tools.vrg.rocks {
-	import authentik
+	import tinyauth
 	root * /tools
 	import static_site
 }
 
 # GCHQ CyberChef Data & Crypto Swiss Army Knife
 chef.vrg.rocks {
-	import authentik
+	import tinyauth
 	root * /chef
 	import static_site
 }
 
 # BentoPDF Client-Side WebAssembly PDF Suite (50+ PDF Tools)
 pdf.vrg.rocks {
-	import authentik
+	import tinyauth
 	root * /pdf
 	import static_site
 }
 
 # OpenSpeedTest HTML5 LAN & Wi-Fi 6 Throughput Benchmark
 speed.vrg.rocks {
-	import authentik
+	import tinyauth
 	root * /speed
 	request_body {
 		max_size 500MB
@@ -495,14 +492,14 @@ speed.vrg.rocks {
 
 # Excalidraw Hand-Drawn Architecture Whiteboard
 draw.vrg.rocks {
-	import authentik
+	import tinyauth
 	root * /draw
 	import static_site
 }
 
 # Sol MediaInfo WebAssembly 4K HDR / Dolby Vision / Atmos Bitstream Inspector
 mi.vrg.rocks {
-	import authentik
+	import tinyauth
 	root * /mi
 	import static_site
 }

@@ -48,8 +48,12 @@ services:
       PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/scripts/pre-consumption.py # Sanitizes and cleans scans
       PAPERLESS_POST_CONSUME_SCRIPT: /usr/src/paperless/scripts/ntfy_notify.sh # Dispatches ntfy notification on intake
       PAPERLESS_APPS: ${PAPERLESS_APPS:-allauth.socialaccount.providers.openid_connect}
+      PAPERLESS_REDIRECT_LOGIN_TO_SSO: "true"
+      PAPERLESS_DISABLE_REGULAR_LOGIN: "true"
+      PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+      PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS: "true"
       PAPERLESS_SOCIALACCOUNT_PROVIDERS: ${PAPERLESS_SOCIALACCOUNT_PROVIDERS}
-      PAPERLESS_LOGOUT_REDIRECT_URL: ${PAPERLESS_LOGOUT_REDIRECT_URL:-https://auth.vrg.rocks/application/o/paperless-ngx/end-session/}
+      PAPERLESS_LOGOUT_REDIRECT_URL: ${PAPERLESS_LOGOUT_REDIRECT_URL:-https://login.vrg.rocks/logout}
       # PAPERLESS_TIKA_ENABLED: 1
       # PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://paperless-gotenberg:3000
       # PAPERLESS_TIKA_ENDPOINT: http://paperless-tika:9998

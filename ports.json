@@ -12,7 +12,8 @@
     "host_port": "127.0.0.1:9000, 127.0.0.1:9443",
     "protocol": "HTTP, HTTPS",
     "url": "https://auth.vrg.rocks",
-    "status": "active",
+    "status": "standby",
+    "profile": "standby",
     "category": "core"
   },
   "authentik-worker": {
@@ -20,7 +21,8 @@
     "host_port": null,
     "protocol": "Worker Daemon",
     "url": null,
-    "status": "active",
+    "status": "standby",
+    "profile": "standby",
     "category": "core"
   },
   "authentik-postgresql": {
@@ -28,7 +30,8 @@
     "host_port": null,
     "protocol": "TCP",
     "url": null,
-    "status": "active",
+    "status": "standby",
+    "profile": "standby",
     "category": "core"
   },
   "arcane": {
