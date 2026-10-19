@@ -97,6 +97,14 @@ router.vrg.rocks {
 	reverse_proxy http://192.168.50.1
 }
 
+# LLDAP Directory Console (Admin-Only via Tinyauth Per-App ACL)
+ldap.vrg.rocks {
+	import optimize
+	import security_headers
+	import forward_auth
+	reverse_proxy http://lldap:17170
+}
+
 # ================================================================
 # 2. MONITORING & DASHBOARDS (compose/monitoring.yml)
 # ================================================================
@@ -248,13 +256,13 @@ qui.vrg.rocks {
 	reverse_proxy http://qui:7476
 }
 
-# Cross-Seed Multi-Tracker Daemon (Tinyauth Admin ACL)
-cs.vrg.rocks {
-	import optimize
-	import security_headers
-	import forward_auth
-	reverse_proxy http://cross-seed:2468
-}
+# --- Standby Download Routes (Uncomment when launching with --profile standby) ---
+# cs.vrg.rocks {
+# 	import optimize
+# 	import security_headers
+# 	import forward_auth
+# 	reverse_proxy http://cross-seed:2468
+# }
 
 # ================================================================
 # 5. DOCUMENT & OCR ENGINE (compose/paperless.yml)

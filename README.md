@@ -47,7 +47,7 @@ At a glance:
 | Item | Value |
 | :--- | :--- |
 | Active containers (default `docker compose up -d`) | 29 |
-| Profile-gated containers (`standby`, plus `ops` for `rclone`) | 20 (includes `authentik-postgresql`, `authentik-server`, `authentik-worker`) |
+| Profile-gated containers (`standby`, plus `ops` for `rclone`) | 21 (includes `authentik-postgresql`, `authentik-server`, `authentik-worker`, `cross-seed`) |
 | Zero-container static web apps (served directly by `caddy`) | 10 (`mind.`, `fam.`, `scan.`, `aysynbm.`, `tools.`, `chef.`, `pdf.`, `speed.`, `draw.`, `mi.vrg.rocks`) |
 | Native host processes | 1 (`jellyfin-metal` on port `8097`) |
 | Compose project and network | `sol`, `sol_default` |
@@ -57,9 +57,9 @@ At a glance:
 
 - **Apple Silicon tuning:** Concurrency is set per service. Paperless runs `PAPERLESS_TASK_WORKERS: 2` and `PAPERLESS_THREADS_PER_WORKER: 2`. PostgreSQL 17 (`paperless-db`) uses `shared_buffers=256MB`, `work_mem=16MB`, and `effective_cache_size=1GB`. Caddy uses 32 KB streaming buffers on the Jellyfin routes.
 - **Modular Compose:** The root `docker-compose.yml` loads 8 domain files under `compose/` with Compose V2 `include:` and `x-logging` JSON log rotation (`max-size: 10m`, `max-file: 3`). Containers reach each other by name on `sol_default` (for example `http://radarr:7878` or `http://tinyauth:3000`).
-- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 49, and only the 29 active ones start by default.
+- **Profiles, not comments:** Inactive services are full definitions with `profiles: ["standby"]`. `docker compose config` validates all 50, and only the 29 active ones start by default.
 - **Zero-copy file moves:** A unified `/data` mount on APFS lets downloads hardlink into the media library with no second copy.
-- **Zero-click edge & OIDC security:** Caddy and Tinyauth v5 (`auth.vrg.rocks`) enforce zero-click Google OAuth, pre-seeded OIDC consent for 7 native OIDC clients (`paperless-ngx`, `arcane`, `homebox`, `airtrail`, `coder`, `readeck`, `jellyfin`), trusted-header / external auth on `copyparty`, `qui`, `code-server`, `backrest`, `radarr`, `sonarr`, `lidarr`, `prowlarr`, and `bazarr`, and per-app admin ACLs (`VRG` only). See [`11_AUTHENTICATION_AND_SSO_STRATEGY.md`](docs/system_state/11_AUTHENTICATION_AND_SSO_STRATEGY.md).
+- **Zero-click edge, OIDC & Unified LDAP (`lldap`) identity:** Caddy, Tinyauth v5 (`auth.vrg.rocks`), and `lldap` (`ldap.vrg.rocks`) connect every user's single email across all interfaces (`config/auth/users.json` + `scripts/identity_sync.py`), enforcing zero-click Google OAuth, pre-seeded OIDC consent for 7 native OIDC clients (`paperless-ngx`, `arcane`, `homebox`, `airtrail`, `coder`, `readeck`, `jellyfin`), unified LDAP login (`email`, `alias`, or `username`) for Jellyfin and Seerr, trusted-header / external auth on `copyparty`, `qui`, `code-server`, `backrest`, `radarr`, `sonarr`, `lidarr`, `prowlarr`, and `bazarr`, and per-app admin ACLs (`VRG` only). See [`11_AUTHENTICATION_AND_SSO_STRATEGY.md`](docs/system_state/11_AUTHENTICATION_AND_SSO_STRATEGY.md).
 - **State vs configuration:** Version control tracks declarative infrastructure only. Application state is backed up through `scripts/backup.sh` and `backrest` (`backrest.vrg.rocks`) as encrypted, deduplicated Restic snapshots (containing PostgreSQL dumps, WAL-complete SQLite snapshots, media symlink manifests, and Coder workspace archives) to `/Volumes/PANOPTICON/backups/sol-restic` and `rclone:OneDrive:Sol-Restic`.
 
 ---
@@ -120,8 +120,9 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 ### 1. Ingress and Identity ([`compose/core.yml`](compose/core.yml))
 
-- **[Caddy v2](https://caddyserver.com/)** (`caddy:${CADDY_TAG:-2}`): Edge reverse proxy with Let's Encrypt TLS, HTTP/3, `zstd`/`gzip` compression, security headers, and static file hosting for 10 zero-container web apps (`/mind`, `/fam`, `/scan`, `/aysynbm`, `/tools`, `/chef`, `/pdf`, `/speed`, `/draw`, `/mi`).
-- **[Tinyauth v5](https://tinyauth.app/)** (`ghcr.io/tinyauthapp/tinyauth:${TINYAUTH_TAG:-v5}`): Primary forward-auth and OpenID Connect (OIDC) provider (`auth.vrg.rocks`, `~29 MiB` RAM) with silent zero-click Google OAuth (`TINYAUTH_OAUTH_AUTOREDIRECT=google`), strict email allowlisting (`data/tinyauth/whitelist.txt` managed via [`scripts/allowlist_user.sh`](scripts/allowlist_user.sh)), 7 built-in OIDC clients (`paperless-ngx`, `arcane`, `homebox`, `airtrail`, `coder`, `readeck`, `jellyfin`), and per-app admin ACLs (`VRG` only).
+- **[Caddy v2](https://caddyserver.com/)** (`caddy:${CADDY_TAG:-2}`): Edge reverse proxy with Let's Encrypt TLS, HTTP/3, `zstd`/`gzip` compression, security headers, provider-agnostic `(forward_auth)` snippet, and static file hosting for 10 zero-container web apps (`/mind`, `/fam`, `/scan`, `/aysynbm`, `/tools`, `/chef`, `/pdf`, `/speed`, `/draw`, `/mi`).
+- **[Tinyauth v5](https://tinyauth.app/)** (`ghcr.io/tinyauthapp/tinyauth:${TINYAUTH_TAG:-v5}`): Primary forward-auth and OpenID Connect (OIDC) provider (`auth.vrg.rocks`, `~29 MiB` RAM) with silent zero-click Google OAuth (`TINYAUTH_OAUTH_AUTOREDIRECT=google`), strict email allowlisting (`config/auth/users.json` -> `data/tinyauth/whitelist.txt` managed via [`scripts/allowlist_user.sh`](scripts/allowlist_user.sh)), 7 built-in OIDC clients (`paperless-ngx`, `arcane`, `homebox`, `airtrail`, `coder`, `readeck`, `jellyfin`), and per-app admin ACLs (`VRG` only).
+- **[lldap](https://github.com/lldap/lldap)** (`lldap/lldap:${LLDAP_TAG:-stable}`): Lightweight Rust + SQLite LDAP directory (`ldap://lldap:3890` and `https://ldap.vrg.rocks`, `~12 MiB` RAM) synchronizing `config/auth/users.json` via [`scripts/identity_sync.py`](scripts/identity_sync.py) so Jellyfin (`LDAP-Auth` + `SSO-Auth`) and Seerr authenticate users seamlessly by primary email, email alias, or username.
 - **[Arcane](https://github.com/getarcaneapp/arcane)** (`arcane:${ARCANE_TAG:-latest}`): Docker stack manager with zero-click Tinyauth OIDC (`OIDC_AUTO_REDIRECT_TO_PROVIDER: "true"`), SQLite in WAL mode, and `LOG_LEVEL: info`.
 - *Standby:* Authentik (`authentik-server`, `authentik-worker`, `authentik-postgresql` preserved intact in `profiles: ["standby"]`).
 
@@ -143,10 +144,9 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 ### 4. Downloads and Cross-Seeding ([`compose/download.yml`](compose/download.yml))
 
 - **[qBittorrent](https://www.qbittorrent.org/):** Torrent client with WAN peer port `42069` TCP/UDP and the WebUI on `8080`, paired with the hardened `config/qbittorrent/scripts/torrent_finished.py` Option A completion hook.
-- **[QUI](https://github.com/autobrr/qui)** (`ghcr.io/autobrr/qui:latest`): Single-binary Go WebUI for qBittorrent and Cross-Seed on port `7476` (`qui.vrg.rocks`) with multi-instance support, orphan file scanning, and hardlink/reflink inspection.
-- **[Cross-Seed](https://cross-seed.org/)** (`cross-seed:6`): Daemon that finds and injects matching torrents across trackers. Runs as `${PUID}:${PGID}`.
-- All three mount `${DOCKER_DATA_DIR}:/data` and `${EXTERNAL_DRIVE_00}:/external` (the legacy `/downloads` mount has been retired after migrating all 289 `.fastresume` files to `/data/torrents` and `/external/torrents`).
-- *Standby:* Unpackerr.
+- **[QUI](https://github.com/autobrr/qui)** (`ghcr.io/autobrr/qui:v1.32.0`): Single-binary Go WebUI, Cross-Seed engine, and tracker automation manager for qBittorrent on port `7476` (`qui.vrg.rocks`, `~24 MiB` RAM). Replaces both `cross-seed` and `qbit_manage` with 25 tracker customizations ([`config/qui/tracker_registry.json`](config/qui/tracker_registry.json)), 10 FUP/health automation rules (stopping public torrents at `ratio >= 1.0` or immediately on completion if `size > 25 GiB` unless tagged `INF`, capping private torrents at `100 GiB` uploaded, and enforcing tiered upload speed limits), Prowlarr Torznab cross-seeding, Radarr/Sonarr integration, library scan, and orphan scan.
+- Both mount `${DOCKER_DATA_DIR}:/data` and `${EXTERNAL_DRIVE_00}:/external` (the legacy `/downloads` mount has been retired after migrating all 289 `.fastresume` files to `/data/torrents` and `/external/torrents`).
+- *Standby:* Cross-Seed (`cross-seed:6`), Unpackerr.
 
 ### 5. Document Management and OCR ([`compose/paperless.yml`](compose/paperless.yml))
 
@@ -185,8 +185,8 @@ The server is split into 8 compose files in [`compose/`](compose). Standby servi
 
 | Set | Count | Services |
 | :--- | :--- | :--- |
-| Active | 29 | `caddy`, `tinyauth`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `qui`, `cross-seed`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `readeck`, `code-server`, `coder`, `pocketbase`, `copyparty`, `homebox`, `backrest`, `enclosed`, `airtrail`, `ntfy` |
-| Standby | 20 | `authentik-postgresql`, `authentik-server`, `authentik-worker`, `gatus`, `dozzle`, `beszel`, `beszel-agent`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`) |
+| Active | 29 | `caddy`, `tinyauth`, `lldap`, `arcane`, `glance`, `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, `qbittorrent`, `qui`, `paperless-webserver`, `paperless-broker`, `paperless-db`, `ignis`, `readeck`, `code-server`, `coder`, `pocketbase`, `copyparty`, `homebox`, `backrest`, `enclosed`, `airtrail`, `ntfy` |
+| Standby | 21 | `authentik-postgresql`, `authentik-server`, `authentik-worker`, `cross-seed`, `gatus`, `dozzle`, `beszel`, `beszel-agent`, `flaresolverr`, `recyclarr`, `wizarr`, `unpackerr`, `paperless-gotenberg`, `paperless-tika`, `paperless-ai`, `leafwiki`, `kavita`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`) |
 | Static Web | 10 | `mind.vrg.rocks`, `fam.vrg.rocks`, `scan.vrg.rocks`, `aysynbm.vrg.rocks`, `tools.vrg.rocks` (IT-Tools), `chef.vrg.rocks` (CyberChef), `pdf.vrg.rocks` (BentoPDF), `speed.vrg.rocks` (OpenSpeedTest), `draw.vrg.rocks` (Excalidraw), `mi.vrg.rocks` (MediaInfo Web WASM) |
 | Native | 1 | `jellyfin-metal` |
 
@@ -246,6 +246,8 @@ Linux `link(2)` fails with `EXDEV` across two different mount points, even when 
 │   └── utilities.yml                     # Copyparty, Homebox, Backrest, ntfy | standby: Vaultwarden, n8n, HA, Rclone
 │
 ├── config/
+│   ├── auth/
+│   │   └── users.json                    # Tracked single-email identity manifest (Tinyauth, lldap, Jellyfin, Seerr, Copyparty)
 │   ├── backrest/
 │   │   └── excludes.txt.example          # Tracked Restic exclude filter template
 │   ├── glance/
@@ -254,10 +256,14 @@ Linux `link(2)` fails with `EXDEV` across two different mount points, even when 
 │   │   │   └── user.css                  # Tracked Catppuccin Mocha / GM3 stylesheet
 │   │   └── config/
 │   │       └── glance.yml                # Tracked 3-page declarative Glance dashboard
+│   ├── qui/
+│   │   └── tracker_registry.json         # Tracked registry of 26 official short tracker tags, names, URLs, and announce domains
 │   └── rclone/
 │       └── filter.txt.example            # Tracked rclone filter template
 │
 ├── scripts/                              # Automation scripts
+│   ├── allowlist_user.sh                 # Single-command user allowlist & 5-target identity sync front-door
+│   ├── identity_sync.py                  # Unified reconciler across Tinyauth, lldap, Jellyfin, Seerr, and Copyparty
 │   ├── stage_db_backups.sh               # Pre-backup hook: pg_dump, WAL-complete SQLite snapshots, symlink manifest, Coder tar
 │   ├── backup.sh                         # Staging + encrypted Restic snapshots to PANOPTICON and OneDrive
 │   ├── restore.sh                        # Full Mac reset recovery: Restic pull, DB restore, symlink rebuild, Coder volume restore

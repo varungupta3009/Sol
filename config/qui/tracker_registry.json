@@ -1,0 +1,374 @@
+{
+  "schemaVersion": "1.0.0",
+  "updatedAt": "2026-10-19",
+  "description": "Official Tracker Shortname <-> Display Name <-> Site URLs <-> Announce Domains Registry for Sol (qBittorrent + qui v1.32.0)",
+  "fupSeedingPolicy": {
+    "permaseedOverrideTag": "INF",
+    "permaseedUploadLimitKiB": 10240,
+    "publicSmallMaxBytes": 26843545600,
+    "publicSmallMaxGiB": 25,
+    "publicSmallRatioLimit": 1.0,
+    "publicSmallUploadLimitKiB": 1024,
+    "publicLargeRatioLimit": 0.0,
+    "publicLargeSeedingTimeMinutes": 0,
+    "publicLargeDownloadUploadLimitKiB": 512,
+    "publicLargeStopTag": "fup-pub-25gb-stop",
+    "privateMaxUploadedBytes": 107374182400,
+    "privateMaxUploadedGiB": 100,
+    "privateTier1MaxUploadedBytes": 53687091200,
+    "privateTier1UploadLimitKiB": 5120,
+    "privateTier2UploadLimitKiB": 2048,
+    "privateCapReachedTag": "fup-100gb-capped"
+  },
+  "trackers": [
+    {
+      "shortName": "IPT",
+      "displayName": "IPTorrents",
+      "privacy": "private",
+      "activeOnSol": true,
+      "prowlarrIndexerId": 2,
+      "siteUrls": [
+        "https://iptorrents.com",
+        "https://iptorrents.me"
+      ],
+      "announceDomains": [
+        "ssl.empirehost.me",
+        "routing.bgp.technology",
+        "localhost.stackoverflow.tech"
+      ],
+      "includedInStats": []
+    },
+    {
+      "shortName": "MAM",
+      "displayName": "MyAnonamouse",
+      "privacy": "private",
+      "activeOnSol": true,
+      "prowlarrIndexerId": 10,
+      "siteUrls": [
+        "https://www.myanonamouse.net"
+      ],
+      "announceDomains": [
+        "t.myanonamouse.net"
+      ]
+    },
+    {
+      "shortName": "3DT",
+      "displayName": "3D Torrents",
+      "privacy": "private",
+      "activeOnSol": true,
+      "prowlarrIndexerId": 8,
+      "siteUrls": [
+        "http://www.3dtorrents.org"
+      ],
+      "announceDomains": [
+        "3dtorrents.me"
+      ]
+    },
+    {
+      "shortName": "ULCX",
+      "displayName": "upload.cx",
+      "privacy": "private",
+      "activeOnSol": true,
+      "prowlarrIndexerId": 9,
+      "siteUrls": [
+        "https://upload.cx"
+      ],
+      "announceDomains": [
+        "upload.cx",
+        "tracker.upload.cx"
+      ]
+    },
+    {
+      "shortName": "MLK",
+      "displayName": "Milkie",
+      "privacy": "private",
+      "activeOnSol": true,
+      "prowlarrIndexerId": 6,
+      "siteUrls": [
+        "https://milkie.cc"
+      ],
+      "announceDomains": [
+        "cow.milkie.cc"
+      ]
+    },
+    {
+      "shortName": "RUT",
+      "displayName": "RuTracker",
+      "privacy": "semi-private",
+      "activeOnSol": true,
+      "prowlarrIndexerId": 7,
+      "siteUrls": [
+        "https://rutracker.org"
+      ],
+      "announceDomains": [
+        "bt.t-ru.org",
+        "bt2.t-ru.org",
+        "bt3.t-ru.org",
+        "bt4.t-ru.org"
+      ]
+    },
+    {
+      "shortName": "DT",
+      "displayName": "DesiTorrents",
+      "privacy": "private",
+      "activeOnSol": false,
+      "prowlarrIndexerId": 12,
+      "siteUrls": [
+        "https://desitorrents.tv"
+      ],
+      "announceDomains": [
+        "desitorrents.tv",
+        "tracker.desitorrents.tv"
+      ]
+    },
+    {
+      "shortName": "TL",
+      "displayName": "TorrentLeech",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://www.torrentleech.org",
+        "https://www.tlgetin.cc"
+      ],
+      "announceDomains": [
+        "tracker.tleechreload.org",
+        "tracker.torrentleech.org"
+      ]
+    },
+    {
+      "shortName": "FNP",
+      "displayName": "FearNoPeer",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://fearnopeer.com"
+      ],
+      "announceDomains": [
+        "fearnopeer.com",
+        "tracker.fearnopeer.com"
+      ]
+    },
+    {
+      "shortName": "AVZ",
+      "displayName": "AvistaZ",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://avistaz.to"
+      ],
+      "announceDomains": [
+        "tracker.avistaz.to"
+      ]
+    },
+    {
+      "shortName": "CZ",
+      "displayName": "CinemaZ",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://cinemaz.to"
+      ],
+      "announceDomains": [
+        "tracker.cinemaz.to"
+      ]
+    },
+    {
+      "shortName": "PHD",
+      "displayName": "PrivateHD",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://privatehd.to"
+      ],
+      "announceDomains": [
+        "tracker.privatehd.to"
+      ]
+    },
+    {
+      "shortName": "AT",
+      "displayName": "AnimeTorrents",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://animetorrents.me"
+      ],
+      "announceDomains": [
+        "animetorrents.me",
+        "tracker.animetorrents.me"
+      ]
+    },
+    {
+      "shortName": "AB",
+      "displayName": "AnimeBytes",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://animebytes.tv"
+      ],
+      "announceDomains": [
+        "tracker.animebytes.tv",
+        "tracker2.animebytes.tv"
+      ]
+    },
+    {
+      "shortName": "PTP",
+      "displayName": "PassThePopcorn",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://passthepopcorn.me"
+      ],
+      "announceDomains": [
+        "please.passthepopcorn.me"
+      ]
+    },
+    {
+      "shortName": "BTN",
+      "displayName": "BroadcasTheNet",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://broadcasthe.net"
+      ],
+      "announceDomains": [
+        "landof.tv"
+      ]
+    },
+    {
+      "shortName": "BHD",
+      "displayName": "BeyondHD",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://beyond-hd.me"
+      ],
+      "announceDomains": [
+        "beyond-hd.me",
+        "tracker.beyond-hd.me"
+      ]
+    },
+    {
+      "shortName": "BLU",
+      "displayName": "Blutopia",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://blutopia.cc"
+      ],
+      "announceDomains": [
+        "blutopia.cc",
+        "tracker.blutopia.cc"
+      ]
+    },
+    {
+      "shortName": "ATH",
+      "displayName": "Aither",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://aither.cc"
+      ],
+      "announceDomains": [
+        "aither.cc",
+        "tracker.aither.cc"
+      ]
+    },
+    {
+      "shortName": "FL",
+      "displayName": "FileList",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://filelist.io"
+      ],
+      "announceDomains": [
+        "filelist.io",
+        "t.filelist.io"
+      ]
+    },
+    {
+      "shortName": "RED",
+      "displayName": "Redacted",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://redacted.sh"
+      ],
+      "announceDomains": [
+        "flacsfor.me"
+      ]
+    },
+    {
+      "shortName": "OPS",
+      "displayName": "Orpheus",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://orpheus.network"
+      ],
+      "announceDomains": [
+        "home.opsfet.ch"
+      ]
+    },
+    {
+      "shortName": "HDB",
+      "displayName": "HDBits",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://hdbits.org"
+      ],
+      "announceDomains": [
+        "tracker.hdbits.org"
+      ]
+    },
+    {
+      "shortName": "KG",
+      "displayName": "Karagarga",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://karagarga.in"
+      ],
+      "announceDomains": [
+        "tracker.karagarga.in"
+      ]
+    },
+    {
+      "shortName": "CG",
+      "displayName": "CinemaGeddon",
+      "privacy": "private",
+      "activeOnSol": false,
+      "siteUrls": [
+        "https://cinemageddon.net"
+      ],
+      "announceDomains": [
+        "tracker.cinemageddon.net"
+      ]
+    },
+    {
+      "shortName": "PUB",
+      "displayName": "Public Trackers",
+      "privacy": "public",
+      "activeOnSol": true,
+      "prowlarrIndexerIds": [1, 3, 4, 11],
+      "siteUrls": [
+        "https://1337x.to",
+        "https://thepiratebay.org",
+        "https://limetorrents.lol",
+        "https://yts.mx",
+        "https://nyaa.si"
+      ],
+      "announceDomains": [
+        "tracker.opentrackr.org",
+        "open.stealth.si",
+        "nyaa.tracker.wf",
+        "tracker.torrent.eu.org",
+        "explodie.org",
+        "exodus.desync.com",
+        "open.demonii.com",
+        "9.rarbg.to"
+      ]
+    }
+  ]
+}

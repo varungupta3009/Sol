@@ -1,116 +1,78 @@
 #!/usr/bin/env bash
 # ================================================================
-# Sol Home Server - User Email Allowlist & OIDC Consent Manager
+# Sol - Unified Identity Front Door (One Email -> Every Interface)
 # ================================================================
 # Usage:
 #   ./scripts/allowlist_user.sh list
-#   ./scripts/allowlist_user.sh add <email>
+#   ./scripts/allowlist_user.sh add <email> <uid> [Display] [admin|user]
+#        new uid  -> new person (lldap user, Jellyfin + Seerr account, OIDC consents, Copyparty mapping)
+#        old uid  -> extra email (alias) for that person
 #   ./scripts/allowlist_user.sh remove <email>
+#   ./scripts/allowlist_user.sh sync [--apply]      (dry-run without --apply)
 #
-# What 'add <email>' does:
-#   1. Appends <email> to data/tinyauth/whitelist.txt (if not already present)
-#   2. Updates TINYAUTH_OAUTH_WHITELIST in .env so both sources stay in sync
-#   3. Stops tinyauth briefly, pre-seeds 0-click OIDC consent rows into
-#      data/tinyauth/tinyauth.db for all 7 OIDC clients so the user never
-#      even has to click an "Authorize" consent button on first visit,
-#      and starts tinyauth back up (~1 second).
+# Source of truth: config/auth/users.json. All writes go through
+# scripts/identity_sync.py, which syncs Tinyauth, lldap, Jellyfin, Seerr, and Copyparty.
+# Compatible with macOS /bin/bash 3.2 (no associative arrays, no ${arr[@]} under -u).
 # ================================================================
 set -euo pipefail
-
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WHITELIST_FILE="${BASE_DIR}/data/tinyauth/whitelist.txt"
-ENV_FILE="${BASE_DIR}/.env"
-DB_FILE="${BASE_DIR}/data/tinyauth/tinyauth.db"
-
-mkdir -p "$(dirname "${WHITELIST_FILE}")"
-touch "${WHITELIST_FILE}"
-
+USERS_JSON="${BASE_DIR}/config/auth/users.json"
+SYNC="${BASE_DIR}/scripts/identity_sync.py"
 ACTION="${1:-list}"
-EMAIL="${2:-}"
-
-sync_env_and_consents() {
-  local csv
-  csv="$(grep -v '^[[:space:]]*$' "${WHITELIST_FILE}" | paste -sd, -)"
-  if [[ -f "${ENV_FILE}" ]]; then
-    python3 - "${ENV_FILE}" "${csv}" <<'PY'
-import sys, pathlib, re
-env_path = pathlib.Path(sys.argv[1])
-csv_val = sys.argv[2]
-text = env_path.read_text()
-if re.search(r'^TINYAUTH_OAUTH_WHITELIST=', text, flags=re.M):
-    text = re.sub(r'^TINYAUTH_OAUTH_WHITELIST=.*$', f'TINYAUTH_OAUTH_WHITELIST={csv_val}', text, flags=re.M)
-else:
-    text += f'\nTINYAUTH_OAUTH_WHITELIST={csv_val}\n'
-env_path.write_text(text)
-PY
-  fi
-
-  echo "Restarting tinyauth and pre-seeding 0-click OIDC consents..."
-  cd "${BASE_DIR}"
-  docker stop tinyauth >/dev/null 2>&1 || true
-
-  if [[ -f "${DB_FILE}" && -f "${ENV_FILE}" ]]; then
-    python3 - "${DB_FILE}" "${WHITELIST_FILE}" "${ENV_FILE}" <<'PY'
-import sqlite3, sys, pathlib, re, time
-
-db_path, wl_path, env_path = sys.argv[1], sys.argv[2], sys.argv[3]
-emails = [line.strip() for line in pathlib.Path(wl_path).read_text().splitlines() if line.strip() and not line.startswith('#')]
-env_text = pathlib.Path(env_path).read_text()
-client_ids = re.findall(r'^TINYAUTH_OIDC_[A-Z0-9_]+_CLIENT_ID=(.+)$', env_text, flags=re.M)
-
-conn = sqlite3.connect(db_path)
-cur = conn.cursor()
-now = int(time.time())
-for email in emails:
-    # Tinyauth derives username from Google email by replacing first '@' with '_'
-    uname = email.replace('@', '_', 1)
-    for cid in client_ids:
-        cid = cid.strip().strip('"').strip("'")
-        cur.execute(
-            "INSERT INTO oidc_consents (username, client_id, scope, created_at) VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(username, client_id) DO UPDATE SET scope = excluded.scope",
-            (uname, cid, "openid profile email groups", now),
-        )
-conn.commit()
-conn.close()
-PY
-  fi
-
-  docker compose up -d tinyauth
-  echo "Done. Active allowlisted emails:"
-  cat "${WHITELIST_FILE}"
-}
 
 case "${ACTION}" in
   list)
-    echo "=== Allowlisted Emails (${WHITELIST_FILE}) ==="
-    cat "${WHITELIST_FILE}"
+    python3 - "${USERS_JSON}" <<'PY'
+import json, sys
+for u in json.load(open(sys.argv[1]))["users"]:
+    print(f"{u['uid']:10} {u['display']:10} {u['role']:6} jf={u.get('jellyfin_id')} seerr={u.get('seerr_id')}  {', '.join(u['emails'])}")
+PY
     ;;
   add)
-    if [[ -z "${EMAIL}" ]]; then
-      echo "Usage: $0 add <email>" >&2
-      exit 1
+    EMAIL="${2:?email required}"; USERID="${3:-}"; DISPLAY="${4:-}"; ROLE="${5:-user}"
+    if [[ -z "${USERID}" ]]; then
+      USERID="$(echo "${EMAIL%%@*}" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_.-')"
     fi
-    if grep -Fxq "${EMAIL}" "${WHITELIST_FILE}"; then
-      echo "${EMAIL} is already in ${WHITELIST_FILE}."
-    else
-      echo "${EMAIL}" >> "${WHITELIST_FILE}"
-      echo "Added ${EMAIL} to ${WHITELIST_FILE}."
-    fi
-    sync_env_and_consents
+    python3 - "${USERS_JSON}" "${EMAIL}" "${USERID}" "${DISPLAY}" "${ROLE}" <<'PY'
+import json, sys
+path, email, uid, display, role = sys.argv[1], sys.argv[2].strip().lower(), sys.argv[3].strip().lower(), sys.argv[4], sys.argv[5]
+d = json.load(open(path))
+if any(email in u["emails"] for u in d["users"]):
+    sys.exit(f"{email} already belongs to a user")
+for u in d["users"]:
+    if u["uid"] == uid:
+        u["emails"].append(email); print(f"added alias {email} to {uid}"); break
+else:
+    d["users"].append({"uid": uid, "display": display or uid.upper(), "emails": [email], "role": role,
+                       "jellyfin_id": None, "seerr_id": None})
+    print(f"added new user {uid} <{email}>")
+open(path, "w").write(json.dumps(d, indent=2) + "\n")
+PY
+    python3 "${SYNC}" --apply
     ;;
   remove)
-    if [[ -z "${EMAIL}" ]]; then
-      echo "Usage: $0 remove <email>" >&2
-      exit 1
-    fi
-    grep -Fxv "${EMAIL}" "${WHITELIST_FILE}" > "${WHITELIST_FILE}.tmp" || true
-    mv "${WHITELIST_FILE}.tmp" "${WHITELIST_FILE}"
-    echo "Removed ${EMAIL} from ${WHITELIST_FILE}."
-    sync_env_and_consents
+    EMAIL="${2:?email required}"
+    python3 - "${USERS_JSON}" "${EMAIL}" <<'PY'
+import json, sys
+path, email = sys.argv[1], sys.argv[2].strip().lower()
+d = json.load(open(path))
+for u in d["users"]:
+    if email in u["emails"]:
+        if len(u["emails"]) == 1:
+            sys.exit(f"{email} is the only email of {u['uid']}. Remove the user by editing users.json "
+                     "(Jellyfin/Seerr/lldap accounts are never deleted automatically).")
+        u["emails"].remove(email); print(f"removed alias {email} from {u['uid']}"); break
+else:
+    sys.exit(f"{email} not found")
+open(path, "w").write(json.dumps(d, indent=2) + "\n")
+PY
+    python3 "${SYNC}" --apply
+    ;;
+  sync)
+    shift; python3 "${SYNC}" "$@"
     ;;
   *)
-    echo "Usage: $0 {list|add <email>|remove <email>}" >&2
+    echo "Usage: $0 {list|add <email> [uid] [Display] [admin|user]|remove <email>|sync [--apply]}" >&2
     exit 1
     ;;
 esac

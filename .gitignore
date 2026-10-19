@@ -35,6 +35,12 @@
 !/config/backrest/
 /config/backrest/*
 !/config/backrest/excludes.txt.example
+!/config/qui/
+/config/qui/*
+!/config/qui/tracker_registry.json
+!/config/auth/
+/config/auth/*
+!/config/auth/users.json
 !/config/glance/
 !/config/glance/**
 

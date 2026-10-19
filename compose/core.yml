@@ -132,6 +132,8 @@ services:
       TINYAUTH_APPS_BYPARR_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
       TINYAUTH_APPS_PB_CONFIG_DOMAIN: pb.vrg.rocks
       TINYAUTH_APPS_PB_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
+      TINYAUTH_APPS_LDAP_CONFIG_DOMAIN: ldap.vrg.rocks
+      TINYAUTH_APPS_LDAP_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
       TINYAUTH_APPS_ROUTER_CONFIG_DOMAIN: router.vrg.rocks
       TINYAUTH_APPS_ROUTER_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:-admin@example.com,admin-alias@example.com}
     volumes:
@@ -142,6 +144,36 @@ services:
       glance.icon: sh:tinyauth
       glance.url: https://auth.vrg.rocks
       glance.description: Forward-Auth & OIDC Provider
+
+  # ----------------------------------------------------------------
+  # LLDAP: Lightweight Rust LDAP Directory (~5 MiB RAM)
+  # Connects allowlisted emails/usernames in config/auth/users.json to Jellyfin & Seerr
+  # ----------------------------------------------------------------
+  lldap:
+    container_name: lldap
+    image: ghcr.io/lldap/lldap:${LLDAP_TAG:-stable}
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      UID: "${PUID:-501}"
+      GID: "${PGID:-20}"
+      TZ: ${TZ:-Asia/Kolkata}
+      LLDAP_LDAP_BASE_DN: dc=vrg,dc=rocks
+      LLDAP_LDAP_HOST: "::"
+      LLDAP_HTTP_HOST: "::"
+      LLDAP_HTTP_URL: https://ldap.vrg.rocks
+      LLDAP_JWT_SECRET: ${LLDAP_JWT_SECRET:?}
+      LLDAP_KEY_SEED: ${LLDAP_KEY_SEED:?}
+      LLDAP_LDAP_USER_PASS: ${LLDAP_ADMIN_PASSWORD:?}
+    volumes:
+      - ${DOCKER_DATA_DIR}/lldap:/data
+    labels:
+      glance.id: lldap
+      glance.name: LLDAP
+      glance.icon: sh:lldap
+      glance.url: https://ldap.vrg.rocks
+      glance.parent: tinyauth
+      glance.description: Lightweight Rust LDAP Directory (~5 MiB RAM)
 
   # ----------------------------------------------------------------
   # Arcane: Modern Docker Stack & Container Manager with Native OIDC

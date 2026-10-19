@@ -50,6 +50,14 @@
     "status": "active",
     "category": "core"
   },
+  "lldap": {
+    "internal_port": "3890 (LDAP), 17170 (HTTP)",
+    "host_port": null,
+    "protocol": "LDAP, HTTP",
+    "url": "https://ldap.vrg.rocks",
+    "status": "active",
+    "category": "core"
+  },
   "glance": {
     "internal_port": 8080,
     "host_port": null,
@@ -151,7 +159,8 @@
     "host_port": null,
     "protocol": "HTTP",
     "url": "https://cs.vrg.rocks",
-    "status": "active",
+    "status": "standby",
+    "profile": "standby",
     "category": "download"
   },
   "paperless-webserver": {

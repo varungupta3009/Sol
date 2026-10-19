@@ -162,9 +162,6 @@ pages:
                   - title: QUI
                     url: https://qui.vrg.rocks
                     icon: sh:qbittorrent
-                  - title: Cross-Seed
-                    url: https://cs.vrg.rocks
-                    icon: sh:cross-seed
 
               - title: Knowledge, Inventory & Web
                 color: 188 86 64
@@ -239,6 +236,9 @@ pages:
                   - title: Tinyauth SSO
                     url: https://auth.vrg.rocks
                     icon: sh:tinyauth
+                  - title: lldap Directory
+                    url: https://ldap.vrg.rocks
+                    icon: sh:lldap
                   - title: Arcane Docker
                     url: https://arcane.vrg.rocks
                     icon: sh:arcane
@@ -677,7 +677,7 @@ pages:
                   {{ end }}
 
           - type: monitor
-            title: Media, PVR & Download Mesh (11 Active Services)
+            title: Media, PVR & Download Mesh (10 Active Services)
             cache: 1m
             style: compact
             sites:
@@ -721,13 +721,9 @@ pages:
                 url: https://qui.vrg.rocks
                 check-url: http://qui:7476
                 icon: sh:qbittorrent
-              - title: Cross-Seed
-                url: https://cs.vrg.rocks
-                check-url: http://cross-seed:2468/api/ping
-                icon: sh:cross-seed
 
           - type: monitor
-            title: Core, Knowledge, Dev & Utility Mesh (15 Active Services)
+            title: Core, Knowledge, Dev & Utility Mesh (16 Active Services)
             cache: 1m
             style: compact
             sites:
@@ -739,6 +735,10 @@ pages:
                 url: https://auth.vrg.rocks
                 check-url: http://tinyauth:3000/api/healthz
                 icon: sh:tinyauth
+              - title: lldap Directory
+                url: https://ldap.vrg.rocks
+                check-url: http://lldap:17170/health
+                icon: sh:lldap
               - title: Arcane Docker
                 url: https://arcane.vrg.rocks
                 check-url: http://arcane:3552

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "_comment": "Single source of truth for Sol identity. One person = one uid. Every email listed here is allowlisted in Tinyauth, searchable in lldap, mapped in Copyparty, and linked to the same Jellyfin and Seerr account. Edit this file or run scripts/allowlist_user.sh, which invokes scripts/identity_sync.py.",
+  "defaults": {
+    "ldap_base_dn": "dc=vrg,dc=rocks",
+    "jellyfin_sso_provider": "google-sso"
+  },
+  "users": [
+    {
+      "uid": "vrg",
+      "display": "VRG",
+      "first_name": "Varun",
+      "last_name": "Gupta",
+      "emails": [
+        "admin@example.com",
+        "admin-alias@example.com"
+      ],
+      "role": "admin",
+      "jellyfin_id": "00000000-0000-0000-0000-000000000001",
+      "seerr_id": 1
+    },
+    {
+      "uid": "member1",
+      "display": "Member1",
+      "emails": [
+        "member1@example.com"
+      ],
+      "role": "user",
+      "jellyfin_id": "00000000-0000-0000-0000-000000000002",
+      "seerr_id": 2
+    },
+    {
+      "uid": "member2",
+      "display": "Member2",
+      "emails": [
+        "member2@example.com"
+      ],
+      "role": "user",
+      "jellyfin_id": "00000000-0000-0000-0000-000000000003",
+      "seerr_id": 6
+    },
+    {
+      "uid": "member3",
+      "display": "Member3",
+      "emails": [
+        "member3@example.com"
+      ],
+      "role": "user",
+      "jellyfin_id": "00000000-0000-0000-0000-000000000004",
+      "seerr_id": 7
+    }
+  ]
+}

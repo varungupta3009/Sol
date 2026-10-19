@@ -47,7 +47,7 @@ services:
   # ----------------------------------------------------------------
   qui:
     container_name: qui
-    image: ghcr.io/autobrr/qui:latest
+    image: ghcr.io/autobrr/qui:${QUI_TAG:-v1.32.0}
     restart: unless-stopped
     logging: *default-logging
     user: "${PUID}:${PGID}"
@@ -71,21 +71,22 @@ services:
       glance.icon: sh:qbittorrent
       glance.url: https://qui.vrg.rocks
       glance.parent: qbittorrent
-      glance.description: Modern Go Web UI for qBittorrent
+      glance.description: Modern Go Web UI, Cross-Seed & Automation Engine for qBittorrent
 
   # ----------------------------------------------------------------
-  # Cross-Seed: Automated Multi-Tracker Cross-Seeding Daemon
+  # Standby Download Helpers (Launch via: docker compose --profile standby up -d <service>)
   # ----------------------------------------------------------------
   cross-seed:
     container_name: cross-seed
     image: ghcr.io/cross-seed/cross-seed:6
-    command: daemon # Runs in persistent daemon mode with periodic searching
+    profiles: ["standby"]
+    command: daemon
     restart: unless-stopped
     logging: *default-logging
     user: "${PUID}:${PGID}"
     volumes:
       - ${DOCKER_CONFIG_DIR}/cross-seed:/config
-      - ${DOCKER_DATA_DIR}:/data # Exposes /data/torrents and /data/media for library-wide dataDirs scanning
+      - ${DOCKER_DATA_DIR}:/data
       - ${EXTERNAL_DRIVE_00}:/external
       # - ${EXTERNAL_DRIVE_01}:/ext01
     dns:
@@ -96,11 +97,7 @@ services:
       glance.name: Cross-Seed
       glance.icon: sh:cross-seed
       glance.url: https://cs.vrg.rocks
-      glance.description: Automated Cross-Seeding Daemon
-
-  # ----------------------------------------------------------------
-  # Standby Download Helpers (Launch via: docker compose --profile standby up -d <service>)
-  # ----------------------------------------------------------------
+      glance.description: Automated Cross-Seeding Daemon (Replaced by QUI)
   unpackerr:
     container_name: unpackerr
     image: golift/unpackerr:latest
