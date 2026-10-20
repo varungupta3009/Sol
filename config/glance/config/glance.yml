@@ -132,7 +132,7 @@ pages:
           - type: bookmarks
             title: Sol Applications
             groups:
-              - title: Media & Streaming
+              - title: Media & Servarr
                 color: 38 95 65
                 links:
                   - title: Jellyfin
@@ -141,10 +141,6 @@ pages:
                   - title: Seerr
                     url: https://request.vrg.rocks
                     icon: sh:seerr
-
-              - title: Servarr & Downloads
-                color: 267 84 81
-                links:
                   - title: Radarr
                     url: https://radarr.vrg.rocks
                     icon: sh:radarr
