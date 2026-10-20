@@ -59,6 +59,7 @@
 # ----------------------------------------------------------------
 /logs/
 *.log
+/temp.json
 /docs/archive/
 /_backup_pre_refactor/
 /data/backups/

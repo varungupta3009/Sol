@@ -192,6 +192,14 @@ BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 APPLY = False
 FORCE = False
+UNREDACTED = False
+
+
+def mask_email(e: str) -> str:
+    if UNREDACTED or "@" not in e:
+        return e
+    local, dom = e.split("@", 1)
+    return f"{local[:1]}***@{dom}"
 
 
 def log(msg: str) -> None:
@@ -289,8 +297,10 @@ def lldap_graphql(query: str, variables: dict | None = None) -> dict:
     """Invoke LLDAP GraphQL API only when mutating LLDAP group memberships (never for read-only polling)."""
     payload = json.dumps({"query": query, "variables": variables or {}})
     script = (
+        "PW_FILE=/data/secrets/vrg.pw; USER=vrg; "
+        "[ -f /data/secrets/vrg.pw ] || { PW_FILE=/data/secrets/admin.pw; USER=admin; }; "
         "TOKEN=$(curl -s -X POST localhost:17170/auth/simple/login -H 'Content-Type: application/json' "
-        '-d "{\\"username\\":\\"admin\\",\\"password\\":\\"$(cat /data/secrets/admin.pw)\\"}" | jq -r .token); '
+        '-d "{\\"username\\":\\"$USER\\",\\"password\\":\\"$(cat $PW_FILE)\\"}" | jq -r .token); '
         'curl -s localhost:17170/api/graphql -H "Authorization: Bearer $TOKEN" -H \'Content-Type: application/json\' '
         "--data-binary @-"
     )
@@ -336,6 +346,7 @@ def pull_from_lldap(data: dict, gql_users: list[dict], gql_groups: dict[str, int
         last_name = (gu.get("lastName") or "").strip()
 
         existing = by_uid.get(uid)
+        masked_emails = [mask_email(e) for e in emails]
         if existing:
             if (
                 existing["emails"] != emails
@@ -344,7 +355,7 @@ def pull_from_lldap(data: dict, gql_users: list[dict], gql_groups: dict[str, int
                 or (first_name and existing.get("first_name") != first_name)
                 or (last_name and existing.get("last_name") != last_name)
             ):
-                log(f"INFO   lldap updated user {uid}: emails={emails} display={display} role={role}")
+                log(f"INFO   lldap updated user {uid}: emails={masked_emails} display={display} role={role}")
                 existing["emails"] = emails
                 existing["display"] = display
                 existing["role"] = role
@@ -355,7 +366,7 @@ def pull_from_lldap(data: dict, gql_users: list[dict], gql_groups: dict[str, int
                 dirty = True
             new_users_list.append(existing)
         else:
-            log(f"INFO   lldap added new user {uid}: emails={emails} display={display} role={role}")
+            log(f"INFO   lldap added new user {uid}: emails={masked_emails} display={display} role={role}")
             entry = {
                 "uid": uid,
                 "display": display,
@@ -494,6 +505,7 @@ def sync_jellyfin(data: dict, env: dict) -> bool:
     users = {norm_guid(u["Id"]): u for u in jf(token, "GET", "/Users")}
     by_name = {u["Name"].upper(): norm_guid(u["Id"]) for u in users.values()}
     dirty_json = False
+    jf_renames: list[tuple[str, str, str]] = []
     for u in data["users"]:
         jid = u.get("jellyfin_id")
         if not jid and u["display"].upper() in by_name:
@@ -510,6 +522,8 @@ def sync_jellyfin(data: dict, env: dict) -> bool:
         if not jid or jid not in users:
             continue
         ju = users[jid]
+        if ju.get("Name") != u["display"]:
+            jf_renames.append((jid, ju.get("Name", ""), u["display"]))
         pol = ju["Policy"]
         if pol.get("AuthenticationProviderId") != LDAP_PROVIDER and act(
             f"{u['display']}: AuthenticationProviderId -> LDAP-Auth"
@@ -563,6 +577,8 @@ def sync_jellyfin(data: dict, env: dict) -> bool:
     branding_disc = (branding_tree.getroot().findtext("LoginDisclaimer") or "").strip() if branding_tree else ""
 
     edits = []
+    if jf_renames:
+        edits.append("Jellyfin Users rename: " + ", ".join(f"{old}->{new}" for _, old, new in jf_renames))
     if ldap_edits:
         edits.append("LDAP-Auth.xml -> lldap:3890 (uid, mail, mailalias -> cn)")
     if (pc.findtext("DefaultProvider") or "").strip() != LDAP_PROVIDER:
@@ -579,6 +595,13 @@ def sync_jellyfin(data: dict, env: dict) -> bool:
     if edits and act("stop jellyfin, edit XMLs: " + "; ".join(edits)):
         docker("stop", "jellyfin")
         ts = int(time.time())
+        if jf_renames:
+            jf_db = BASE / "config/jellyfin/data/data/jellyfin.db"
+            con = sqlite3.connect(str(jf_db))
+            for jid, _, new_name in jf_renames:
+                con.execute("UPDATE Users SET Username = ? WHERE UPPER(Id) = UPPER(?)", (new_name, jid))
+            con.commit()
+            con.close()
         if ldap_edits:
             shutil.copy2(ldap_path, ldap_path.with_suffix(f".xml.bak.{ts}"))
             if bind_pw_file.exists():
@@ -681,10 +704,23 @@ def sync_seerr(data: dict) -> bool:
         if s["id"] != u.get("seerr_id"):
             u["seerr_id"] = s["id"]
             dirty_json = True
-        if (s.get("email") or "").lower() != u["emails"][0] and act(f"Seerr user {s['id']}: email -> {u['emails'][0]}"):
+        if (s.get("email") or "").lower() != u["emails"][0] and act(
+            f"Seerr user {s['id']} ({u['display']}): email -> {mask_email(u['emails'][0])}"
+        ):
             main = seerr(api_key, "GET", f"/user/{s['id']}/settings/main")
             main["email"] = u["emails"][0]
             seerr(api_key, "POST", f"/user/{s['id']}/settings/main", main)
+        if (s.get("jellyfinUsername") or "") != u["display"] and act(
+            f"Seerr user {s['id']}: jellyfinUsername -> {u['display']}"
+        ):
+            seerr_db = BASE / "config/seerr/db/db.sqlite3"
+            if seerr_db.exists():
+                docker("stop", "seerr", check=False)
+                con = sqlite3.connect(str(seerr_db))
+                con.execute("UPDATE user SET jellyfinUsername = ? WHERE id = ?", (u["display"], s["id"]))
+                con.commit()
+                con.close()
+                docker("start", "seerr", check=False)
     return dirty_json
 
 
@@ -693,7 +729,7 @@ def sync_seerr(data: dict) -> bool:
 
 def sync_oidc_apps(data: dict, env: dict) -> None:
     log("\n== OIDC Apps (Paperless-ngx, AirTrail, Homebox, Readeck) ==")
-    # 5a. Paperless-ngx (auth_user + socialaccount_socialaccount)
+    # 5a. Paperless-ngx (auth_user + auth_user_groups + socialaccount_socialaccount)
     pl_cid = env.get("TINYAUTH_OIDC_PAPERLESS_CLIENT_ID")
     if pl_cid:
         raw_users = docker(
@@ -707,15 +743,17 @@ def sync_oidc_apps(data: dict, env: dict) -> None:
             "-t",
             "-A",
             "-c",
-            "SELECT id, username, lower(email) FROM auth_user;",
+            "SELECT id, username, lower(email), COALESCE(first_name, ''), COALESCE(last_name, '') FROM auth_user;",
         )
-        pl_by_email, pl_by_name = {}, {}
+        pl_by_email, pl_by_name, pl_rows = {}, {}, {}
         for line in raw_users.strip().splitlines():
             if "|" in line:
-                uid_s, uname, mail = line.split("|", 2)
-                pl_by_name[uname.upper()] = int(uid_s)
+                uid_s, uname, mail, fname, lname = line.split("|", 4)
+                pid = int(uid_s)
+                pl_rows[pid] = (uname, mail, fname, lname)
+                pl_by_name[uname.upper()] = pid
                 if mail:
-                    pl_by_email[mail] = int(uid_s)
+                    pl_by_email[mail] = pid
         raw_sa = docker(
             "exec",
             "paperless-db",
@@ -727,31 +765,80 @@ def sync_oidc_apps(data: dict, env: dict) -> None:
             "-t",
             "-A",
             "-c",
-            "SELECT uid FROM socialaccount_socialaccount WHERE provider='tinyauth';",
+            "SELECT uid, user_id FROM socialaccount_socialaccount WHERE provider='tinyauth';",
         )
-        have_sa = set(raw_sa.strip().splitlines())
+        have_sa = {}
+        for line in raw_sa.strip().splitlines():
+            if "|" in line:
+                s_uid, s_user_id = line.split("|", 1)
+                have_sa[s_uid] = int(s_user_id)
+        raw_ug = docker(
+            "exec",
+            "paperless-db",
+            "psql",
+            "-U",
+            "paperless",
+            "-d",
+            "paperless",
+            "-t",
+            "-A",
+            "-c",
+            "SELECT ug.user_id FROM auth_user_groups ug JOIN auth_group g ON ug.group_id = g.id WHERE g.name = 'Family';",
+        )
+        in_family_grp = {int(x) for x in raw_ug.strip().splitlines() if x.strip().isdigit()}
+
         for u in data["users"]:
             email = u["emails"][0]
-            pl_id = pl_by_email.get(email) or pl_by_name.get(u["display"].upper())
-            if not pl_id and act(f"Paperless-ngx: create user {u['display']} ({email})"):
+            fname = (u.get("first_name") or "").replace("'", "''")
+            lname = (u.get("last_name") or "").replace("'", "''")
+            disp = u["display"].replace("'", "''")
+            mail_esc = email.replace("'", "''")
+            pl_id = None
+            for e in u["emails"]:
+                pl_id = pl_id or pl_by_email.get(e) or have_sa.get(oidc_sub(tinyauth_username(e), pl_cid))
+            pl_id = pl_id or pl_by_name.get(u["display"].upper())
+            if not pl_id and act(f"Paperless-ngx: create user {u['display']} ({mask_email(email)})"):
                 is_sup = "true" if u["role"] == "admin" else "false"
                 sql = (
                     f"INSERT INTO auth_user (password, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined) "
-                    f"VALUES ('!', {is_sup}, '{u['display']}', '', '', '{email}', {is_sup}, true, NOW()) RETURNING id;"
+                    f"VALUES ('!', {is_sup}, '{disp}', '{fname}', '{lname}', '{mail_esc}', {is_sup}, true, NOW()) RETURNING id;"
                 )
                 out = docker(
                     "exec", "paperless-db", "psql", "-U", "paperless", "-d", "paperless", "-t", "-A", "-c", sql
                 )
                 pl_id = int(out.strip().splitlines()[0])
+            elif pl_id and pl_id in pl_rows:
+                cur_uname, cur_mail, cur_fname, cur_lname = pl_rows[pl_id]
+                if (
+                    cur_uname != u["display"]
+                    or cur_mail != email
+                    or cur_fname != (u.get("first_name") or "")
+                    or cur_lname != (u.get("last_name") or "")
+                ) and act(f"Paperless-ngx: update user_id={pl_id} -> username={u['display']}"):
+                    sql = (
+                        f"UPDATE auth_user SET username='{disp}', first_name='{fname}', last_name='{lname}', email='{mail_esc}' "
+                        f"WHERE id={pl_id};"
+                    )
+                    docker("exec", "paperless-db", "psql", "-U", "paperless", "-d", "paperless", "-c", sql)
             if pl_id:
+                if pl_id not in in_family_grp and act(
+                    f"Paperless-ngx: add {u['display']} (user_id={pl_id}) to group 'Family'"
+                ):
+                    sql = (
+                        f"INSERT INTO auth_user_groups (user_id, group_id) "
+                        f"SELECT {pl_id}, id FROM auth_group WHERE name='Family' ON CONFLICT DO NOTHING;"
+                    )
+                    docker("exec", "paperless-db", "psql", "-U", "paperless", "-d", "paperless", "-c", sql)
                 for e in u["emails"]:
                     sub = oidc_sub(tinyauth_username(e), pl_cid)
-                    if sub not in have_sa and act(f"Paperless-ngx: link socialaccount {e} -> user_id={pl_id}"):
-                        extra = json.dumps({"email": e, "name": u["display"]})
+                    if sub not in have_sa and act(
+                        f"Paperless-ngx: link socialaccount {mask_email(e)} -> user_id={pl_id}"
+                    ):
+                        extra = json.dumps({"email": e, "name": u["display"]}).replace("'", "''")
                         sql = (
                             f"INSERT INTO socialaccount_socialaccount (provider, uid, last_login, date_joined, extra_data, user_id) "
                             f"VALUES ('tinyauth', '{sub}', NOW(), NOW(), '{extra}'::jsonb, {pl_id}) "
-                            f"ON CONFLICT (provider, uid) DO NOTHING;"
+                            f"ON CONFLICT (provider, uid) DO UPDATE SET user_id = EXCLUDED.user_id, extra_data = EXCLUDED.extra_data;"
                         )
                         docker("exec", "paperless-db", "psql", "-U", "paperless", "-d", "paperless", "-c", sql)
 
@@ -772,17 +859,22 @@ def sync_oidc_apps(data: dict, env: dict) -> None:
             'SELECT username, COALESCE(oauth_id, \'\') FROM "user";',
         )
         at_have = set()
-        at_oauth_ids = set()
+        at_by_oauth = {}
         for line in raw_at.strip().splitlines():
             if "|" in line:
                 uname, oid = line.split("|", 1)
                 at_have.add(uname.upper())
                 if oid:
-                    at_oauth_ids.add(oid)
+                    at_by_oauth[oid] = uname
         for u in data["users"]:
             sub = oidc_sub(tinyauth_username(u["emails"][0]), at_cid)
-            if (
-                sub not in at_oauth_ids
+            disp = u["display"].replace("'", "''")
+            if sub in at_by_oauth and at_by_oauth[sub] != u["display"]:
+                if act(f"AirTrail: rename user {at_by_oauth[sub]} -> {u['display']}"):
+                    sql = f"UPDATE \"user\" SET username='{disp}', display_name='{disp}' WHERE oauth_id='{sub}';"
+                    docker("exec", "paperless-db", "psql", "-U", "paperless", "-d", "airtrail", "-c", sql)
+            elif (
+                sub not in at_by_oauth
                 and u["display"].upper() not in at_have
                 and act(f"AirTrail: seed user {u['display']} (oauth_id={sub[:8]}...)")
             ):
@@ -796,7 +888,7 @@ def sync_oidc_apps(data: dict, env: dict) -> None:
                 )
                 sql = (
                     f'INSERT INTO "user" (id, username, password, display_name, oauth_id, is_owner, role_id) '
-                    f"VALUES ('{uid_row}', '{u['display']}', NULL, '{u['display']}', '{sub}', {is_owner}, {role_val}) "
+                    f"VALUES ('{uid_row}', '{disp}', NULL, '{disp}', '{sub}', {is_owner}, {role_val}) "
                     f"ON CONFLICT (oauth_id) DO NOTHING;"
                 )
                 docker("exec", "paperless-db", "psql", "-U", "paperless", "-d", "airtrail", "-c", sql)
@@ -808,8 +900,8 @@ def sync_oidc_apps(data: dict, env: dict) -> None:
         grp_row = con.execute("SELECT id FROM groups LIMIT 1").fetchone()
         hb_group = grp_row[0] if grp_row else None
         hb_users = {
-            r[0].lower(): (r[1], r[2], r[3])
-            for r in con.execute("SELECT email, id, oidc_issuer, oidc_subject FROM users")
+            r[0].lower(): (r[1], r[2], r[3], r[4])
+            for r in con.execute("SELECT email, id, oidc_issuer, oidc_subject, COALESCE(name, '') FROM users")
         }
         con.close()
         hb_actions = []
@@ -818,7 +910,11 @@ def sync_oidc_apps(data: dict, env: dict) -> None:
             sub = oidc_sub(tinyauth_username(email), hb_cid)
             if email not in hb_users:
                 hb_actions.append(("insert", u, email, sub))
-            elif hb_users[email][1] != "https://auth.vrg.rocks" or hb_users[email][2] != sub:
+            elif (
+                hb_users[email][1] != "https://auth.vrg.rocks"
+                or hb_users[email][2] != sub
+                or hb_users[email][3] != u["display"]
+            ):
                 hb_actions.append(("update", u, email, sub))
         if hb_actions and hb_group and act(
             f"Homebox: stop container and sync {len(hb_actions)} user(s) into group {hb_group[:8]}..."
@@ -842,8 +938,8 @@ def sync_oidc_apps(data: dict, env: dict) -> None:
                     )
                 else:
                     con.execute(
-                        "UPDATE users SET oidc_issuer='https://auth.vrg.rocks', oidc_subject=?, default_group_id=? WHERE lower(email)=?",
-                        (sub, hb_group, email),
+                        "UPDATE users SET name=?, oidc_issuer='https://auth.vrg.rocks', oidc_subject=?, default_group_id=? WHERE lower(email)=?",
+                        (u["display"], sub, hb_group, email),
                     )
             con.commit()
             con.close()
@@ -965,15 +1061,16 @@ def report(data: dict, env: dict) -> None:
                 f"{k.split('_')[2].lower()}={oidc_sub(tinyauth_username(e), v)[:8]}"
                 for k, v in sorted(client_ids.items())
             )
-            log(f"           {e:30} tinyauth={tinyauth_username(e)}  sub: {subs}")
+            log(f"           {mask_email(e):30} tinyauth={mask_email(tinyauth_username(e))}  sub: {subs}")
 
 
 def main() -> None:
-    global APPLY, FORCE
+    global APPLY, FORCE, UNREDACTED
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--apply", action="store_true", help="execute the plan (default is dry-run unless --force)")
     ap.add_argument("--force", action="store_true", help="bypass SHA-256 fast-path cache and apply full sync")
     ap.add_argument("--dry-run", action="store_true", help="force dry-run even when --force is passed")
+    ap.add_argument("--unredacted", action="store_true", help="show full email addresses in log output")
     ap.add_argument(
         "--from-lldap",
         action="store_true",
@@ -985,6 +1082,7 @@ def main() -> None:
     a = ap.parse_args()
     FORCE = a.force
     APPLY = (a.apply or a.force) and not a.dry_run
+    UNREDACTED = a.unredacted
 
     LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = LOCK_FILE.open("w")

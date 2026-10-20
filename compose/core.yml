@@ -180,6 +180,7 @@ services:
       LLDAP_HTTP_URL: https://ldap.vrg.rocks
       LLDAP_JWT_SECRET: ${LLDAP_JWT_SECRET:?}
       LLDAP_KEY_SEED: ${LLDAP_KEY_SEED:?}
+      LLDAP_LDAP_USER_DN: vrg
       LLDAP_LDAP_USER_PASS: ${LLDAP_ADMIN_PASSWORD:?}
     volumes:
       - ${DOCKER_DATA_DIR}/lldap:/data
