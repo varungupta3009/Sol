@@ -29,6 +29,7 @@ SONARR_URL = os.environ.get("SONARR_URL", "http://sonarr:8989")
 
 JELLYFIN_TOKEN = os.environ.get("JELLYFIN_API_KEY", os.environ.get("JELLYFIN_TOKEN", ""))
 JELLYFIN_URL = os.environ.get("JELLYFIN_URL", "http://jellyfin:8096")
+JELLYFIN_METAL_URL = os.environ.get("JELLYFIN_METAL_URL", "http://host.docker.internal:8097")
 
 NTFY_URL = "http://ntfy:80/qBittorrent"
 
@@ -65,15 +66,16 @@ def api_request(url, headers=None, method="GET", data=None):
         return None
 
 def trigger_jellyfin_refresh():
-    try:
-        api_request(
-            f"{JELLYFIN_URL}/Library/Refresh",
-            headers={"Authorization": f'MediaBrowser Token="{JELLYFIN_TOKEN}"'},
-            method="POST"
-        )
-        logging.info("Triggered Jellyfin library refresh")
-    except Exception as e:
-        logging.warning("Failed to trigger Jellyfin refresh: %s", e)
+    for label, base_url in (("Jellyfin", JELLYFIN_URL), ("Jellyfin Metal", JELLYFIN_METAL_URL)):
+        try:
+            api_request(
+                f"{base_url}/Library/Refresh",
+                headers={"Authorization": f'MediaBrowser Token="{JELLYFIN_TOKEN}"'},
+                method="POST"
+            )
+            logging.info("Triggered %s library refresh", label)
+        except Exception as e:
+            logging.warning("Failed to trigger %s refresh: %s", label, e)
 
 def find_media_files(content_path):
     media = []

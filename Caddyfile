@@ -234,19 +234,19 @@ flaresolverr.vrg.rocks {
 	redir https://byparr.vrg.rocks{uri} permanent
 }
 
-# --- Standby Media Routes (Uncomment when launching with --profile standby or native host daemon) ---
 # Jellyfin Native Metal Instance (macOS Bare-Metal VideoToolbox on host port 8097)
-# metal.vrg.rocks {
-# 	import security_headers
-# 	reverse_proxy http://host.docker.internal:8097 {
-# 		transport http {
-# 			read_buffer 32768
-# 			write_buffer 32768
-# 			keepalive 120s
-# 		}
-# 	}
-# }
-#
+metal.vrg.rocks {
+	import security_headers
+	reverse_proxy http://host.docker.internal:8097 {
+		transport http {
+			read_buffer 32768
+			write_buffer 32768
+			keepalive 120s
+		}
+	}
+}
+
+# --- Standby Media Routes (Uncomment when launching with --profile standby) ---
 # wizarr.vrg.rocks {
 # 	import optimize
 # 	import security_headers

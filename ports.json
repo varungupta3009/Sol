@@ -25,7 +25,7 @@
   },
   "lldap": {
     "internal_port": "3890 (LDAP), 17170 (HTTP)",
-    "host_port": null,
+    "host_port": "127.0.0.1:3890",
     "protocol": "LDAP, HTTP",
     "url": "https://ldap.vrg.rocks",
     "status": "active",
@@ -52,7 +52,7 @@
     "host_port": 8097,
     "protocol": "HTTP",
     "url": "https://metal.vrg.rocks",
-    "status": "standby",
+    "status": "active",
     "category": "media"
   },
   "seerr": {

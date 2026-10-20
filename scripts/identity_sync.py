@@ -668,6 +668,29 @@ def sync_jellyfin(data: dict, env: dict) -> bool:
                     break
             except Exception:
                 pass
+
+    metal_dir = BASE / "config/jellyfin_metal"
+    metal_sso = metal_dir / "data/plugins/configurations/SSO-Auth.xml"
+    metal_needs_sync = bool(edits or dirty_json)
+    if metal_dir.exists() and not metal_needs_sync:
+        if not metal_sso.exists():
+            metal_needs_sync = True
+        else:
+            try:
+                mtree = ET.parse(metal_sso)
+                mpc = None
+                for item in mtree.getroot().find("OidConfigs"):
+                    if item.find("key/string").text == provider:
+                        mpc = item.find("value/PluginConfiguration")
+                mcl = mpc.find("CanonicalLinks") if mpc is not None else None
+                m_links = {i.find("key/string").text: i.find("value/guid").text for i in mcl} if mcl is not None else {}
+                if m_links != want_links:
+                    metal_needs_sync = True
+            except Exception:
+                metal_needs_sync = True
+    if metal_dir.exists() and metal_needs_sync and act("sync jellyfin-metal (port 8097) from Docker Jellyfin"):
+        subprocess.run([sys.executable, str(BASE / "scripts/setup_jellyfin_metal.py")], check=False)
+
     return dirty_json
 
 

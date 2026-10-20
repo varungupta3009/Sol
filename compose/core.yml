@@ -111,11 +111,11 @@ services:
       TINYAUTH_OIDC_CLIENTS_READECK_CLIENTSECRET: ${TINYAUTH_OIDC_READECK_CLIENT_SECRET:?}
       TINYAUTH_OIDC_CLIENTS_READECK_NAME: "Readeck"
       TINYAUTH_OIDC_CLIENTS_READECK_TRUSTEDREDIRECTURIS: "https://links.vrg.rocks/login/oidc"
-      # 7. Jellyfin Media Server SSO Plugin (watch.vrg.rocks)
+      # 7. Jellyfin Media Server SSO Plugin (watch.vrg.rocks & metal.vrg.rocks)
       TINYAUTH_OIDC_CLIENTS_JELLYFIN_CLIENTID: ${TINYAUTH_OIDC_JELLYFIN_CLIENT_ID:?}
       TINYAUTH_OIDC_CLIENTS_JELLYFIN_CLIENTSECRET: ${TINYAUTH_OIDC_JELLYFIN_CLIENT_SECRET:?}
       TINYAUTH_OIDC_CLIENTS_JELLYFIN_NAME: "Jellyfin"
-      TINYAUTH_OIDC_CLIENTS_JELLYFIN_TRUSTEDREDIRECTURIS: "https://watch.vrg.rocks/sso/OID/redirect/google-sso,https://jellyfin.vrg.rocks/sso/OID/redirect/google-sso,https://watch.vrg.rocks/sso/OID/r/google-sso,https://jellyfin.vrg.rocks/sso/OID/r/google-sso"
+      TINYAUTH_OIDC_CLIENTS_JELLYFIN_TRUSTEDREDIRECTURIS: "https://watch.vrg.rocks/sso/OID/redirect/google-sso,https://jellyfin.vrg.rocks/sso/OID/redirect/google-sso,https://watch.vrg.rocks/sso/OID/r/google-sso,https://jellyfin.vrg.rocks/sso/OID/r/google-sso,https://metal.vrg.rocks/sso/OID/redirect/google-sso,https://metal.vrg.rocks/sso/OID/r/google-sso"
       # --- Per-App Forward-Auth Admin Lockdown (VRG Only) ---
       TINYAUTH_APPS_CODE_CONFIG_DOMAIN: code.vrg.rocks
       TINYAUTH_APPS_CODE_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
@@ -182,6 +182,8 @@ services:
       LLDAP_KEY_SEED: ${LLDAP_KEY_SEED:?}
       LLDAP_LDAP_USER_DN: vrg
       LLDAP_LDAP_USER_PASS: ${LLDAP_ADMIN_PASSWORD:?}
+    ports:
+      - "127.0.0.1:3890:3890"
     volumes:
       - ${DOCKER_DATA_DIR}/lldap:/data
     labels:
