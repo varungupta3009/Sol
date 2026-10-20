@@ -197,10 +197,15 @@ UNREDACTED = False
 
 
 def mask_email(e: str) -> str:
-    if UNREDACTED or "@" not in e:
+    if UNREDACTED:
         return e
-    local, dom = e.split("@", 1)
-    return f"{local[:1]}***@{dom}"
+    if "@" in e:
+        local, dom = e.split("@", 1)
+        return f"{local[:1]}***@{dom}"
+    if "_" in e:
+        local, dom = e.split("_", 1)
+        return f"{local[:1]}***_{dom}"
+    return e
 
 
 def log(msg: str) -> None:
