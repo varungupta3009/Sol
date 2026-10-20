@@ -114,6 +114,13 @@ Live user records reside in `data/lldap/users.db` and export automatically to th
 python3 ./scripts/identity_sync.py --apply --force
 ```
 
+### Future Evolution: PocketBase (`pb.vrg.rocks`) + `fam` (`fam.vrg.rocks`) as Universal Upstream Identity Source
+
+Currently, `lldap` (`data/lldap/users.db`) serves as the upstream directory for `scripts/identity_sync.py`. In the next architectural phase (tracked in [`TODO.md`](../../TODO.md)):
+1. **`fam` + PocketBase Single Source of Truth:** The `fam` project (`fam.vrg.rocks`) will persist all family members and household users in PocketBase (`pb.vrg.rocks`, `data/pocketbase/data.db`), including first-name usernames (`VRG` for admin), primary emails, and website/secondary email aliases.
+2. **Upstream Sync Pipeline (`PocketBase -> LLDAP -> users.json -> All Apps`):** `scripts/identity_sync.py` will read from `data/pocketbase/data.db`, synchronize user records into `lldap` (`ldap.vrg.rocks`), and propagate them downstream to `Tinyauth`, `Jellyfin`, `Seerr`, `Paperless-ngx`, `AirTrail`, `Homebox`, `Readeck`, and `Copyparty`.
+3. **Custom User & Invitation UI:** A custom management and invitation interface on top of PocketBase will replace manual user administration in `lldap` and `Tinyauth`.
+
 ---
 
 ## 4. Legacy Authentik Architecture & Reconstruction Blueprint

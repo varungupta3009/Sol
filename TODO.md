@@ -8,7 +8,13 @@
 
 ## 🔭 Open Backlog & Optional Enhancements
 
-### 1. Media Re-Download Queue & Optional Plugins
+### 1. Identity & Universal Backend (`PocketBase` + `fam`)
+- [ ] **PocketBase (`pb.vrg.rocks`) as Universal Identity Backend & `fam` (`fam.vrg.rocks`) User Management UI:**
+  - Store all family members and people as users/records in PocketBase (`data/pocketbase/data.db`) via the `fam` project (display name, username, role, primary email, and secondary/website email aliases).
+  - Promote PocketBase to serve as the single upstream source of truth feeding **both** `lldap` (`data/lldap/users.db`) and [`scripts/identity_sync.py`](scripts/identity_sync.py) (`PocketBase -> LLDAP -> users.json -> Tinyauth, Jellyfin, Seerr, Paperless-ngx, AirTrail, Homebox, Readeck, Copyparty`).
+  - Build a dedicated user management and invitation UI backed by PocketBase to invite, onboard, and manage household members and per-app permissions instead of using the basic `lldap` and `Tinyauth` admin screens.
+
+### 2. Media Re-Download Queue & Optional Plugins
 - [ ] **Re-Download Queue (42 episodes lost during the Oct 18 directory-symlink upgrade collision prior to `H1` to `H5` per-file symlink hardening):**
   - `Oswald` Season 1 (`S01E01` to `S01E26`, 26 files, `4.36 GB`)
   - `Impractical Jokers` Season 1 (`S01E01` to `S01E16`, 16 files, `6.95 GB`, while `S01E17`, Movie, and `S02` to `S09` are 100% intact)
@@ -18,19 +24,19 @@
 - [ ] **Jellyfin Intro Skipper & Playback Reporting Plugins:** Install in-process Jellyfin plugins (`0 MB` extra container RAM) for automatic intro skipping and SQLite watch analytics.
 - [ ] **ErsatzTV (`tv.vrg.rocks` Native macOS):** Run ErsatzTV natively on macOS (for Apple VideoToolbox hardware transcoding) to build 24/7 rolling IMAX, Criterion, and Nolan live channels with `data/media/preshows` bumpers in Jellyfin Live TV.
 
-### 2. Aviation, RSS & Infrastructure Optional Projects
+### 3. Aviation, RSS & Infrastructure Optional Projects
 - [ ] **adsb-ultrafeeder (`adsb.vrg.rocks` on Raspberry Pi 3B):** Run `ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest` (`readsb` + `tar1090`) on the Raspberry Pi 3B with the RTL-SDR dongle and reverse-proxy `adsb.vrg.rocks` via Sol's Caddy.
 - [ ] **Fusion or Miniflux (`rss.vrg.rocks`):** Go + SQLite RSS/Atom reader (`ghcr.io/0x2e/fusion:latest` or `miniflux/miniflux:latest`, `~25-50 MiB` RAM) with Fever and Google Reader API support.
 - [ ] **Read-Only Docker Socket Proxy (`wollomatic/socket-proxy:1`):** Put `glance`, `dozzle`, and `beszel-agent` behind a read-only Docker socket proxy instead of direct `/var/run/docker.sock:ro` mounts.
 - [ ] **Purge Legacy Raw `OneDrive:Sol` Folder (Pre-Restic):** Optionally `rclone purge` the superseded unencrypted `OneDrive:Sol` directory now that encrypted `rclone:OneDrive:Sol-Restic` snapshots are active.
 
-### 3. Standby Services Activation (On-Demand via `--profile standby`)
+### 4. Standby Services Activation (On-Demand via `--profile standby`)
 Start any of these with `docker compose --profile standby up -d <service>`, uncomment the matching vhost in `Caddyfile`, and recreate `caddy`:
 - [ ] **Gatus health page (`compose/monitoring.yml`):** Create `config/gatus/config.yaml` and enable `status.vrg.rocks` to `http://gatus:8080`.
 - [ ] **Recyclarr TRaSH sync (`compose/media.yml`):** Create `config/recyclarr/recyclarr.yml` with Sonarr and Radarr API keys and run a dry-run sync of custom formats.
 - [ ] **Unpackerr (`compose/download.yml`):** Verify archive extraction under `UN_FOLDER_0_PATH: /data/torrents` and Servarr hooks.
 
-### 4. Dynamic Label Ingress (`caddy-docker-proxy`, Optional)
+### 5. Dynamic Label Ingress (`caddy-docker-proxy`, Optional)
 - [ ] **Goal:** Route `*.vrg.rocks` from Docker Compose labels so standby service routes appear automatically only while they run.
 
 ---
