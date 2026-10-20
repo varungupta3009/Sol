@@ -1034,6 +1034,50 @@ def sync_oidc_apps(data: dict, env: dict) -> None:
 # --------------------------------------------------------------------------- 6. Copyparty
 
 
+COPYPARTY_VOLUMES_BLOCK = """# create volumes:
+[/]         # root volume (/w): strictly vrg-only (hides /copyparty, /priv, /external/backups, etc.)
+  .
+  accs:
+    rwmda: vrg
+  flags:
+    noidx: /(\\.Spotlight-V100|\\.fseventsd|\\.Trashes|\\.DS_Store|\\._.*|backups)(/|$)
+
+[/priv]
+  ./priv
+  accs:
+    rwmda: vrg
+
+[/media]
+  ./media
+  accs:
+    r: @acct
+    rwmda: vrg
+
+[/torrents]
+  ./torrents
+  accs:
+    r: @acct
+    rwmda: vrg
+
+[/torrents/files]  # hide raw .torrent files (contain private tracker passkeys) from non-admin users
+  ./torrents/files
+  accs:
+    rwmda: vrg
+
+[/external/media]
+  ./external/media
+  accs:
+    r: @acct
+    rwmda: vrg
+
+[/external/torrents]
+  ./external/torrents
+  accs:
+    r: @acct
+    rwmda: vrg
+"""
+
+
 def sync_copyparty(data: dict) -> None:
     log("\n== Copyparty ==")
     if not COPYPARTY_CONF.exists():
@@ -1041,7 +1085,21 @@ def sync_copyparty(data: dict) -> None:
     text = COPYPARTY_CONF.read_text()
     want_lines = [f"  idp-hm-usr: ^Remote-Email^{e}^{u['uid']}" for u in data["users"] for e in u["emails"]]
     have_lines = [l for l in text.splitlines() if l.strip().startswith("idp-hm-usr:")]
-    if have_lines != want_lines and act(f"update Copyparty idp-hm-usr mappings ({len(want_lines)} emails)"):
+    need_volumes = "# create volumes:" in text and not text.split("# create volumes:", 1)[1].strip().startswith(
+        COPYPARTY_VOLUMES_BLOCK.split("# create volumes:", 1)[1].strip()
+    )
+    need_hist = "  hist: /w/.hist" not in text
+    if (have_lines != want_lines or need_volumes or need_hist) and act(
+        f"update Copyparty idp-hm-usr mappings ({len(want_lines)} emails) & scoped media/torrents read-only volumes"
+    ):
+        if "# create volumes:" in text:
+            head, _ = text.split("# create volumes:", 1)
+            text = head + COPYPARTY_VOLUMES_BLOCK
+        if "  hist: /w/.hist" not in text:
+            text = text.replace(
+                "  e2ts   # and enable multimedia indexing\n",
+                "  e2ts   # and enable multimedia indexing\n  hist: /w/.hist\n",
+            )
         lines = [l for l in text.splitlines() if not l.strip().startswith("idp-hm-usr:")]
         out_lines = []
         inserted = False

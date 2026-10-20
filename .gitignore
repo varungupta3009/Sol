@@ -42,6 +42,9 @@
 !/config/auth/
 /config/auth/*
 !/config/auth/users.json.example
+!/config/copyparty/
+/config/copyparty/*
+!/config/copyparty/copyparty.conf.example
 !/config/glance/
 !/config/glance/**
 

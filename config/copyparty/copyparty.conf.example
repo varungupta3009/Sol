@@ -1,0 +1,62 @@
+# not actually YAML but lets pretend:
+# -*- mode: yaml -*-
+# vim: ft=yaml:
+
+[global]
+  p: 3923, 8086, 3939  # listen on ports 8086 and 3939
+  e2dsa  # enable file indexing and filesystem scanning
+  e2ts   # and enable multimedia indexing
+  hist: /w/.hist
+  z, qr  # and zeroconf and qrcode
+  rproxy: -1
+  xff-hdr: x-forwarded-for
+  xff-src: lan
+  xf-proto-fb: https
+  idp-h-usr: Remote-Email
+  idp-hm-usr: ^Remote-Email^admin@example.com^vrg
+  idp-hm-usr: ^Remote-Email^member1@example.com^member1
+
+[accounts]
+  vrg: CHANGE_ME_PASSWORD
+
+# create volumes:
+[/]         # root volume (/w): strictly vrg-only (hides /copyparty, /priv, /external/backups, etc.)
+  .
+  accs:
+    rwmda: vrg
+  flags:
+    noidx: /(\.Spotlight-V100|\.fseventsd|\.Trashes|\.DS_Store|\._.*|backups)(/|$)
+
+[/priv]
+  ./priv
+  accs:
+    rwmda: vrg
+
+[/media]
+  ./media
+  accs:
+    r: @acct
+    rwmda: vrg
+
+[/torrents]
+  ./torrents
+  accs:
+    r: @acct
+    rwmda: vrg
+
+[/torrents/files]  # hide raw .torrent files (contain private tracker passkeys) from non-admin users
+  ./torrents/files
+  accs:
+    rwmda: vrg
+
+[/external/media]
+  ./external/media
+  accs:
+    r: @acct
+    rwmda: vrg
+
+[/external/torrents]
+  ./external/torrents
+  accs:
+    r: @acct
+    rwmda: vrg

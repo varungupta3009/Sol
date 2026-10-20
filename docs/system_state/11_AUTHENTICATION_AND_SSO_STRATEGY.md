@@ -69,7 +69,7 @@ Tinyauth v5.2.0 runs an OpenID Certified OIDC Provider backed by RS256 signing k
 
 | Service | Domain | Native Integration Setting | Edge ACL Policy |
 | :--- | :--- | :--- | :--- |
-| **Copyparty** | `files.vrg.rocks`, `copyparty.vrg.rocks` | `rproxy: -1`, `xf-proto-fb: https`, `idp-h-usr: Remote-Email`, and `idp-hm-usr` mappings in `config/copyparty/copyparty.conf` (auto-managed by `identity_sync.py`, with `noidx` excluding `.Spotlight-V100`, `.fseventsd`, `.Trashes`, `.DS_Store`, `._*`, and `backups`) | Allowlisted users (`vrg` gets `rwmda` on `/` and `/priv`, members get `r` on `/`). |
+| **Copyparty** | `files.vrg.rocks`, `copyparty.vrg.rocks` | `rproxy: -1`, `xf-proto-fb: https`, `hist: /w/.hist`, `idp-h-usr: Remote-Email`, and `idp-hm-usr` mappings in `config/copyparty/copyparty.conf` (auto-managed by `identity_sync.py`, with `noidx` excluding `.Spotlight-V100`, `.fseventsd`, `.Trashes`, `.DS_Store`, `._*`, and `backups`) | Scoped Sub-Volume ACLs: `vrg` gets full `rwmda` on all volumes (`/`, `/copyparty`, `/priv`, `/external`, `/torrents/files`), while allowlisted family users (`@acct`) get read-only (`r`) strictly on `/media`, `/torrents` (excluding `/torrents/files` private passkeys), `/external/media`, and `/external/torrents`. |
 | **QUI** | `qui.vrg.rocks` | `QUI__AUTH_DISABLED: "true"` + `QUI__I_ACKNOWLEDGE_THIS_IS_A_BAD_IDEA: "true"` | Admin-only (`TINYAUTH_APPS_QUI_OAUTH_WHITELIST`). |
 | **code-server** | `code.vrg.rocks` | `AUTH: none` in `compose/coding.yml` | Admin-only (`TINYAUTH_APPS_CODE_OAUTH_WHITELIST`). |
 | **Backrest** | `backrest.vrg.rocks` | `"auth": { "disabled": true }` in `config/backrest/config.json` | Admin-only (`TINYAUTH_APPS_BACKREST_OAUTH_WHITELIST`). |
