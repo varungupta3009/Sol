@@ -451,7 +451,7 @@ def write_server_xml_configs() -> None:
   <EnableHardwareEncoding>true</EnableHardwareEncoding>
   <AllowHevcEncoding>true</AllowHevcEncoding>
   <AllowAv1Encoding>false</AllowAv1Encoding>
-  <EnableSubtitleExtraction>true</EnableSubtitleExtraction>
+  <EnableSubtitleExtraction>false</EnableSubtitleExtraction>
   <SubtitleExtractionTimeoutMinutes>30</SubtitleExtractionTimeoutMinutes>
   <HardwareDecodingCodecs>
     <string>h264</string>
