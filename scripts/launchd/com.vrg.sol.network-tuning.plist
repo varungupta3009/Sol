@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.vrg.sol.network-tuning</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/vrg/Documents/Sol/scripts/tune_network.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/vrg/Documents/Sol/logs/network_tuning.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/vrg/Documents/Sol/logs/network_tuning.err.log</string>
+</dict>
+</plist>

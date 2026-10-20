@@ -174,8 +174,14 @@ def process_radarr(torrent_name, content_path, save_path):
         return
 
     # Create relative symlinks (never delete real files)
+    video_files = [f for f in media_files if os.path.splitext(f)[1].lower() in VIDEO_EXTS]
+    primary_video_stem = os.path.splitext(os.path.basename(video_files[0]))[0] if len(video_files) == 1 else None
+
     for f in media_files:
         fname = os.path.basename(f)
+        ext = os.path.splitext(fname)[1].lower()
+        if ext in SUB_EXTS and primary_video_stem and not fname.startswith(primary_video_stem):
+            fname = f"{primary_video_stem}.en{ext}"
         link_path = os.path.join(target_dir, fname)
         rel_target = os.path.relpath(f, target_dir)
         try:
