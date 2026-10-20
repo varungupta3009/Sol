@@ -155,10 +155,11 @@ def read_lldap_sqlite() -> tuple[list[dict], dict[str, int], str]:
     return users, gql_groups, state_hash
 
 
+_FAST_LOCK_FD = None
 if __name__ == "__main__" and not any(flag in sys.argv[1:] for flag in ("--force", "--only", "-h", "--help")):
     LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _fast_lock_fd = LOCK_FILE.open("w")
-    fcntl.flock(_fast_lock_fd.fileno(), fcntl.LOCK_EX)
+    _FAST_LOCK_FD = LOCK_FILE.open("w")
+    fcntl.flock(_FAST_LOCK_FD.fileno(), fcntl.LOCK_EX)
     if HASH_FILE.exists():
         _, _, _fast_hash = read_lldap_sqlite()
         if HASH_FILE.read_text().strip() == _fast_hash:
@@ -1084,9 +1085,11 @@ def main() -> None:
     APPLY = (a.apply or a.force) and not a.dry_run
     UNREDACTED = a.unredacted
 
-    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    lock_fd = LOCK_FILE.open("w")
-    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+    global _FAST_LOCK_FD
+    if _FAST_LOCK_FD is None:
+        LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _FAST_LOCK_FD = LOCK_FILE.open("w")
+        fcntl.flock(_FAST_LOCK_FD.fileno(), fcntl.LOCK_EX)
 
     gql_users, gql_groups, state_hash = read_lldap_sqlite()
     if not FORCE and not a.only and HASH_FILE.exists():
