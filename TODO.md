@@ -12,6 +12,9 @@
 - [ ] **Re-Download Queue (42 episodes lost during the Oct 18 directory-symlink upgrade collision prior to `H1` to `H5` per-file symlink hardening):**
   - `Oswald` Season 1 (`S01E01` to `S01E26`, 26 files, `4.36 GB`)
   - `Impractical Jokers` Season 1 (`S01E01` to `S01E16`, 16 files, `6.95 GB`, while `S01E17`, Movie, and `S02` to `S09` are 100% intact)
+- [ ] **Audit Orphan Books in `data/torrents/books` (`~689.3 MiB` across 21 items with no qBittorrent entry):**
+  - Keep all `84` active `MAM` torrents seeding untouched.
+  - Review the 7 real orphan books (`Humble Book Bundle - Python presented by No Starch Press` `505.09 MiB`, `Higher Engineering Mathematics.pdf` `146.98 MiB`, `Ramakrishnan - Database Management Systems 3rd Edition.pdf` `19.21 MiB`, `The Official Ubuntu Book, Ninth Edition.epub` `13.35 MiB`, `Alan Turing _ The Enigma` `10.39 MiB`, `1300 Math Formulas` `7.06 MiB`, `Learn Python 3 the Hard Way.epub` `268 KiB`) and 14 small `.txt` / `.torrent` files (`~22 KiB`) to decide whether to re-link them to MAM, move them into `data/media/books`, or delete the `.txt` files.
 - [ ] **Jellyfin Intro Skipper & Playback Reporting Plugins:** Install in-process Jellyfin plugins (`0 MB` extra container RAM) for automatic intro skipping and SQLite watch analytics.
 - [ ] **ErsatzTV (`tv.vrg.rocks` Native macOS):** Run ErsatzTV natively on macOS (for Apple VideoToolbox hardware transcoding) to build 24/7 rolling IMAX, Criterion, and Nolan live channels with `data/media/preshows` bumpers in Jellyfin Live TV.
 
