@@ -691,6 +691,7 @@ def sync_seerr(data: dict) -> bool:
     have = seerr(api_key, "GET", "/user?take=500")["results"]
     by_jf = {(s.get("jellyfinUserId") or "").replace("-", "").lower(): s for s in have}
     dirty_json = False
+    seerr_renames: list[tuple[int, str]] = []
     for u in data["users"]:
         if not u.get("jellyfin_id"):
             continue
@@ -711,17 +712,18 @@ def sync_seerr(data: dict) -> bool:
             main = seerr(api_key, "GET", f"/user/{s['id']}/settings/main")
             main["email"] = u["emails"][0]
             seerr(api_key, "POST", f"/user/{s['id']}/settings/main", main)
-        if (s.get("jellyfinUsername") or "") != u["display"] and act(
-            f"Seerr user {s['id']}: jellyfinUsername -> {u['display']}"
-        ):
-            seerr_db = BASE / "config/seerr/db/db.sqlite3"
-            if seerr_db.exists():
-                docker("stop", "seerr", check=False)
-                con = sqlite3.connect(str(seerr_db))
-                con.execute("UPDATE user SET jellyfinUsername = ? WHERE id = ?", (u["display"], s["id"]))
-                con.commit()
-                con.close()
-                docker("start", "seerr", check=False)
+        if (s.get("jellyfinUsername") or "") != u["display"]:
+            seerr_renames.append((s["id"], u["display"]))
+    if seerr_renames and act("Seerr jellyfinUsername rename: " + ", ".join(f"{sid}->{nm}" for sid, nm in seerr_renames)):
+        seerr_db = BASE / "config/seerr/db/db.sqlite3"
+        if seerr_db.exists():
+            docker("stop", "seerr", check=False)
+            con = sqlite3.connect(str(seerr_db))
+            for sid, nm in seerr_renames:
+                con.execute("UPDATE user SET jellyfinUsername = ? WHERE id = ?", (nm, sid))
+            con.commit()
+            con.close()
+            docker("start", "seerr", check=False)
     return dirty_json
 
 
