@@ -20,7 +20,6 @@ services:
     environment:
       TZ: ${TZ:-Asia/Kolkata}
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:-}
-      JELLYFIN_METAL_API_KEY: ${JELLYFIN_METAL_API_KEY:-}
       SEERR_API_KEY: ${SEERR_API_KEY:-}
       RADARR_API_KEY: ${RADARR_API_KEY:-}
       SONARR_API_KEY: ${SONARR_API_KEY:-}
@@ -33,6 +32,12 @@ services:
       - ${EXTERNAL_DRIVE_00}:/media/panopticon:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/api/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       glance.id: glance
       glance.name: Glance

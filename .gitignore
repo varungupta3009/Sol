@@ -6,7 +6,7 @@
 #   - Ingress routing rules (Caddyfile, ports.json)
 #   - Declarative dashboard config & theme assets (config/glance/**)
 #   - Environment templates (.env.example)
-#   - Automation scripts (scripts/*.sh)
+#   - Automation scripts & LaunchAgents (scripts/*.sh, scripts/*.py, scripts/launchd/*.plist)
 #   - Terraform Coder definitions (coder/*.tf)
 #   - System state architecture documentation (docs/system_state/*.md)
 # ================================================================
@@ -80,8 +80,9 @@ Thumbs.db
 *~
 
 # ----------------------------------------------------------------
-# 6. NODE, PYTHON & TERRAFORM ARTIFACTS
+# 6. NODE, PYTHON, TERRAFORM & VCS ARTIFACTS
 # ----------------------------------------------------------------
+/.jj/
 node_modules/
 __pycache__/
 *.py[cod]

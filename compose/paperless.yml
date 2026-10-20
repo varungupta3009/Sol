@@ -32,7 +32,7 @@ services:
       PAPERLESS_URL: ${PAPERLESS_URL:-https://docs.vrg.rocks}
       PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
       PAPERLESS_TIME_ZONE: ${PAPERLESS_TIME_ZONE:-Asia/Kolkata}
-      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-eng}
+      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-eng+hin+kan+pan}
       PAPERLESS_OCR_LANGUAGES: ${PAPERLESS_OCR_LANGUAGES:-hin kan pan}
       PAPERLESS_CONSUMER_RECURSIVE: ${PAPERLESS_CONSUMER_RECURSIVE:-true} # Enables recursive scanning of nested intake folders
       PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: ${PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS:-true} # Auto-tags based on incoming directory name
@@ -79,6 +79,7 @@ services:
     image: docker.io/library/redis:8-alpine
     restart: unless-stopped
     logging: *default-logging
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning", "--maxmemory", "256mb", "--maxmemory-policy", "volatile-lru"]
     volumes:
       - ${DOCKER_DATA_DIR}/paperless/redis:/data
     healthcheck:

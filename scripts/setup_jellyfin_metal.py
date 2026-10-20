@@ -23,7 +23,7 @@ CONFIG_DIR = "/Users/vrg/Documents/Sol/config/jellyfin_metal"
 DATA_DIR = os.path.join(CONFIG_DIR, "data")
 CACHE_DIR = os.path.join(CONFIG_DIR, "cache")
 LOG_DIR = os.path.join(CONFIG_DIR, "log")
-DB_FILE = os.path.join(DATA_DIR, "jellyfin.db")
+DB_FILE = os.path.join(DATA_DIR, "data", "jellyfin.db")
 BASE_URL = "http://127.0.0.1:8097"
 USERNAME = os.environ.get("JELLYFIN_ADMIN_USER", "VRG")
 
@@ -315,8 +315,8 @@ def main():
         token,
     )
 
-    print("9. Generating API Keys for Jellyseerr & Bazarr...")
-    api_post("/Auth/Keys?app=Jellyseerr", None, token)
+    print("9. Generating API Keys for Seerr & Bazarr...")
+    api_post("/Auth/Keys?app=Seerr", None, token)
     api_post("/Auth/Keys?app=Bazarr", None, token)
 
     keys = api_get("/Auth/Keys", token)

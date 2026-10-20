@@ -1,17 +1,17 @@
-# 06. Configuration Taxonomy & UI Inspection Roadmap
+# 06. Configuration Taxonomy & Full-Stack Inspection Matrix
 
-> **Scope:** Audit of container configuration storage mechanisms across `Sol`. Separates declarative file-based services from stateful database/UI-driven services that need browser exploration for full optimization.  
+> **Scope:** Complete taxonomy of configuration storage mechanisms across all 29 active containers, 16 standby/ops containers, 10 static web apps, and 2 host LaunchAgents on `Sol` (`dash.vrg.rocks`), reconciling declarative files with SQLite/PostgreSQL database state verified during the October 20, 2026 31-agent swarm audit.  
 > **Host Root:** `/Users/vrg/Documents/Sol`  
 > **Original Audit Date:** August 2026  
-> **Last Synced to Ground Truth:** 2026-10-17  
+> **Last Synced to Ground Truth:** 2026-10-20  
 
 ---
 
 ## 1. Executive Summary & Configuration Taxonomy
 
-To prepare for architectural and performance optimization, the Sol ecosystem splits into two configuration models:
+Every service in the Sol ecosystem falls into one of two configuration models—both of which have now been 100% audited on disk, via live APIs, and inside SQLite (`?immutable=1`) and PostgreSQL (`paperless-db` and `coder` embedded PG) databases:
 
-```
+```text
                                   +---------------------------------------+
                                   |     Sol Server Container Ecosystem    |
                                   +-------------------+-------------------+
@@ -19,194 +19,108 @@ To prepare for architectural and performance optimization, the Sol ecosystem spl
                          +----------------------------+----------------------------+
                          |                                                         |
                          v                                                         v
-          [ CATEGORY A: DECLARATIVE FILES ]                         [ CATEGORY B: STATEFUL DB / UI ]
-          (100% Inspectable via Filesystem)                         (Requires Browser UI Exploration)
-          ---------------------------------                         ---------------------------------
-          - Caddy (Caddyfile)                                       - Authentik (PostgreSQL 16)
-          - Compose Stacks (compose/*.yml + profiles)               - Jellyfin (SQLite + Admin UI)
-          - Glance (glance.yml)                                     - Jellyfin Metal (SQLite + Admin UI)
-          - Cross-Seed (config.js)                                  - Seerr (SQLite + Settings)
-          - Copyparty (copyparty.conf)                              - Radarr (SQLite + TRaSH Formats)
-          - ntfy (server.yml)                                       - Sonarr (SQLite + Quality Profiles)
-          - qBittorrent (qBittorrent.conf)                          - Prowlarr (SQLite + Indexers)
-          - Coder (main.tf)                                         - Bazarr (SQLite + Providers)
-          - code-server (settings.json)                             - Paperless-ngx (PostgreSQL 17)
-          - Byparr (Environment Vars)                               - Arcane (SQLite + Stacks)
-          - Ignis (Environment + Vaults)                            - Homebox (SQLite, Standby)
-          - Rclone (filter.txt.example)
-          - Scripts (backup.sh, restore.sh, setup_jellyfin_metal.py, test_cross_seed.sh)
+          [ CATEGORY A: DECLARATIVE FILES ]                         [ CATEGORY B: HYBRID DB + FILE / API ]
+          (Configured via Git / Host Config Files)                  (Configured via SQLite / PG + Sync Scripts)
+          ----------------------------------------                  -------------------------------------------
+          - Caddy (Caddyfile, 33 active blocks)                     - Tinyauth v5 (Env + tinyauth.db OIDC consents)
+          - Compose Stacks (compose/*.yml, 45 services)             - LLDAP (Env + users.db, source of truth)
+          - Glance (glance.yml + user.css)                          - Jellyfin (jellyfin.db + XML + SSO/LDAP plugins)
+          - Copyparty (copyparty.conf, synced by script)            - Seerr (db.sqlite3 + settings.json, 43 requests)
+          - ntfy (server.yml + cache.db WAL pragmas)                - Radarr (radarr.db + custom_scripts, 0 broken links)
+          - code-server (settings.json + Compose env)               - Sonarr (sonarr.db + custom_scripts, 1,379 symlinks)
+          - Byparr (Compose env + /tmp tmpfs + shm_size)            - Lidarr (lidarr.db + config.xml)
+          - Ignis (Compose env + /vaults mount)                     - Prowlarr (prowlarr.db + FlareSolverr tag routing)
+          - Enclosed (Compose env + /app/.data)                     - Bazarr (bazarr.db + config.yaml, profileId=1)
+          - Backrest (config.json + excludes.txt)                   - qBittorrent (qBittorrent.conf + categories.json)
+          - Scripts & LaunchAgents (scripts/*.sh, *.py, *.plist)    - QUI (qui.db + config.toml, 25 trackers + 10 FUP rules)
+                                                                    - Paperless-ngx (PostgreSQL 17 Alpine + Redis 8)
+                                                                    - AirTrail (PostgreSQL 17 Alpine 'airtrail' DB)
+                                                                    - Homebox (homebox.db v0.26 unified entities)
+                                                                    - Readeck (db.sqlite3 + config.toml + SQLite trigger)
+                                                                    - Arcane (arcane.db WAL + native OIDC)
+                                                                    - Coder (Embedded PG 13.21 + coder/main.tf template)
+                                                                    - PocketBase (data.db + auxiliary.db, logs.minLevel=4)
 ```
 
 ---
 
-## 2. Category A: 100% Declarative / File-Inspectable Services
+## 2. Category A: Declarative & File-Driven Services
 
-These services store their full operational configuration in plain-text, YAML, JSON, JavaScript, INI, HCL, or shell files on the host filesystem. An AI agent can read, parse, and optimize them without visual browser inspection.
-
-| Container / Artifact | Primary Configuration Path | Format | Status | What Has Been Fully Inspected & Understood |
+| Service / Artifact | Primary Configuration Path | Format | Status | Verified Post-Phase-2 Ground Truth (2026-10-20) |
 | :--- | :--- | :--- | :--- | :--- |
-| **`caddy`** | `./Caddyfile` | Caddyfile | Active | 27 active site blocks, 18 commented standby vhosts, TLS, HTTP/3, `(security_headers)`, `(optimize)`, `(forward_auth)`, `(static_site)` snippets, streaming transport for `watch`/`metal`, Homebox CORS restricted to `https://scan.vrg.rocks`. |
-| **Compose stacks** | `docker-compose.yml`, `compose/*.yml` | YAML | Active | `include:` of 8 domain files, 24 active services, 26 services under `profiles: ["standby"]` / `["ops", "standby"]`, `glance.*` labels, DNS overrides, network aliases (`flaresolverr` on `byparr`, `jellyseerr` on `seerr`). |
-| **`ports.json`** | `./ports.json` | JSON | Active | Per-service `internal_port`, `host_port`, `protocol`, `url`, `status` (`active` / `standby`), `profile`, `category`. Includes `jellyfin-metal` and `byparr`. |
-| **`glance`** | `config/glance/config/glance.yml` | YAML | Active | Homepage feeds, weather, system monitors, container discovery labels, and dashboard bookmarks. |
-| **`cross-seed`** | `config/cross-seed/config.js` | JavaScript | Active | Matching criteria, sleep delays, tracker mappings, `linkType: "symlink"`, action mode, injection targets. Compose adds `${DOCKER_DATA_DIR}:/data` next to `/downloads` for `dataDirs` scanning. |
-| **`copyparty`** | `config/copyparty/copyparty.conf` | Plain Conf | Active | User accounts, permission flags (`r`, `w`, `m`, `d`), volume mounts, media streaming, and WebDAV endpoints. |
-| **`ntfy`** | `config/ntfy/etc/ntfy/server.yml` | YAML | Active | Base URL, cache duration, attachment limits, authentication tokens, and message queue persistence. |
-| **`qbittorrent`** | `config/qbittorrent/qBittorrent/qBittorrent.conf` | INI | Active | Listening port (`42069`), WebUI port (`8080`), speed limits, connection limits, and default save paths (`/downloads`, staged for `/data/torrents`). |
-| **`coder`** | `coder/main.tf` | Terraform | Active | Single Docker workspace template (`default.tf` removed), `codercom/enterprise-base:ubuntu`, per-workspace home volume, agent metadata, `code-server` module `~> 1.0`, prebuilt `jj` `v0.28.2` musl download. |
-| **`code-server`** | `config/code-server/data/User/settings.json` | JSON | Active | VS Code editor settings, themes, keybindings, and telemetry toggles. Mounts `/Server` and `/Documents`. |
-| **`byparr`** | Declarative in `compose/media.yml` | ENV | Active | Port `8191`, `LOG_LEVEL: info`, DNS `1.1.1.1` / `9.9.9.9`, network alias `flaresolverr`. |
-| **`flaresolverr`** | Declarative in `compose/media.yml` | ENV | Standby | Port `8191`, `LOG_LEVEL: info`, `profiles: ["standby"]`. |
-| **`ignis`** | Declarative in `compose/knowledge.yml` | ENV | Active | Obsidian note sync directories (`data/ignis/vaults/`) and port allocations. |
-| **`paperless-webserver`** | Declarative in `compose/paperless.yml` + `.env` | ENV | Active | `PAPERLESS_DBNAME`, `PAPERLESS_DBUSER`, `PAPERLESS_DBPASS`, `PAPERLESS_TASK_WORKERS: 2`, `PAPERLESS_THREADS_PER_WORKER: 2`, OCR languages, consume hooks, OIDC provider JSON. |
-| **`authentik-server`** | Declarative in `compose/core.yml` + `.env` | ENV | Active | Loopback ports `127.0.0.1:9000` / `127.0.0.1:9443`, `AUTHENTIK_WEB__WORKERS: 2`, `shm_size: 512mb`. Worker runs without root or Docker socket. |
-| **`arcane`** | Declarative in `compose/core.yml` + `.env` | ENV | Active | `LOG_LEVEL: info`, `LOG_JSON: "false"`, OIDC to Authentik, SQLite WAL `DATABASE_URL`. |
-| **`rclone`** | `config/rclone/filter.txt.example` (tracked), `config/rclone/filter.txt` (local) | Rclone filter | Ops / Standby | Excludes `data/authentik/**`, `data/paperless/db/**`, `data/paperless/redis/**`, `**/*-wal`, `**/*-shm`, caches and bulk media. Includes `data/backups/**`, preshows, torrent metafiles. |
-| **`scripts/backup.sh`** | `scripts/backup.sh` | Bash | Active | Safe `load_env`, PG dumps, SQLite `.backup` snapshots to `data/backups/sqlite/`, `rclone sync --backup-dir OneDrive:Sol-archive/<TIMESTAMP>`, `--profile ops` fallback. |
-| **`scripts/restore.sh`** | `scripts/restore.sh` | Bash | Active | `--dry-run`, `--skip-cloud-pull`, `--restore-dbs`, `--start-stack`, SQLite snapshot restore, `gunzip -c ... \| docker exec -i ... psql` import. |
-| **`scripts/setup_jellyfin_metal.py`** | `scripts/setup_jellyfin_metal.py` | Python | Active | Default relaunch preserves `config/jellyfin_metal/data/jellyfin.db`. `shutil.rmtree(CONFIG_DIR)` and wizard re-run only with `--reset`. |
-| **`scripts/test_cross_seed.sh`** | `scripts/test_cross_seed.sh` | Bash | Active | `docker exec -u "${PUID:-501}:${PGID:-20}" cross-seed`, write and hardlink tests on `/external`, `/downloads`, and `/data/torrents` <-> `/data/media`. |
+| **`caddy`** | `./Caddyfile` | Caddyfile | Active (`healthy`) | 33 active site blocks, 12 commented standby vhosts, `(security_headers)` with `Permissions-Policy`, `(optimize)`, `(forward_auth)` to `tinyauth:3000`, `(static_site)` with `route { try_files ...; file_server }` after `forward_auth` and `@immutable` cache headers, streaming buffers on `watch`/`jellyfin`, and external write gates on `ntfy.vrg.rocks` & `send.vrg.rocks`. |
+| **Compose stacks** | `docker-compose.yml`, `compose/*.yml` | YAML | Active | 8 domain files defining **29 active `(healthy)` containers**, **15 `standby` containers**, and **1 `ops` container (`rclone`)** = **45** Compose services. Retired `authentik-*`, `flaresolverr`, and `cross-seed` blocks removed. |
+| **`ports.json`** | `./ports.json` | JSON | Active | 46 entries (29 active containers, 15 standby containers, 1 ops container `rclone`, 1 standby native app `jellyfin-metal`). Only `caddy` (`80`, `443`) and `qbittorrent` (`42069`) bind host ports in active mode. |
+| **`glance`** | `config/glance/config/glance.yml`, `config/glance/assets/user.css` | YAML + CSS | Active (`healthy`) | 3 pages (`Sol`, `Stats`, `Radar`), inlined `sol-catppuccin-mocha` default theme, authenticated Jellyfin (`MediaBrowser Token`) & Paperless (`Accept: application/json`) `custom-api` widgets, `https://auth.vrg.rocks/api/healthz` ingress monitor, and 17 GitHub release trackers. |
+| **`copyparty`** | `config/copyparty/copyparty.conf` | Conf | Active (`healthy`) | `v1.20.13`, `rproxy: -1`, `xf-proto-fb: https`, `idp-h-usr: X-Tinyauth-Username`, `rwmda: vrg`, `noidx` excluding `.Spotlight-V100`/`._*`/`backups`, serving `/w/{copyparty,media,torrents,external}`. |
+| **`ntfy`** | `config/ntfy/etc/ntfy/server.yml` | YAML | Active (`healthy`) | `v2.31.1`, `base-url: "https://ntfy.vrg.rocks"`, `behind-proxy: true`, `cache-startup-queries` enabling `WAL` + `busy_timeout = 5000`. External unauthenticated `POST`/`PUT` blocked at Caddy edge while internal containers publish to `http://ntfy:80`. |
+| **`code-server`** | `compose/coding.yml` + `config/code-server/` | YAML + JSON | Active (`healthy`) | `AUTH: none` behind Tinyauth admin `forward_auth` (`TINYAUTH_APPS_CODE_*`), mounts `/Server` (`/Users/vrg/Documents/Sol`) and `/Documents`, healthcheck on `127.0.0.1:8443/healthz`. |
+| **`byparr`** | `compose/media.yml` | YAML | Active (`healthy`) | `v3.0.4` (`invisible-playwright` Firefox 151.0), network alias `flaresolverr`, `shm_size: 1gb`, `tmpfs: /tmp:size=512m,exec,mode=1777`, `BLOCK_MEDIA: "true"`, lightweight `/openapi.json` healthcheck (eliminating 65 GB/day idle browser disk churn). |
+| **`ignis`** | `compose/knowledge.yml` + `data/ignis/` | YAML | Active (`healthy`) | `v0.8.18` (Obsidian `1.14.4`), locked to admin emails via `TINYAUTH_APPS_IGNIS_*` (`notes.vrg.rocks` redirects to `ignis.vrg.rocks`), healthcheck on `127.0.0.1:8080/api/version`. |
+| **`enclosed`** | `compose/utilities.yml` + `data/enclosed/` | YAML | Active (`healthy`) | `v1.16.0`, note creation (`/`, `/api/notes`) gated by Tinyauth `forward_auth` in `Caddyfile` while recipient note links (`/@*`, `/api/notes/*`) remain publicly viewable. |
+| **`backrest`** | `config/backrest/config.json`, `config/backrest/excludes.txt` | JSON + Text | Active (`healthy`) | `v1.14.1` (Restic `0.19.1`, Rclone `v1.74.4`), repos `local-panopticon` (`/repos/local-panopticon`) and `onedrive-cloud` (`rclone:OneDrive:Sol-Restic`), excluding live Postgres/WAL/caches and `/userdata/sol/web/mi`. |
+| **Host Scripts & LaunchAgents** | `scripts/*.sh`, `scripts/*.py`, `scripts/launchd/*.plist` | Bash / Python / XML | Active | `stage_db_backups.sh` (TCC-free via Python wrapper + OrbStack `redis:8-alpine` symlink manifest), `identity_sync.py` (`<50ms` SHA-256 fast-path), `torrent_finished.py`, `arr_symlink_dedupe.sh`, `restore.sh`, `sync_static_tools.sh`. |
 
 ---
 
-## 3. Category B: Database-Driven Services Requiring Browser UI Exploration
+## 3. Category B: Database & API-Driven Services (Audited & Reconciled)
 
-These services store their critical operational logic (rules, profiles, custom scoring formats, workflows, outposts, and hardware acceleration pipelines) in relational or SQLite databases. To tune performance, prevent media bloat, and remove bottlenecks, **we must inspect their web interfaces directly**.
-
-> [!NOTE]
-> Only Authentik publishes host ports, and only on loopback (`127.0.0.1:9000`, `127.0.0.1:9443`). Every other Category B service is bridge-only. Reach it through its Caddy FQDN, or from inside the network at the listed `http://<container>:<port>` address. Jellyfin Metal listens on host port `8097`.
-
----
-
-### 1. Authentik (`auth.vrg.rocks` / `http://127.0.0.1:9000` on host)
-* **Storage Engine:** PostgreSQL 16 (`data/authentik`, backed up as `data/backups/authentik_db.sql.gz`)
-* **Why Browser Inspection is Essential:**
-  - **Outposts:** Inspect the embedded Caddy forward-auth proxy outpost health and token lifespans. The worker no longer has Docker socket access, so Docker-managed outposts are not available.
-  - **Applications & Providers:** Verify OAuth2/OIDC configurations for Paperless, Arcane, and Coder, plus proxy providers for the newly gated `dash`, `code`, `router`, `byparr`, and `flaresolverr` hostnames.
-  - **Flows & Stages:** Audit password policies, session durations, MFA requirements, and error handling.
-  - **Blueprints:** Inspect declarative blueprint imports and tenant configurations.
+### 1. Tinyauth v5 (`auth.vrg.rocks` / `http://tinyauth:3000`) & LLDAP (`ldap.vrg.rocks` / `http://lldap:17170`)
+* **Storage Engines:** SQLite (`data/tinyauth/tinyauth.db`, `data/lldap/users.db`) + `/data/oidc/key.pem` (`0600`) + `/data/whitelist.txt`.
+* **Verified State:**
+  - **LLDAP (`v0.6.2`, `600 KiB` RAM):** Authoritative identity directory for 4 household users (`vrg` and 3 household member accounts) and groups (`lldap_admin`, `family`). Watched by `com.vrg.sol.identity-sync.plist`.
+  - **Tinyauth (`v5.2.0`, `8.98 MiB` RAM):** Enforces Google OAuth 2.0 zero-click login, 17 per-app admin domain whitelists (`TINYAUTH_APPS_*` locked to `TINYAUTH_ADMIN_EMAILS`), and 7 OIDC clients (`paperless`, `arcane`, `homebox`, `airtrail`, `coder`, `readeck`, `jellyfin`).
+  - **OIDC Consents:** Pre-seeded in `tinyauth.db` by `scripts/identity_sync.py` (`arcane` and `coder` consents restricted strictly to `admin` users; 29 total consent rows).
 
 ---
 
-### 2. Jellyfin (`watch.vrg.rocks` / `http://jellyfin:8096`)
-* **Storage Engine:** SQLite (`config/jellyfin/data/data/jellyfin.db`) + XML
-* **Why Browser Inspection is Essential:**
-  - **Hardware Acceleration:** The container cannot use Apple VideoToolbox. Verify software transcode thread allocation and throttling. Hardware transcoding runs on Jellyfin Metal instead.
-  - **Library Setup & Scrapers:** Audit metadata scrapers (TMDb, TheTVDB, OMDb), image fetchers, and chapter thumbnail generators (Trickplay).
-  - **Plugins:** Inspect active plugins (Introskipper, Fanart, OpenSubtitles) and their execution schedules.
-  - **User & Transcode Limits:** Verify concurrent transcode limits, remote bitrate throttling, and user playback policies.
+### 2. Jellyfin (`watch.vrg.rocks` / `http://jellyfin:8096`) & Standby Jellyfin Metal (`:8097`)
+* **Storage Engine:** SQLite (`config/jellyfin/data/data/jellyfin.db`) + XML (`system.xml`, `database.xml`, `encoding.xml`, `branding.xml`, `SSO-Auth.xml`, `LDAP-Auth.xml`).
+* **Verified State:**
+  - **Runtime & Storage:** Jellyfin `12.2.0` (`12.2ubu2604-ls54`), `/tmp/jellyfin` mounted as `2 GiB` `tmpfs` owned by `uid=501,gid=20,mode=0755`, `<LockingBehavior>Optimistic</LockingBehavior>` in `database.xml`, `<ServerName>Sol</ServerName>` in `system.xml`, orphaned `library.db*` removed.
+  - **Libraries:** `Movies` (`/media/internal/movies` + `/media/external/media/movies`, 59 movies, 0 broken symlinks), `Shows` (`/media/internal/tv` + `/media/external/media/tv`, 5 series, 758 episodes, 0 broken symlinks), `Home Videos` (`/media/internal/home-videos`, containing `VRG's 1st Birthday` and `The Ba***ds of Business (1995).mp4`).
+  - **Zero-Click SSO + LDAP:** `LDAP-Auth` (`v24.0.0.0`) binds to `lldap:3890` (`dc=vrg,dc=rocks`) as primary `AuthenticationProviderId` for all 4 users; `SSO-Auth` (`v4.0.0.4`) maps all 5 Google emails via `<CanonicalLinks>` to the 4 LDAP-backed user GUIDs with a 300ms JS auto-redirect in `branding.xml`.
+  - **Jellyfin Metal (`scripts/setup_jellyfin_metal.py`):** Configured as `"status": "standby"` in `ports.json` (`metal.vrg.rocks` commented in `Caddyfile`); `DB_FILE` path bug (`data/data/jellyfin.db`) fixed in `scripts/setup_jellyfin_metal.py`.
 
 ---
 
-### 3. Jellyfin Metal (`metal.vrg.rocks` / `http://127.0.0.1:8097` on host)
-* **Storage Engine:** SQLite (`config/jellyfin_metal/data/jellyfin.db`) + XML (`network.xml`)
-* **Why Browser Inspection is Essential:**
-  - **VideoToolbox Pipeline:** Confirm `HardwareAccelerationType: videotoolbox`, tonemapping, `EnableThrottling: true`, `ThrottleDelaySeconds: 120`, HEVC/AV1 encoding, and 10-bit HEVC/VP9 decoding as set by the `--reset` bootstrap.
-  - **Libraries:** Verify `Movies` and `Shows` paths (internal `data/media/*` plus PANOPTICON).
-  - **API Keys:** Confirm `Jellyseerr` and `Bazarr` keys if Seerr or Bazarr point at Metal.
+### 3. Seerr (`request.vrg.rocks` / `http://seerr:5055`)
+* **Storage Engine:** SQLite (`config/seerr/db/db.sqlite3`) + `config/seerr/settings.json`.
+* **Verified State:**
+  - **Version & History:** Seerr `v3.2.0` (`ghcr.io/seerr-team/seerr:latest`), `43` total media requests (including 27 historical Overseerr requests merged via `scripts/archive/merge_overseerr_history.py`) across 4 users.
+  - **Radarr & Sonarr Target Roots:** `radarr[0].activeDirectory` updated to `"/external/media/movies"` (`VRG HQ (UHD/FHD)`), `sonarr[0].activeDirectory` set to `"/external/media/tv"` (`Ultra-HD`).
+  - **Jellyfin Sync:** Syncs `Movies` and `Shows` cleanly (with `Home Videos` excluded and `The Ba***ds of Business (1995)` relocated to `/media/internal/home-videos/`).
 
 ---
 
-### 4. Seerr (`request.vrg.rocks` / `http://seerr:5055`)
-* **Storage Engine:** SQLite (`config/seerr/db/db.sqlite3`) + `settings.json`
-* **Why Browser Inspection is Essential:**
-  - **Radarr & Sonarr Integrations:** Audit server API connections, default root folder paths (`/data/media/movies` vs `/external`), and quality profile assignments (4K vs 1080p).
-  - **User Request Rules:** Verify user request quotas, auto-approval rules, and notification dispatch webhooks.
-  - **TMDb Discovery & Caching:** Check sync frequency with Jellyfin libraries and indexers.
+### 4. Radarr (`radarr.vrg.rocks`), Sonarr (`sonarr.vrg.rocks`), Lidarr (`lidarr.vrg.rocks`), Prowlarr (`prowlarr.vrg.rocks`) & Bazarr (`bazarr.vrg.rocks`)
+* **Storage Engines:** SQLite (`radarr.db`, `sonarr.db`, `lidarr.db`, `prowlarr.db`, `bazarr.db`) + XML/YAML configs.
+* **Verified State:**
+  - **ExFAT Zero-Copy Pipeline (`radarr` & `sonarr`):** `enablecompleteddownloadhandling = False`, `recyclebin = /external/media/.recycle` (`14` days), `LogLevel = info` across all 4 Servarr apps (with ~300 MB of legacy `.debug.txt` logs purged). `scripts/torrent_finished.py` and `config/{radarr,sonarr}/custom_scripts/arr_symlink_dedupe.sh` maintain relative symlinks (`../../../torrents/...`) on `/Volumes/PANOPTICON` (`0` broken symlinks across `38` movie symlinks and `1,379` TV episode/chapter symlinks; *The Sixth Sense (1999)* linked at `/external/media/movies/The Sixth Sense (1999)`).
+  - **Prowlarr (`v2.3.6.5351`):** `FlareSolverr` proxy (`http://flaresolverr:8191/`, backed by `byparr`) timeout increased to `90s`, tag `1` (`flare`) applied to `1337x` and `RuTracker.org`, and zero-grab `LimeTorrents` disabled (eliminating 6-hourly `400 BadRequest` sync errors on Radarr/Lidarr).
+  - **Bazarr (`v1.6.2`):** Default language profiles enabled (`serie_default_enabled: true`, `movie_default_enabled: true`, `profileId = 1` assigned to all `5/5` series and `42/42` movies), `default_und_audio_lang: en`, and broken `subdl`/`wizdom` providers removed.
 
 ---
 
-### 5. Radarr (`radarr.vrg.rocks` / `http://radarr:7878`)
-* **Storage Engine:** SQLite (`config/radarr/radarr.db`)
-* **Why Browser Inspection is Essential:**
-  - **TRaSH Guides Custom Formats:** Inspect active Custom Formats (for example HDR10+, Dolby Vision, AV1, Remux, Unwanted/Low Quality filters) and their score weighting. `recyclarr` is available under `--profile standby`.
-  - **Quality Profiles:** Audit upgrade thresholds, cutoff unmet rules, and allowed video resolutions.
-  - **Media Management:** Verify hardlink creation toggles, file renaming tokens, unmonitor deleted items, and root folder assignments.
-  - **Download Client & Indexers:** Check qBittorrent category mapping (`movies`), seed ratio limits, remote path mapping during the `/downloads` to `/data/torrents` migration, and Prowlarr sync status.
+### 5. qBittorrent (`qb.vrg.rocks` / `http://qbittorrent:8080`) & QUI (`qui.vrg.rocks` / `http://qui:7476`)
+* **Storage Engines:** `qBittorrent.conf` + `categories.json` + `BT_backup/*.fastresume` (`150` torrents) + `config/qui/qui.db`.
+* **Verified State:**
+  - **qBittorrent (`v5.1.4`):** Unified `/data` and `/external` mounts (`/downloads` retired), `sonarr` category `save_path` fixed to `/external/torrents/tv`, stale `/downloads/files` watched folder and broken `OnTorrentAdded` hook removed, and 7 cross-seed torrents in `/data/torrents/cross-seed-links/` re-pointed to live PANOPTICON paths.
+  - **QUI (`v1.32.0`):** All 25 tracker customizations (`tracker_registry.json`) and 10 active FUP/tagging automation rules (38 condition blocks) are active in `qui.db`, governing upload caps and ratio limits across `150 / 150` torrents (`0` untagged) plus 30-minute RSS cross-seed scans (`37/37` runs `success`).
 
 ---
 
-### 6. Sonarr (`sonarr.vrg.rocks` / `http://sonarr:8989`)
-* **Storage Engine:** SQLite (`config/sonarr/sonarr.db`)
-* **Why Browser Inspection is Essential:**
-  - **Quality & Release Profiles:** Audit custom scoring rules for anime, standard TV, and 4K releases.
-  - **Media Management & Naming:** Verify season folder structures, multi-episode naming patterns, and atomic hardlink validation.
-  - **Root Folders:** Check internal SSD paths vs external disk allocations.
+### 6. Paperless-ngx (`docs.vrg.rocks`) & AirTrail (`fly.vrg.rocks`) on Shared `paperless-db`
+* **Storage Engine:** PostgreSQL 17.11 Alpine (`paperless-db`, `24.2 MiB` RAM) + Redis 8 Alpine (`paperless-broker`, `5.98 MiB` RAM, `--maxmemory 256mb --maxmemory-policy volatile-lru`).
+* **Verified State:**
+  - **Paperless-ngx (`v2.20.14`):** `290` archived documents, `PAPERLESS_OCR_LANGUAGE=eng+hin+kan+pan`, `2` workers × `2` threads, `passwords.txt` locked to `0600`, and `${PASSPHRASE}` leak removed from `data/paperless/scripts/ntfy_notify.sh`.
+  - **AirTrail (`v3.13.0`):** `86,258` airports, `2,165` airlines, 4 OIDC-linked household users (`VRG` as single owner `is_owner=t`, others as `role-user`), guarded against single-owner constraint collisions in `scripts/identity_sync.py`.
 
 ---
 
-### 7. Prowlarr (`prowlarr.vrg.rocks` / `http://prowlarr:9696`)
-* **Storage Engine:** SQLite (`config/prowlarr/prowlarr.db`)
-* **Why Browser Inspection is Essential:**
-  - **Indexer Health & Priorities:** Inspect active Usenet and BitTorrent indexers, VIP status, rate limits, and failure rates.
-  - **Sync Profiles:** Verify automatic schema synchronization to Radarr, Sonarr, and Lidarr.
-  - **Challenge Solver Proxy Routing:** Confirm indexers with Cloudflare protection carry the `flaresolverr` tag and use `http://flaresolverr:8191`. That hostname resolves to `byparr` through its network alias.
-
----
-
-### 8. Bazarr (`bazarr.vrg.rocks` / `http://bazarr:6767`)
-* **Storage Engine:** SQLite (`config/bazarr/db/bazarr.db`) + `config.yaml`
-* **Why Browser Inspection is Essential:**
-  - **Subtitle Providers:** Audit provider accounts, daily API limits, and anti-captcha tokens.
-  - **Language Profiles & Thresholds:** Check minimum score matching thresholds, forced subtitle rules, hearing-impaired (HI) tag removal, and audio language sync.
-  - **Path Mappings:** Verify path translation between Bazarr container paths and Radarr/Sonarr internal paths.
-
----
-
-### 9. Paperless-ngx (`docs.vrg.rocks` / `http://paperless-webserver:8000`)
-* **Storage Engine:** PostgreSQL 17 (`data/paperless/db`, Debian `glibc` collation) + Redis 8 Alpine (`data/paperless/redis`)
-* **Why Browser Inspection is Essential:**
-  - **Workflows & Automation:** Audit automatic tagging, correspondent assignment, and document type categorization rules.
-  - **Matching Algorithms:** Inspect matching criteria (Exact, Any, All, Fuzzy, Automatic ML classifier).
-  - **Storage Paths:** Check physical folder organization rules for generated PDFs.
-  - **Custom Fields:** Verify metadata fields (for example Invoice Numbers, Expiry Dates, Monetary Values).
-  - **Task Queue:** Confirm 2 task workers x 2 threads per worker process bulk scans without queue backlog.
-
----
-
-### 10. Homebox (`inv.vrg.rocks` / `http://homebox:7745`) (Standby)
-* **Storage Engine:** SQLite (`data/homebox/data/homebox.db`)
-* **Current State:** `profiles: ["standby"]`, vhost commented out, pending local SQLite database repair.
-* **Why Browser Inspection is Essential (after repair):**
-  - **Location & Category Hierarchy:** Audit physical room, container, and shelf taxonomy.
-  - **Custom Fields & Warranties:** Check custom asset tracking schemas.
-  - **Mobile Scanner Compatibility:** Verify API interaction with the `/scan` PWA frontend under the restricted `https://scan.vrg.rocks` CORS origin.
-
----
-
-### 11. Arcane (`arcane.vrg.rocks` / `http://arcane:3552`)
-* **Storage Engine:** SQLite (`data/arcane/data/arcane.db`)
-* **Why Browser Inspection is Essential:**
-  - **Stack Templates:** Inspect stored Docker Compose templates and container deployment hooks.
-  - **Profile Awareness:** Confirm Arcane shows the 26 profiled standby services correctly and does not start them by accident.
-  - **OIDC Authentication:** Verify user role mapping from Authentik.
-
----
-
-## 4. Structured Phased Browser Exploration Plan
-
-To run an efficient review, we explore the browser interfaces in 4 focused batches:
-
-```
-+-----------------------------------------------------------------------------------+
-|                            PHASED UI EXPLORATION ROADMAP                          |
-+-----------------------------------------------------------------------------------+
-|                                                                                   |
-|  [ BATCH 1: INGRESS, IDENTITY & ORCHESTRATION ]                                   |
-|  Targets: Authentik (auth.vrg.rocks), Glance (dash.vrg.rocks), Arcane (arcane.)   |
-|  Focus: Outpost health, SSO flows, new edge-gated apps, dashboard monitors.       |
-|                                                                                   |
-|  [ BATCH 2: MEDIA STREAMING & REQUEST PIPELINE ]                                  |
-|  Targets: Jellyfin (watch.), Jellyfin Metal (metal.), Seerr (request.vrg.rocks)   |
-|  Focus: VideoToolbox vs software transcode, library scrapers, request quotas.     |
-|                                                                                   |
-|  [ BATCH 3: THE SERVARR AUTOMATION & INDEXING ENGINE ]                            |
-|  Targets: Radarr (radarr.), Sonarr (sonarr.), Prowlarr (prowlarr.), Bazarr        |
-|  Focus: TRaSH profiles, custom formats, hardlinks, Byparr proxy tag, indexers.    |
-|                                                                                   |
-|  [ BATCH 4: INGESTION, ARCHIVAL & LOGISTICS ]                                     |
-|  Targets: qBittorrent (qb.vrg.rocks), Paperless-ngx (docs.), Homebox (inv.)       |
-|  Focus: Save path migration, OCR classifiers, workflows, Homebox after repair.    |
-|                                                                                   |
-+-----------------------------------------------------------------------------------+
-```
+### 7. Homebox (`inv.vrg.rocks`), Readeck (`links.vrg.rocks`), Arcane (`arcane.vrg.rocks`), Coder (`coder.vrg.rocks`) & PocketBase (`pb.vrg.rocks`)
+* **Homebox (`v0.26.2`, `data/homebox/homebox.db`):** Active (`14.1 MiB` RAM), 4 OIDC users in `Home` group (`INR`), `HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "true"` and `HBOX_WEB_MAX_UPLOAD_SIZE: "10"` enabled so `scan.vrg.rocks` barcode scanner PWA can authenticate and refresh tokens against `POST /api/v1/users/login`.
+* **Readeck (`v0.22.3`, `data/readeck/data/db.sqlite3`):** Native OIDC via Tinyauth (redundant `forward_auth` removed from `links.vrg.rocks`), all 4 LLDAP users pre-seeded (`VRG` as `admin`) with `preserve_lldap_user_identity` SQLite trigger, orphaned 0-byte `data/readeck/db.sqlite3` removed.
+* **Arcane (`v2.16.1`, `data/arcane/arcane.db`):** Native OIDC (`VRG` mapped to `role_admin`), Distroless `["CMD", "curl", "-fsS", "http://127.0.0.1:3552/api/health"]` healthcheck active, orphaned `arcane.francis.db*` removed.
+* **Coder (`v2.38.0`, `config/coder/coderv2/postgres`):** `group_add: ["0"]` grants `/var/run/docker.sock` access inside OrbStack, `CODER_CLUSTER_HOST: "127.0.0.1"` enables in-process NATS pub/sub, `CODER_OIDC_ALLOW_SIGNUPS: "false"` locks out non-admin signups, and `/Sol/coder/main.tf` is pushed and active as template `sol-workspace`.
+* **PocketBase (`v0.40.5`, `data/pocketbase/data.db`):** `pb.vrg.rocks/` redirects `302 -> /_/`, `logs.minLevel = 4` set in `_params` (stopping 4,320/day `/api/health` writes to `auxiliary.db`), and `auxiliary.db` excluded from SQLite staging and Restic backups.

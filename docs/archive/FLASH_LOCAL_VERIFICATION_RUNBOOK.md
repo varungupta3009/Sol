@@ -1,8 +1,11 @@
-# Sol Local Verification Runbook (Gemini 3.8 Flash Execution Playbook)
+# Sol Local Verification Runbook (Archived Historical Playbook)
+
+> [!IMPORTANT]
+> **ARCHIVED HISTORICAL RUNBOOK (Completed `2026-10-18`):** All verification gates and migration tasks in this playbook (Tasks 0 through 7, including `.env` reconciliation, `/downloads` to `/data/torrents` cutover, `byparr` deployment, `paperless-db` migration to `postgres:17-alpine`, and `homebox` SQLite repair) were executed and verified on `dash.vrg.rocks` on `2026-10-18`. This file is preserved in `docs/archive/` as a historical execution record. For current architecture and operations, see [`README.md`](../../README.md), [`docs/SERVER_HISTORY_AND_EVOLUTION.md`](../SERVER_HISTORY_AND_EVOLUTION.md), and [`docs/system_state/00_EXECUTIVE_TOPOLOGY.md`](../system_state/00_EXECUTIVE_TOPOLOGY.md).
 
 > **Audience:** Varun's local Gemini 3.8 Flash agent (`flash_worker`) on the live Sol host.
 > **Host:** Apple Silicon M1 Pro, macOS, OrbStack Docker engine, repository at `/Users/vrg/Documents/Sol`.
-> **Origin:** October 2026 `/double-agent` architectural review. See [09_ARCHITECTURAL_AUDIT_AND_UPGRADE_PLAN.md](system_state/09_ARCHITECTURAL_AUDIT_AND_UPGRADE_PLAN.md).
+> **Origin:** October 2026 `/double-agent` architectural review. See [09_ARCHITECTURAL_AUDIT_AND_UPGRADE_PLAN.md](../system_state/09_ARCHITECTURAL_AUDIT_AND_UPGRADE_PLAN.md).
 > **Why this exists:** The remote review had no access to the untracked `.env`, `config/`, `data/`, `web/`, `quartz/`, or `/Volumes/PANOPTICON`. Every check that depends on live state is moved here as a deterministic step with an exact command, an expected output, a decision gate, and a rollback.
 
 ---

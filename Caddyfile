@@ -33,6 +33,8 @@
 		X-Frame-Options SAMEORIGIN
 		Referrer-Policy strict-origin-when-cross-origin
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		Permissions-Policy "accelerometer=(), camera=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+		X-Permitted-Cross-Domain-Policies none
 		-Server
 	}
 }
@@ -56,11 +58,19 @@
 (static_site) {
 	import optimize
 	import security_headers
-	try_files {path} {path}.html {path}/ =404
-	file_server
-	handle_errors {
-		rewrite * /{err.status_code}.html
+	@immutable path *.js *.css *.wasm *.woff *.woff2 *.svg *.png *.jpg *.jpeg *.webp *.avif *.ico
+	header @immutable Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
+	route {
+		try_files {path} {path}.html {path}/ =404
 		file_server
+	}
+	handle_errors {
+		@custom_err file /{err.status_code}.html
+		handle @custom_err {
+			rewrite * /{err.status_code}.html
+			file_server
+		}
+		respond "{err.status_code} {err.status_text}" {err.status_code}
 	}
 }
 
@@ -119,6 +129,7 @@ dash.vrg.rocks {
 
 # Sol Vanity Redirect
 sol.vrg.rocks {
+	import security_headers
 	redir https://dash.vrg.rocks/sol 302
 }
 
@@ -126,6 +137,7 @@ sol.vrg.rocks {
 # status.vrg.rocks {
 # 	import optimize
 # 	import security_headers
+# 	import forward_auth
 # 	reverse_proxy http://gatus:8080
 # }
 #
@@ -151,18 +163,6 @@ sol.vrg.rocks {
 watch.vrg.rocks, jellyfin.vrg.rocks {
 	import security_headers
 	reverse_proxy http://jellyfin:8096 {
-		transport http {
-			read_buffer 32768
-			write_buffer 32768
-			keepalive 120s
-		}
-	}
-}
-
-# Jellyfin Native Metal Instance (macOS Bare-Metal VideoToolbox on host port 8097)
-metal.vrg.rocks {
-	import security_headers
-	reverse_proxy http://host.docker.internal:8097 {
 		transport http {
 			read_buffer 32768
 			write_buffer 32768
@@ -219,15 +219,34 @@ prowlarr.vrg.rocks {
 	reverse_proxy http://prowlarr:9696
 }
 
-# Byparr / FlareSolverr Cloudflare Turnstile Proxy (Tinyauth Admin ACL)
-byparr.vrg.rocks, flaresolverr.vrg.rocks {
+# Byparr Cloudflare Turnstile Proxy (Tinyauth Admin ACL)
+byparr.vrg.rocks {
 	import optimize
 	import security_headers
 	import forward_auth
 	reverse_proxy http://byparr:8191
 }
 
-# --- Standby Media Routes (Uncomment when launching with --profile standby) ---
+# FlareSolverr Alias -> Canonical byparr.vrg.rocks
+flaresolverr.vrg.rocks {
+	import optimize
+	import security_headers
+	redir https://byparr.vrg.rocks{uri} permanent
+}
+
+# --- Standby Media Routes (Uncomment when launching with --profile standby or native host daemon) ---
+# Jellyfin Native Metal Instance (macOS Bare-Metal VideoToolbox on host port 8097)
+# metal.vrg.rocks {
+# 	import security_headers
+# 	reverse_proxy http://host.docker.internal:8097 {
+# 		transport http {
+# 			read_buffer 32768
+# 			write_buffer 32768
+# 			keepalive 120s
+# 		}
+# 	}
+# }
+#
 # wizarr.vrg.rocks {
 # 	import optimize
 # 	import security_headers
@@ -295,11 +314,17 @@ ignis.vrg.rocks {
 	reverse_proxy http://ignis:8080
 }
 
-# Readeck Bookmark & Read-Later Archiver (Native OIDC + Tinyauth Edge Gate)
+# Notes Alias -> Canonical ignis.vrg.rocks
+notes.vrg.rocks {
+	import optimize
+	import security_headers
+	redir https://ignis.vrg.rocks{uri} permanent
+}
+
+# Readeck Bookmark & Read-Later Archiver (Protected via Native OIDC)
 links.vrg.rocks {
 	import optimize
 	import security_headers
-	import forward_auth
 	reverse_proxy http://readeck:8000
 }
 
@@ -343,6 +368,8 @@ pb.vrg.rocks {
 	import optimize
 	import security_headers
 	import forward_auth
+	@root path /
+	redir @root /_/ 302
 	reverse_proxy http://pocketbase:8090
 }
 
@@ -358,11 +385,21 @@ files.vrg.rocks, copyparty.vrg.rocks {
 	reverse_proxy http://copyparty:3923
 }
 
-# ntfy Push Notification Service (Direct Mobile Client Access)
+# ntfy Push Notification Service (Direct Mobile Client Subscriptions; Unauthenticated External Publishes Gated)
 ntfy.vrg.rocks {
 	import optimize
 	import security_headers
-	reverse_proxy http://ntfy:80
+	@pub {
+		method POST PUT
+		not header Authorization *
+	}
+	handle @pub {
+		import forward_auth
+		reverse_proxy http://ntfy:80
+	}
+	handle {
+		reverse_proxy http://ntfy:80
+	}
 }
 
 # Homebox Physical Inventory Manager (Protected via Native OIDC with HBOX_OIDC_AUTO_REDIRECT=true)
@@ -396,11 +433,23 @@ backrest.vrg.rocks {
 	reverse_proxy http://backrest:9898
 }
 
-# Enclosed Zero-Knowledge Encrypted Notes & File Drops (Public Client-Side E2EE)
+# Enclosed Zero-Knowledge Encrypted Notes & File Drops (Note Creation Gated; Recipient View Public Client-Side E2EE)
 send.vrg.rocks {
 	import optimize
 	import security_headers
-	reverse_proxy http://enclosed:8787
+	request_body {
+		max_size 60MB
+	}
+	@create_note {
+		path / /api/notes /api/notes/
+	}
+	handle @create_note {
+		import forward_auth
+		reverse_proxy http://enclosed:8787
+	}
+	handle {
+		reverse_proxy http://enclosed:8787
+	}
 }
 
 # AirTrail Personal Flight Log & Aircraft Registry (Protected via Native OIDC with OAUTH_AUTO_LOGIN=true)
@@ -460,6 +509,7 @@ scan.vrg.rocks {
 
 # Async Bookmark Manager
 aysynbm.vrg.rocks {
+	import forward_auth
 	root * /aysynbm
 	import static_site
 }
@@ -491,6 +541,15 @@ speed.vrg.rocks {
 	root * /speed
 	request_body {
 		max_size 500MB
+	}
+	@speed_streams path /downloading* /upload*
+	header @speed_streams Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+	@upload {
+		method POST
+		path /upload*
+	}
+	route @upload {
+		respond 200
 	}
 	import static_site
 }

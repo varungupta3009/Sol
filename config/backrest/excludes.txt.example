@@ -40,6 +40,12 @@
 logs.db
 logs.db-wal
 logs.db-shm
+/userdata/sol/data/pocketbase/auxiliary.db
+/userdata/sol/data/pocketbase/auxiliary.db-wal
+/userdata/sol/data/pocketbase/auxiliary.db-shm
+/userdata/sol/data/pocketbase/pb_data/auxiliary.db
+/userdata/sol/data/pocketbase/pb_data/auxiliary.db-wal
+/userdata/sol/data/pocketbase/pb_data/auxiliary.db-shm
 
 # 4. Backrest & Restic Local Cache
 /userdata/sol/data/backrest/cache
@@ -53,6 +59,7 @@ logs.db-shm
 /userdata/sol/web/draw
 /userdata/sol/web/speed
 /userdata/sol/web/tools
+/userdata/sol/web/mi
 /userdata/sol/web/fam_backup_20260913
 /userdata/sol/config/jellyfin/cache
 /userdata/sol/config/jellyfin/data/temp

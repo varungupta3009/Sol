@@ -1,17 +1,17 @@
 # 03. Ingress, Routing & Network Architecture
 
 > **Scope:** Reverse proxy configuration, SSL/TLS termination, HTTP/3 transport, identity middleware integration, network topology, and DNS routing on `Sol`.  
-> **Proxy Engine:** Caddy v2 (`caddy:${CADDY_TAG:-2}`) with automatic Let's Encrypt / ZeroSSL certificate provisioning.  
+> **Proxy Engine:** Caddy v2.11.7 (`caddy:${CADDY_TAG:-latest}`) with automatic Let's Encrypt / ZeroSSL certificate provisioning.  
 > **Primary Domain:** `*.vrg.rocks`  
 > **Upstream Host Gateway:** `host.docker.internal` (OrbStack / macOS Bridge)  
-> **Caddyfile State:** 27 active site blocks, 18 commented standby vhosts  
-> **Last Synced to Ground Truth:** 2026-10-17  
+> **Caddyfile State:** 41 active site blocks (31 reverse-proxy/redirect blocks + 10 static web app blocks, covering 48 active hostnames) and 12 commented standby vhost blocks (13 standby hostnames)  
+> **Last Synced to Ground Truth:** 2026-10-20  
 
 ---
 
 ## 1. Edge Proxy Architecture & Middleware
 
-Caddy is the single ingress gateway for the Sol home server. It inspects, authenticates, compresses, and proxies all traffic on ports `80` (HTTP) and `443` (HTTPS and HTTP/3 / QUIC) to internal bridge endpoints, the native macOS host, or LAN devices.
+Caddy (`caddy:latest`, running Caddy v2.11.7) is the single ingress gateway and static file server for the Sol home server (`compose/core.yml`). It terminates TLS 1.3 and HTTP/3 (QUIC), enforces baseline security headers, runs edge authentication via Tinyauth v5.2.0 (`tinyauth:3000`), compresses text responses (`zstd`/`gzip`), serves 10 static web applications directly from container bind mounts with zero extra container RAM, and proxies dynamic traffic to internal Docker bridge endpoints or LAN devices.
 
 ```
                                       [ Inbound Traffic ]
@@ -19,21 +19,36 @@ Caddy is the single ingress gateway for the Sol home server. It inspects, authen
                                                |
                                                v
                                 +------------------------------+
-                                |        Caddy v2 Proxy        |
+                                |      Caddy v2.11.7 Proxy     |
                                 |  (:80, :443 TCP, :443 UDP)   |
                                 +--------------+---------------+
                                                |
                      +-------------------------+-------------------------+
                      |                                                   |
                      v                                                   v
-        [ Static Web Handlers ]                             [ Reverse Proxy Handlers ]
-        -----------------------                             --------------------------
-        - mind.vrg.rocks   (/mind)   [SSO]                  - Authenticated via Authentik Outpost
-        - fam.vrg.rocks    (/fam)    [SSO]                  - Direct / Application-Native Auth
-        - scan.vrg.rocks   (/scan)   [SSO]                  - Native macOS Host (Jellyfin Metal :8097, HA :8123)
-        - aysynbm.vrg.rocks(/aysynbm)                       - External LAN Gateway (Router 192.168.50.1)
-                                                            - Compression (zstd/gzip) except Jellyfin streams
+        [ 10 Static Web Handlers ]                          [ 31 Reverse Proxy / Redirect Blocks ]
+        --------------------------                          --------------------------------------
+        - mind.vrg.rocks    (/mind)    [Admin SSO]          - Edge Forward-Auth via Tinyauth (:3000)
+        - fam.vrg.rocks     (/fam)     [SSO]                - Native OIDC via Tinyauth (auth.vrg.rocks)
+        - scan.vrg.rocks    (/scan)    [Admin SSO]          - Unified LDAP via LLDAP (:3890 / :17170)
+        - aysynbm.vrg.rocks (/aysynbm) [Admin SSO]          - Method/Path-Selective Edge Gates (send, ntfy)
+        - tools.vrg.rocks   (/tools)   [SSO]                - External LAN Gateway (Router 192.168.50.1)
+        - chef.vrg.rocks    (/chef)    [SSO]                - Compression (zstd/gzip) except Jellyfin streams
+        - pdf.vrg.rocks     (/pdf)     [SSO]
+        - speed.vrg.rocks   (/speed)   [SSO + POST /upload*]
+        - draw.vrg.rocks    (/draw)    [SSO]
+        - mi.vrg.rocks      (/mi)      [SSO]
 ```
+
+### Container Healthcheck & Mount Configuration (`compose/core.yml`)
+
+- **Ports:** `80:80`, `443:443`, `443:443/udp` (HTTP/3 QUIC).
+- **Healthcheck:** `wget --no-verbose --tries=1 --spider http://127.0.0.1:2019/config/ || exit 1` (`interval: 30s`, `timeout: 5s`, `retries: 3`, `start_period: 10s`), querying Caddy's loopback Admin API on `127.0.0.1:2019`.
+- **Volumes:**
+  - `./Caddyfile:/etc/caddy/Caddyfile:ro`
+  - `./data/caddy:/data` (persists ACME account keys and Let's Encrypt TLS certificates for all active `*.vrg.rocks` domains)
+  - `./config/caddy:/config`
+  - `./quartz/public:/mind:ro` and `./web/{fam,scan,aysynbm,tools,chef,pdf,speed,draw,mi}:/<mount>:ro`
 
 ### Global Options & Reusable Snippets
 
@@ -47,49 +62,66 @@ Caddy is the single ingress gateway for the Sol home server. It inspects, authen
 	}
 }
 
-# (optimize) Snippet: Text & asset compression
+# Text & Asset Compression
 (optimize) {
 	encode zstd gzip
 }
 
-# (security_headers) Snippet: Baseline security headers
+# Baseline Security Headers
 (security_headers) {
 	header {
 		X-Content-Type-Options nosniff
 		X-Frame-Options SAMEORIGIN
 		Referrer-Policy strict-origin-when-cross-origin
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		Permissions-Policy "accelerometer=(), camera=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+		X-Permitted-Cross-Domain-Policies none
 		-Server
 	}
 }
 
-# (forward_auth) Snippet: Forward authentication against the Authentik embedded outpost
+# Forward-Auth Middleware (Provider-Agnostic: Tinyauth Active / Authentik Standby)
 (forward_auth) {
-	forward_auth authentik-server:9000 {
-		uri /outpost.goauthentik.io/auth/caddy
-		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+	forward_auth tinyauth:3000 {
+		uri /api/auth/caddy
+		copy_headers Remote-User Remote-Name Remote-Email Remote-Groups Remote-Sub
 		trusted_proxies private_ranges
 	}
 }
 
-# (static_site) Snippet: Routing, clean URLs, compression & error fallbacks
+# Static Website Engine (Handles routing, clean URLs, compression & error fallbacks)
 (static_site) {
 	import optimize
 	import security_headers
-	try_files {path} {path}.html {path}/ =404
-	file_server
-	handle_errors {
-		rewrite * /{err.status_code}.html
+	@immutable path *.js *.css *.wasm *.woff *.woff2 *.svg *.png *.jpg *.jpeg *.webp *.avif *.ico
+	header @immutable Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
+	route {
+		try_files {path} {path}.html {path}/ =404
 		file_server
+	}
+	handle_errors {
+		@custom_err file /{err.status_code}.html
+		handle @custom_err {
+			rewrite * /{err.status_code}.html
+			file_server
+		}
+		respond "{err.status_code} {err.status_text}" {err.status_code}
 	}
 }
 ```
 
-### Streaming Transport (Jellyfin & Jellyfin Metal)
-`watch.vrg.rocks` / `jellyfin.vrg.rocks` and `metal.vrg.rocks` skip `import optimize` (no compression on video streams). They use an inline transport block:
+### Static Site Directive Ordering & Error Handling
+
+1. **Auth Before Filesystem Probing (`route` Block):** In Caddy v2's default directive order, `try_files` (`rewrite`) is sorted before `forward_auth`. Wrapping `try_files {path} {path}.html {path}/ =404` and `file_server` inside `route { ... }` places the entire block at the `route` priority slot, after `forward_auth`. Unauthenticated requests are rejected with `401`/`302` by `tinyauth:3000` before Caddy probes the filesystem, preventing path-existence leakage.
+2. **Guarded Error Pages (`@custom_err`):** Only `/mind` (`quartz/public/404.html`) ships a custom error page. In `(static_site)`, `handle_errors` checks `@custom_err file /{err.status_code}.html` before rewriting, and falls back to `respond "{err.status_code} {err.status_text}" {err.status_code}` when no custom HTML file exists. This prevents missing `/401.html` or `/404.html` rewrites from collapsing into `HTTP 400`.
+3. **Immutable Asset Caching (`@immutable`):** Static JS, CSS, WebAssembly (`.wasm`), font (`.woff`, `.woff2`), and image assets receive `Cache-Control: public, max-age=604800, stale-while-revalidate=86400` so large client-side bundles (such as CyberChef, BentoPDF, Excalidraw, IT-Tools, and MediaInfo `.wasm`) load from browser cache on repeat visits.
+
+### Streaming Transport (`watch.vrg.rocks`, `jellyfin.vrg.rocks` & Standby `metal.vrg.rocks`)
+
+Jellyfin streaming routes omit `import optimize` (preventing CPU compression overhead on H.264/HEVC/AV1 media streams) and configure 32 KiB HTTP proxy read/write buffers with 120-second keepalive connections:
 
 ```caddyfile
-reverse_proxy <upstream> {
+reverse_proxy http://jellyfin:8096 {
 	transport http {
 		read_buffer 32768
 		write_buffer 32768
@@ -102,183 +134,240 @@ reverse_proxy <upstream> {
 
 ## 2. Master Reverse Proxy Routing Table
 
-### 2.1 Active Routes (27 Site Blocks)
+### 2.1 Active Dynamic & Redirect Routes (31 Site Blocks / 38 Hostnames)
 
-| Subdomain / Hostname | Local Upstream Target | Compression | Auth Model / Policy | Special Headers / Notes |
+| Subdomain / Hostname | Upstream Target | Compression | Auth Model / Edge Policy | Special Rules / Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **`auth.vrg.rocks`** | `http://authentik-server:9000` | `zstd/gzip` | Authentik Native | Central Identity & SSO Web Portal |
-| **`arcane.vrg.rocks`** | `http://arcane:3552` | `zstd/gzip` | Authentik (Forward & OIDC) | Docker stack and container management |
-| **`router.vrg.rocks`** | `http://192.168.50.1` | `zstd/gzip` | Authentik (Forward Auth) + Router Native | Proxies to physical LAN Router Gateway |
-| **`dash.vrg.rocks`** | `http://glance:8080` | `zstd/gzip` | Authentik (Forward Auth) | Glance Home Server Dashboard |
-| **`sol.vrg.rocks`** | *(Redirect)* | N/A | Direct | HTTP 302 redirect to `https://dash.vrg.rocks/sol` |
-| **`watch.vrg.rocks`** | `http://jellyfin:8096` | *(Bypassed)* | Jellyfin Native Auth | Friendly alias for Jellyfin, streaming transport tuning |
-| **`jellyfin.vrg.rocks`** | `http://jellyfin:8096` | *(Bypassed)* | Jellyfin Native Auth | Primary media streaming UI & API |
-| **`metal.vrg.rocks`** | `http://host.docker.internal:8097` | *(Bypassed)* | Jellyfin Native Auth | Native macOS Jellyfin Metal (VideoToolbox), streaming transport tuning |
-| **`request.vrg.rocks`** | `http://seerr:5055` | `zstd/gzip` | Authentik (Forward Auth) | Friendly alias for Seerr requests |
-| **`jellyseerr.vrg.rocks`**| `http://seerr:5055` | `zstd/gzip` | Authentik (Forward Auth) | Legacy alias for Seerr requests |
-| **`seerr.vrg.rocks`** | `http://seerr:5055` | `zstd/gzip` | Authentik (Forward Auth) | Seerr media discovery & requests |
-| **`radarr.vrg.rocks`** | `http://radarr:7878` | `zstd/gzip` | Authentik (Forward Auth) | Movie automation & collection manager |
-| **`sonarr.vrg.rocks`** | `http://sonarr:8989` | `zstd/gzip` | Authentik (Forward Auth) | TV series automation & tracker |
-| **`bazarr.vrg.rocks`** | `http://bazarr:6767` | `zstd/gzip` | Authentik (Forward Auth) | Subtitle download & synchronization |
-| **`lidarr.vrg.rocks`** | `http://lidarr:8686` | `zstd/gzip` | Authentik (Forward Auth) | Music automation & discography manager |
-| **`prowlarr.vrg.rocks`** | `http://prowlarr:9696` | `zstd/gzip` | Authentik (Forward Auth) | Torrent & Usenet indexer manager |
-| **`byparr.vrg.rocks`** | `http://byparr:8191` | `zstd/gzip` | Authentik (Forward Auth) | Byparr Cloudflare Turnstile solver |
-| **`flaresolverr.vrg.rocks`** | `http://byparr:8191` | `zstd/gzip` | Authentik (Forward Auth) | Legacy hostname served by Byparr |
-| **`qb.vrg.rocks`** | `http://qbittorrent:8080` | `zstd/gzip` | qBittorrent Native (no Authentik) | Short URL alias. Android mobile torrent client connects directly and cannot follow SSO redirects. |
-| **`qbittorrent.vrg.rocks`**| `http://qbittorrent:8080` | `zstd/gzip` | qBittorrent Native (no Authentik) | Torrent client Web UI |
-| **`cs.vrg.rocks`** | `http://cross-seed:2468` | `zstd/gzip` | Authentik (Forward Auth) | Cross-Seed daemon management API |
-| **`docs.vrg.rocks`** | `http://paperless-webserver:8000` | `zstd/gzip` | Paperless OIDC (Authentik) | Friendly alias for Paperless-ngx |
-| **`paperless.vrg.rocks`** | `http://paperless-webserver:8000` | `zstd/gzip` | Paperless OIDC (Authentik) | Document management & OCR server |
-| **`ignis.vrg.rocks`** | `http://ignis:8080` | `zstd/gzip` | Authentik (Forward Auth) | Ignis Obsidian vault synchronizer |
-| **`code.vrg.rocks`** | `http://code-server:8443` | `zstd/gzip` | Authentik (Forward Auth) + code-server Argon2 Hash | Browser-based VSCode IDE |
-| **`coder.vrg.rocks`** | `http://coder:7080` | `zstd/gzip` | Authentik (Forward Auth) | Coder cloud development environments |
-| **`files.vrg.rocks`** | `http://copyparty:3923` | `zstd/gzip` | Authentik + Copyparty ACL | Friendly alias for Copyparty file browser |
-| **`copyparty.vrg.rocks`** | `http://copyparty:3923` | `zstd/gzip` | Authentik + Copyparty ACL | High-speed file server & WebDAV |
-| **`ntfy.vrg.rocks`** | `http://ntfy:80` | `zstd/gzip` | Direct / Token Auth | HTTP push notification publish/subscribe |
-| **`home.vrg.rocks`** | `http://host.docker.internal:8123` | `zstd/gzip` | Authentik (Forward Auth) | Home Assistant. Route is active, but `homeassistant` runs only under `--profile standby`. |
-| **`mind.vrg.rocks`** | `file_server /mind` | `zstd/gzip` | Authentik (Forward Auth) | Static Quartz PKM Digital Garden |
-| **`fam.vrg.rocks`** | `file_server /fam` | `zstd/gzip` | Authentik (Forward Auth) | Static Family Data Vault web application |
-| **`scan.vrg.rocks`** | `file_server /scan` | `zstd/gzip` | Authentik (Forward Auth) | Static Homebox Barcode Scanner PWA |
-| **`aysynbm.vrg.rocks`** | `file_server /aysynbm` | `zstd/gzip` | Direct Static | Static Async Bookmark Manager frontend |
+| **`auth.vrg.rocks`** | `http://tinyauth:3000` | `zstd/gzip` | Tinyauth v5.2.0 Native | Primary Google OAuth & OpenID Connect (OIDC) provider |
+| **`login.vrg.rocks`**, **`tinyauth.vrg.rocks`** | *(Redirect)* | `zstd/gzip` | Public 301 Redirect | `redir https://auth.vrg.rocks{uri} permanent` |
+| **`arcane.vrg.rocks`** | `http://arcane:3552` | `zstd/gzip` | Native OIDC (`tinyauth`) | Auto-redirects via `OIDC_AUTO_REDIRECT_TO_PROVIDER=true`, admin-only consent |
+| **`router.vrg.rocks`** | `http://192.168.50.1` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + Router Auth | Locked to `VRG` via `TINYAUTH_APPS_ROUTER_OAUTH_WHITELIST` |
+| **`ldap.vrg.rocks`** | `http://lldap:17170` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + LLDAP Auth | Locked to `VRG` via `TINYAUTH_APPS_LDAP_OAUTH_WHITELIST` |
+| **`dash.vrg.rocks`** | `http://glance:8080` | `zstd/gzip` | Tinyauth Forward-Auth | Glance dashboard (`/sol`, `/stats`, `/radar`) |
+| **`sol.vrg.rocks`** | *(Redirect)* | N/A | Public 302 Redirect | `import security_headers` + `redir https://dash.vrg.rocks/sol 302` |
+| **`watch.vrg.rocks`**, **`jellyfin.vrg.rocks`** | `http://jellyfin:8096` | *(Bypassed)* | Jellyfin Native (`LDAP-Auth` + `SSO-Auth` OIDC) | 32 KiB read/write buffers, `keepalive 120s` |
+| **`request.vrg.rocks`**, **`jellyseerr.vrg.rocks`**, **`seerr.vrg.rocks`** | `http://seerr:5055` | `zstd/gzip` | Tinyauth Forward-Auth + Jellyfin LDAP/Quick Connect | Unified Seerr media discovery and request portal |
+| **`radarr.vrg.rocks`** | `http://radarr:7878` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + `External` Auth | Locked to `VRG` via `TINYAUTH_APPS_RADARR_OAUTH_WHITELIST` |
+| **`sonarr.vrg.rocks`** | `http://sonarr:8989` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + `External` Auth | Locked to `VRG` via `TINYAUTH_APPS_SONARR_OAUTH_WHITELIST` |
+| **`bazarr.vrg.rocks`** | `http://bazarr:6767` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + `auth.type: null` | Locked to `VRG` via `TINYAUTH_APPS_BAZARR_OAUTH_WHITELIST` |
+| **`lidarr.vrg.rocks`** | `http://lidarr:8686` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + `External` Auth | Locked to `VRG` via `TINYAUTH_APPS_LIDARR_OAUTH_WHITELIST` |
+| **`prowlarr.vrg.rocks`** | `http://prowlarr:9696` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + `External` Auth | Locked to `VRG` via `TINYAUTH_APPS_PROWLARR_OAUTH_WHITELIST` |
+| **`byparr.vrg.rocks`** | `http://byparr:8191` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) | Locked to `VRG` via `TINYAUTH_APPS_BYPARR_OAUTH_WHITELIST` |
+| **`flaresolverr.vrg.rocks`** | *(Redirect)* | `zstd/gzip` | Public 301 Redirect | `redir https://byparr.vrg.rocks{uri} permanent` |
+| **`qb.vrg.rocks`**, **`qbittorrent.vrg.rocks`** | `http://qbittorrent:8080` | `zstd/gzip` | qBittorrent Native Auth | Forward-auth omitted so Android mobile client connects without SSO redirects |
+| **`qui.vrg.rocks`** | `http://qui:7476` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + `QUI__AUTH_DISABLED` | Locked to `VRG` via `TINYAUTH_APPS_QUI_OAUTH_WHITELIST` |
+| **`docs.vrg.rocks`**, **`paperless.vrg.rocks`** | `http://paperless-webserver:8000` | `zstd/gzip` | Native OIDC (`tinyauth`) | Auto-redirects via `PAPERLESS_REDIRECT_LOGIN_TO_SSO=true` |
+| **`ignis.vrg.rocks`** | `http://ignis:8080` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) | Locked to `VRG` via `TINYAUTH_APPS_IGNIS_OAUTH_WHITELIST` |
+| **`notes.vrg.rocks`** | *(Redirect)* | `zstd/gzip` | Public 301 Redirect | `redir https://ignis.vrg.rocks{uri} permanent` |
+| **`links.vrg.rocks`** | `http://readeck:8000` | `zstd/gzip` | Native OIDC (`tinyauth`) | Forward-auth omitted so Readeck native OIDC and `/api/*` bearer tokens work |
+| **`code.vrg.rocks`** | `http://code-server:8443` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + `AUTH=none` | Locked to `VRG` via `TINYAUTH_APPS_CODE_OAUTH_WHITELIST` |
+| **`coder.vrg.rocks`** | `http://coder:7080` | `zstd/gzip` | Native OIDC (`tinyauth`) | `redir /login /api/v2/users/oidc/callback 302`, admin-only consent |
+| **`pb.vrg.rocks`** | `http://pocketbase:8090` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) | `@root path /` -> `redir @root /_/ 302` to PocketBase Admin UI |
+| **`files.vrg.rocks`**, **`copyparty.vrg.rocks`** | `http://copyparty:3923` | `zstd/gzip` | Tinyauth Forward-Auth + `Remote-Email` Header Auth | Maps `Remote-Email` via `idp-hm-usr` in `copyparty.conf` |
+| **`ntfy.vrg.rocks`** | `http://ntfy:80` | `zstd/gzip` | Selective Forward-Auth on `@pub` | Unauthenticated external `POST`/`PUT` gated by `forward_auth`, subscriptions and `Authorization` tokens pass directly |
+| **`inv.vrg.rocks`** | `http://homebox:7745` | `zstd/gzip` | Native OIDC (`tinyauth`) | Active route with strict CORS for `https://scan.vrg.rocks` |
+| **`backrest.vrg.rocks`** | `http://backrest:9898` | `zstd/gzip` | Tinyauth Forward-Auth (Admin ACL) + `auth.disabled` | Locked to `VRG` via `TINYAUTH_APPS_BACKREST_OAUTH_WHITELIST` |
+| **`send.vrg.rocks`** | `http://enclosed:8787` | `zstd/gzip` | Selective Forward-Auth on `@create_note` | `max_size 60MB`, `/` and `/api/notes[/]` gated by `forward_auth`, `/@*` and `/api/notes/*` public for recipients |
+| **`fly.vrg.rocks`** | `http://airtrail:3000` | `zstd/gzip` | Native OIDC (`tinyauth`) | Auto-redirects via `OAUTH_AUTO_LOGIN=true` |
 
-> [!NOTE]
-> All active site blocks except `sol.vrg.rocks` import `(security_headers)`. Multi-host site blocks (`watch`/`jellyfin`, `request`/`jellyseerr`/`seerr`, `byparr`/`flaresolverr`, `qb`/`qbittorrent`, `docs`/`paperless`, `files`/`copyparty`) appear as one row per hostname, so the table holds 34 hostnames across 27 blocks.
+### 2.2 Active Zero-Container Static Web Applications (10 Site Blocks / 10 Hostnames)
 
-### 2.2 Standby Routes (18 Commented Vhosts)
+All 10 static web applications are served directly by Caddy's `file_server` using the `(static_site)` snippet and consume `0 MiB` of additional container memory.
 
-Each vhost below is commented out in `Caddyfile`. Uncomment it only after `docker compose --profile standby up -d <service>` starts the upstream.
-
-| Subdomain / Hostname | Local Upstream Target | Compression | Auth Model / Policy | Special Headers / Notes |
+| Subdomain / Hostname | Container Root Mount | Host Source Path | Edge ACL Policy | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **`status.vrg.rocks`** *(Standby)* | `http://gatus:8080` | `zstd/gzip` | Direct (no Authentik) | Gatus public status page |
-| **`kuma.vrg.rocks`** *(Standby)* | `http://uptime-kuma:3001` | `zstd/gzip` | Authentik (Forward Auth) | Uptime Kuma monitoring |
-| **`beszel.vrg.rocks`** *(Standby)*| `http://beszel:8090` | `zstd/gzip` | Authentik (Forward Auth) | Beszel metrics hub |
-| **`dozzle.vrg.rocks`** *(Standby)*| `http://dozzle:8080` | `zstd/gzip` | Authentik (Forward Auth) | Dozzle log viewer |
-| **`dockge.vrg.rocks`** *(Standby)*| `http://dockge:5001` | `zstd/gzip` | Authentik (Forward Auth) | Dockge stack manager |
-| **`homarr.vrg.rocks`** *(Standby)* | `http://homarr:7575` | `zstd/gzip` | Authentik (Forward Auth) | Homarr dashboard |
-| **`wizarr.vrg.rocks`** *(Standby)*| `http://wizarr:5690` | `zstd/gzip` | Authentik (Forward Auth) | Wizarr user invitation portal |
-| **`qbm.vrg.rocks`**, **`qbit_manage.vrg.rocks`** *(Standby)* | `http://qbit_manage:8181` | `zstd/gzip` | Authentik (Forward Auth) | qBit Manage Web API |
-| **`flood.vrg.rocks`** *(Standby)*| `http://flood:3000` | `zstd/gzip` | Authentik (Forward Auth) | Flood torrent interface |
-| **`paperless-ai.vrg.rocks`** *(Standby)* | `http://paperless-ai:3000` | `zstd/gzip` | Authentik (Forward Auth) | Paperless-AI document classifier |
-| **`leaf.vrg.rocks`** *(Standby)* | `http://leafwiki:8080` | `zstd/gzip` | Authentik (Forward Auth) | LeafWiki digital garden |
-| **`kavita.vrg.rocks`** *(Standby)*| `http://kavita:5000` | `zstd/gzip` | Authentik (Forward Auth) | Kavita digital book reader |
-| **`calibre.vrg.rocks`** *(Standby)*| `http://calibre:8080` | `zstd/gzip` | Authentik (Forward Auth) | Calibre desktop VM interface |
-| **`calibre-web.vrg.rocks`** *(Standby)*| `http://calibre-web:8083` | `zstd/gzip` | Authentik (Forward Auth) | Calibre-Web reader & manager |
-| **`inv.vrg.rocks`** *(Standby)* | `http://homebox:7745` | `zstd/gzip` | Authentik (Forward Auth) | Homebox inventory, CORS restricted to `https://scan.vrg.rocks` (pending SQLite repair) |
-| **`vault.vrg.rocks`**, **`pass.vrg.rocks`** *(Standby)*| `http://vaultwarden:80` | `zstd/gzip` | Authentik (Forward Auth) | Vaultwarden password vault |
-| **`n8n.vrg.rocks`** *(Standby)* | `http://n8n:5678` | `zstd/gzip` | Authentik (Forward Auth) | n8n workflow automation |
-| **`rclone.vrg.rocks`** *(Standby)*| `http://rclone-gui:5572` | `zstd/gzip` | Authentik (Forward Auth) | Rclone Web GUI remote manager |
+| **`mind.vrg.rocks`** | `/mind` | `./quartz/public` | Admin-only (`TINYAUTH_APPS_MIND_OAUTH_WHITELIST`) | Quartz 4 PKM Digital Garden (`404.html` custom fallback) |
+| **`fam.vrg.rocks`** | `/fam` | `./web/fam` | Allowlisted users (`import forward_auth`) | Family Data Vault (`vault.enc` AES-GCM client-side bundle) |
+| **`scan.vrg.rocks`** | `/scan` | `./web/scan` | Admin-only (`TINYAUTH_APPS_SCAN_OAUTH_WHITELIST`) | Homebox Mobile Barcode Scanner PWA (`camera=(self)` permitted) |
+| **`aysynbm.vrg.rocks`** | `/aysynbm` | `./web/aysynbm` | Admin-only (`TINYAUTH_APPS_AYSYNBM_OAUTH_WHITELIST`) | Async Bookmark Manager static PWA |
+| **`tools.vrg.rocks`** | `/tools` | `./web/tools` | Allowlisted users (`import forward_auth`) | IT-Tools developer utilities suite (80+ client-side tools) |
+| **`chef.vrg.rocks`** | `/chef` | `./web/chef` | Allowlisted users (`import forward_auth`) | GCHQ CyberChef data & crypto toolkit (`v10.19.4`) |
+| **`pdf.vrg.rocks`** | `/pdf` | `./web/pdf` | Allowlisted users (`import forward_auth`) | BentoPDF client-side WebAssembly PDF suite (50+ tools) |
+| **`speed.vrg.rocks`** | `/speed` | `./web/speed` | Allowlisted users (`import forward_auth`) | OpenSpeedTest HTML5 LAN/Wi-Fi 6 benchmark (`max_size 500MB`, `route @upload { respond 200 }`, `no-store` on `/downloading*` and `/upload*`) |
+| **`draw.vrg.rocks`** | `/draw` | `./web/draw` | Allowlisted users (`import forward_auth`) | Excalidraw client-side whiteboard |
+| **`mi.vrg.rocks`** | `/mi` | `./web/mi` | Allowlisted users (`import forward_auth`) | Sol MediaInfo WebAssembly 4K HDR / Dolby Vision / Atmos bitstream inspector |
 
-### 2.3 Edge Authentication Changes (October 2026)
+### 2.3 Standby Routes (12 Commented Vhost Blocks / 13 Hostnames)
 
-| Hostname | Previous Policy | Current Policy | Effect |
-| :--- | :--- | :--- | :--- |
-| `dash.vrg.rocks` | Direct / Dashboard | `import forward_auth` | Glance (which reads the Docker socket `ro`) requires SSO at the edge |
-| `code.vrg.rocks` | code-server Argon2 Hash only | `import forward_auth` + Argon2 Hash | Two factors in series: Authentik SSO, then the code-server password (Caddyfile comment: "Gated by Authentik SSO + code-server password") |
-| `router.vrg.rocks` | Router Native Auth only | `import forward_auth` + Router Native | Router admin UI requires SSO before the router login page loads |
-| `byparr.vrg.rocks`, `flaresolverr.vrg.rocks` | Direct Internal API | `import forward_auth` | Edge access requires SSO. Prowlarr is unaffected because it calls `http://flaresolverr:8191` on the bridge, not through Caddy. |
-| `qb.vrg.rocks`, `qbittorrent.vrg.rocks` | qBittorrent Native | qBittorrent Native (unchanged, documented exception) | Caddyfile comment: the Android mobile torrent client connects directly and cannot follow SSO redirects |
-| `inv.vrg.rocks` | Authentik + wildcard CORS reflection | Commented out, CORS restricted to `https://scan.vrg.rocks` | Homebox is in standby. Credentialed CORS no longer reflects arbitrary origins. |
+Each vhost below is commented out in `Caddyfile`. Uncomment it only after starting the corresponding `--profile standby` container or native macOS daemon.
+
+| Subdomain / Hostname | Upstream Target | Compression | Auth Model / Edge Policy | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **`status.vrg.rocks`** *(Standby)* | `http://gatus:8080` | `zstd/gzip` | `import forward_auth` | Gatus status page (`compose/monitoring.yml`) |
+| **`beszel.vrg.rocks`** *(Standby)* | `http://beszel:8090` | `zstd/gzip` | `import forward_auth` | Beszel metrics hub (`compose/monitoring.yml`) |
+| **`dozzle.vrg.rocks`** *(Standby)* | `http://dozzle:8080` | `zstd/gzip` | `import forward_auth` | Dozzle container log viewer (`compose/monitoring.yml`) |
+| **`metal.vrg.rocks`** *(Standby)* | `http://host.docker.internal:8097` | *(Bypassed)* | Jellyfin Native Auth | Native macOS Jellyfin Metal VideoToolbox instance (`scripts/setup_jellyfin_metal.py`) |
+| **`wizarr.vrg.rocks`** *(Standby)* | `http://wizarr:5690` | `zstd/gzip` | `import forward_auth` | Wizarr invitation portal (`compose/media.yml`) |
+| **`cs.vrg.rocks`** *(Standby)* | `http://cross-seed:2468` | `zstd/gzip` | `import forward_auth` + `TINYAUTH_APPS_CS_OAUTH_WHITELIST` | Reserved route if Cross-Seed is re-enabled |
+| **`paperless-ai.vrg.rocks`** *(Standby)* | `http://paperless-ai:3000` | `zstd/gzip` | `import forward_auth` | Paperless-AI classifier (`compose/paperless.yml`) |
+| **`leaf.vrg.rocks`** *(Standby)* | `http://leafwiki:8080` | `zstd/gzip` | `import forward_auth` | LeafWiki markdown wiki (`compose/knowledge.yml`) |
+| **`kavita.vrg.rocks`** *(Standby)* | `http://kavita:5000` | `zstd/gzip` | `import forward_auth` | Kavita book/manga reader (`compose/knowledge.yml`) |
+| **`home.vrg.rocks`** *(Standby)* | `http://host.docker.internal:8123` | `zstd/gzip` | `import forward_auth` | Home Assistant (`compose/utilities.yml`, `network_mode: host`) |
+| **`vault.vrg.rocks`**, **`pass.vrg.rocks`** *(Standby)* | `http://vaultwarden:80` | `zstd/gzip` | `import forward_auth` | Vaultwarden password vault (`compose/utilities.yml`) |
+| **`n8n.vrg.rocks`** *(Standby)* | `http://n8n:5678` | `zstd/gzip` | `import forward_auth` | n8n workflow automation (`compose/utilities.yml`) |
 
 ---
 
-## 3. Network Topology & Cross-Container Communication
+## 3. Selective Route Handlers (`speed`, `send`, `ntfy`, `inv`, `pb`)
+
+### 3.1 `speed.vrg.rocks` (OpenSpeedTest Upload & No-Store Stream Rules)
+
+Caddy's static `file_server` returns `HTTP 405 Method Not Allowed` on `POST` requests. To support OpenSpeedTest's HTML5 upload throughput test (`POST /upload*`) and prevent browser/proxy caching of benchmark payloads:
+
+```caddyfile
+speed.vrg.rocks {
+	import forward_auth
+	root * /speed
+	request_body {
+		max_size 500MB
+	}
+	@speed_streams path /downloading* /upload*
+	header @speed_streams Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+	@upload {
+		method POST
+		path /upload*
+	}
+	route @upload {
+		respond 200
+	}
+	import static_site
+}
+```
+
+### 3.2 `send.vrg.rocks` (Enclosed Zero-Knowledge E2EE Note Creation Gate)
+
+Creating encrypted notes or file drops (`/` and `/api/notes[/]`) is gated behind `import forward_auth` (with a 60 MB request body cap covering base64-encoded 50 MB encrypted attachments), while recipient links (`/@*` and `/api/notes/<id>`) remain public so external recipients can decrypt shared links in their browser without a Sol account:
+
+```caddyfile
+send.vrg.rocks {
+	import optimize
+	import security_headers
+	request_body {
+		max_size 60MB
+	}
+	@create_note {
+		path / /api/notes /api/notes/
+	}
+	handle @create_note {
+		import forward_auth
+		reverse_proxy http://enclosed:8787
+	}
+	handle {
+		reverse_proxy http://enclosed:8787
+	}
+}
+```
+
+### 3.3 `ntfy.vrg.rocks` (External Unauthenticated Publish Gate)
+
+Internal containers (`paperless-webserver`, `radarr`, `sonarr`, `backrest`) publish to `http://ntfy:80` over the internal `sol_default` bridge network. At the public `ntfy.vrg.rocks` ingress edge, unauthenticated `POST`/`PUT` requests without an `Authorization` header are gated by `import forward_auth`, while mobile app topic subscriptions (`GET`/WebSocket) and token-authenticated publishes pass directly to `ntfy:80`:
+
+```caddyfile
+ntfy.vrg.rocks {
+	import optimize
+	import security_headers
+	@pub {
+		method POST PUT
+		not header Authorization *
+	}
+	handle @pub {
+		import forward_auth
+		reverse_proxy http://ntfy:80
+	}
+	handle {
+		reverse_proxy http://ntfy:80
+	}
+}
+```
+
+### 3.4 `inv.vrg.rocks` (Homebox CORS Policy for `scan.vrg.rocks`)
+
+`inv.vrg.rocks` is active and protected by Homebox's native OIDC (`HBOX_OIDC_AUTO_REDIRECT=true`). Its CORS rules permit credentialed cross-origin requests exclusively from the `https://scan.vrg.rocks` barcode scanner PWA:
+
+```caddyfile
+inv.vrg.rocks {
+	import optimize
+	import security_headers
+
+	@allowed_origins header Origin https://scan.vrg.rocks
+	header @allowed_origins {
+		Access-Control-Allow-Origin "https://scan.vrg.rocks"
+		Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+		Access-Control-Allow-Headers "Origin, Content-Type, Authorization, Accept"
+		Access-Control-Allow-Credentials true
+		Vary Origin
+	}
+
+	@options {
+		method OPTIONS
+		header Origin https://scan.vrg.rocks
+	}
+	respond @options 204
+
+	reverse_proxy http://homebox:7745
+}
+```
+
+---
+
+## 4. Network Topology & Cross-Container Communication
 
 ```
   +-------------------------------------------------------------------------------+
-  | HOST SYSTEM (macOS / OrbStack Bridge Gateway: host.docker.internal)          |
+  | HOST SYSTEM (macOS M1 Pro / OrbStack Bridge Gateway: host.docker.internal)    |
   |                                                                               |
   |   Physical Ports Exposed to LAN/WAN:                                          |
-  |   - :80, :443 TCP/UDP (Caddy Reverse Proxy)                                   |
-  |   - :42069 TCP/UDP (qBittorrent WAN Wire Protocol)                            |
+  |   - :80, :443 TCP/UDP (Caddy v2.11.7 Reverse Proxy & Static Web Server)       |
+  |   - :42069 TCP/UDP (qBittorrent WAN BitTorrent Wire Protocol)                 |
   |                                                                               |
   |   Loopback-Only Host Ports (127.0.0.1):                                       |
-  |   - :9000, :9443 (Authentik SSO HTTP/HTTPS, local debugging)                  |
-  |   - :53682 (rclone OAuth callback, ops/standby profile only)                  |
+  |   - :53682 (rclone OAuth callback, ops profile only)                          |
   |                                                                               |
-  |   Native macOS Processes:                                                     |
-  |   - Jellyfin Metal :8097 (VideoToolbox) <--- Caddy via host.docker.internal   |
+  |   Standby Native macOS / Host Processes:                                      |
+  |   - Jellyfin Metal :8097 (standby, VideoToolbox)                              |
   |   - Home Assistant :8123 (standby, network_mode: host)                        |
+  |   - Beszel Agent :45876 (standby, network_mode: host)                         |
   |                                                                               |
   |   +-----------------------------------------------------------------------+   |
-  |   | DOCKER COMPOSE BRIDGE NETWORK ('sol_default')                         |   |
+  |   | DOCKER COMPOSE BRIDGE NETWORK ('sol_default' - 29 Active Containers)  |   |
   |   |                                                                       |   |
-  |   |  - Caddy [172.x.x.x] <-------------> Authentik Server (:9000)        |   |
-  |   |                                          | (DB Connection)            |   |
-  |   |                                          v                            |   |
-  |   |                                      PostgreSQL 16 (:5432)            |   |
+  |   |  - Caddy (:80/:443) <--------------> Tinyauth v5.2.0 (:3000)          |   |
+  |   |                                          |                            |   |
+  |   |                                          +--> LLDAP (:3890 / :17170)  |   |
   |   |                                                                       |   |
-  |   |  - Prowlarr (:9696) <---------------> Byparr (:8191)                  |   |
-  |   |        |                              (alias: flaresolverr)           |   |
-  |   |        | (Torznab APIs)                                               |   |
+  |   |  - Prowlarr (:9696) <--------------> Byparr (:8191)                   |   |
+  |   |        |                              (network alias: flaresolverr)   |   |
   |   |        v                                                              |   |
-  |   |    Cross-Seed (:2468) <-------------> qBittorrent (:8080)             |   |
-  |   |        ^                                      ^                       |   |
-  |   |        | (Media Requests)                     | (Atomic Hardlinks)    |   |
-  |   |    Radarr (:7878) / Sonarr (:8989) / Lidarr (:8686)                   |   |
+  |   |    qBittorrent (:8080) <-----------> QUI v1.32.0 (:7476)              |   |
   |   |        ^                                                              |   |
-  |   |        | (User Media Requests)                                        |   |
+  |   |        | (Option A ExFAT Symlinks + Internal Hardlinks)               |   |
+  |   |    Radarr (:7878) / Sonarr (:8989) / Lidarr (:8686) / Bazarr (:6767)  |   |
+  |   |        ^                                                              |   |
+  |   |        | (Media Requests)                                             |   |
   |   |    Seerr (:5055) [DNS: 8.8.8.8, 1.1.1.1] (alias: jellyseerr)          |   |
   |   |        |                                                              |   |
-  |   |        v (Library Sync)                                               |   |
-  |   |    Jellyfin (:8096)                                                   |   |
+  |   |        v (Library Sync & LDAP Auth)                                   |   |
+  |   |    Jellyfin (:8096) <--------------> LLDAP (:3890)                    |   |
   |   |                                                                       |   |
   |   |  - Paperless-Webserver (:8000)                                        |   |
-  |   |        |----------> Paperless-Broker (Redis 8 Alpine :6379)           |   |
-  |   |        |----------> Paperless-DB (PostgreSQL 17 Debian :5432)         |   |
-  |   |        |----------> ntfy (:80) [Webhook Notifications]                |   |
+  |   |        |----------> Paperless-Broker (Redis 8 Alpine :6379, 256mb)    |   |
+  |   |        |----------> Paperless-DB (PostgreSQL 17 Alpine :5432)         |   |
+  |   |        |----------> ntfy (:80) [Internal Webhook Notifications]       |   |
   |   |                                                                       |   |
+  |   |  - AirTrail (:3000) --------------> AirTrail-DB (PG 17 Alpine :5432)  |   |
+  |   |  - Glance (:8080), Arcane (:3552), Ignis (:8080), Readeck (:8000)     |   |
+  |   |  - code-server (:8443), Coder (:7080), PocketBase (:8090)             |   |
+  |   |  - Copyparty (:3923), Homebox (:7745), Backrest (:9898), Enclosed     |   |
   |   +-----------------------------------------------------------------------+   |
   +-------------------------------------------------------------------------------+
 ```
 
 ### DNS & Upstream Resolution
-1. **OrbStack Host Access (`host.docker.internal`):**
-   - Lets Caddy reach host-bound services without IP hardcoding: Jellyfin Metal on `8097` and Home Assistant on `8123`.
-   - The Coder workspace template maps `host.docker.internal` to `host-gateway` and rewrites `localhost` / `127.0.0.1` in the agent init script to it.
+
+1. **OrbStack Host Access (`host.docker.internal`):** Allows Caddy and Coder workspaces to reach host-bound services (`8097` for standby Jellyfin Metal and `8123` for standby Home Assistant) without hardcoding LAN IPs.
 2. **ISP DNS Filtering Bypass:**
-   - Local Indian ISPs often throttle or block TMDb (The Movie Database) API endpoints and public trackers.
-   - Seerr overrides Docker default DNS with Google (`8.8.8.8`) and Cloudflare (`1.1.1.1`).
-   - Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, Byparr, FlareSolverr (standby), qBittorrent, and Cross-Seed override DNS with Cloudflare (`1.1.1.1`) and Quad9 (`9.9.9.9`).
-3. **Network Aliases:**
-   - `byparr` answers to `flaresolverr`, so Prowlarr's existing `http://flaresolverr:8191` proxy setting needs no change.
-   - `seerr` answers to `jellyseerr` for backward-compatible routing.
-   - Do not run the standby `flaresolverr` container next to `byparr`. Both would answer the `flaresolverr` name.
-
-### CORS & Preflight Rule Architecture (`inv.vrg.rocks`, Standby)
-The Homebox vhost is commented out while Homebox stays in standby. Its CORS rule is hardened from wildcard origin reflection to one fixed origin:
-
-```caddyfile
-# inv.vrg.rocks {
-# 	import optimize
-# 	import security_headers
-# 	import forward_auth
-#
-# 	@allowed_origins header Origin https://scan.vrg.rocks
-# 	header @allowed_origins {
-# 		Access-Control-Allow-Origin "https://scan.vrg.rocks"
-# 		Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
-# 		Access-Control-Allow-Headers "Origin, Content-Type, Authorization, Accept"
-# 		Access-Control-Allow-Credentials true
-# 		Vary Origin
-# 	}
-#
-# 	@options {
-# 		method OPTIONS
-# 		header Origin https://scan.vrg.rocks
-# 	}
-# 	respond @options 204
-#
-# 	reverse_proxy http://homebox:7745
-# }
-```
-
-When restored, this rule lets the mobile scanner PWA on `https://scan.vrg.rocks` run authenticated API queries and item lookups against `https://inv.vrg.rocks`. Requests from any other origin receive no CORS headers, and the browser rejects them.
-
-| Property | Previous Rule | Current Rule |
-| :--- | :--- | :--- |
-| Origin matcher | `header Origin *` | `header Origin https://scan.vrg.rocks` |
-| `Access-Control-Allow-Origin` | `{http.request.header.Origin}` (reflected) | `"https://scan.vrg.rocks"` (fixed) |
-| `Vary Origin` | Absent | Present |
-| `security_headers` import | Absent | Present |
-| Vhost state | Active | Commented (Homebox in standby) |
+   - `seerr` overrides Docker DNS with Google (`8.8.8.8`) and Cloudflare (`1.1.1.1`).
+   - `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr`, and `qbittorrent` override DNS with Cloudflare (`1.1.1.1`) and Quad9 (`9.9.9.9`) to bypass ISP tracker/TMDb filtering.
+3. **Docker Network Aliases:**
+   - `byparr` registers the network alias `flaresolverr` on `sol_default`, allowing Prowlarr's IndexerProxy (`http://flaresolverr:8191`, 90s timeout) to route directly to Byparr.
+   - `seerr` registers the network alias `jellyseerr` for backward compatibility.

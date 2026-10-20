@@ -28,6 +28,12 @@ services:
       - ${DOCKER_CONFIG_DIR}/code-server:/config
       - ${DOCKER_BASE_DIR}:/Server
       - /Users/vrg/Documents:/Documents
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8443/healthz >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     labels:
       glance.id: code-server
       glance.name: Code Server
@@ -44,15 +50,16 @@ services:
     restart: unless-stopped
     logging: *default-logging
     group_add:
-      - "${PGID}"
+      - "0"
     environment:
       CODER_HTTP_ADDRESS: "0.0.0.0:7080"
       CODER_ACCESS_URL: ${CODER_ACCESS_URL:-https://coder.vrg.rocks}
+      CODER_CLUSTER_HOST: "127.0.0.1"
       CODER_DISABLE_PASSWORD_AUTH: "true"
       CODER_OIDC_ISSUER_URL: ${TINYAUTH_APPURL:-https://auth.vrg.rocks}
       CODER_OIDC_CLIENT_ID: ${TINYAUTH_OIDC_CODER_CLIENT_ID}
       CODER_OIDC_CLIENT_SECRET: ${TINYAUTH_OIDC_CODER_CLIENT_SECRET}
-      CODER_OIDC_ALLOW_SIGNUPS: "true"
+      CODER_OIDC_ALLOW_SIGNUPS: "false"
       CODER_OIDC_SCOPES: "openid,profile,email"
       CODER_OIDC_EMAIL_FIELD: "email"
       CODER_OIDC_USERNAME_FIELD: "preferred_username"
@@ -62,10 +69,16 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${DOCKER_CONFIG_DIR}/coder:/home/coder/.config
       - ${DOCKER_BASE_DIR}:/Sol
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7080/healthz >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     labels:
       glance.id: coder
       glance.name: Coder
-      glance.icon: sh:visual-studio-code
+      glance.icon: sh:coder
       glance.url: https://coder.vrg.rocks
       glance.description: Cloud Development Environments
 

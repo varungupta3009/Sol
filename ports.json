@@ -7,33 +7,6 @@
     "status": "active",
     "category": "core"
   },
-  "authentik-server": {
-    "internal_port": 9000,
-    "host_port": "127.0.0.1:9000, 127.0.0.1:9443",
-    "protocol": "HTTP, HTTPS",
-    "url": "https://auth.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
-    "category": "core"
-  },
-  "authentik-worker": {
-    "internal_port": null,
-    "host_port": null,
-    "protocol": "Worker Daemon",
-    "url": null,
-    "status": "standby",
-    "profile": "standby",
-    "category": "core"
-  },
-  "authentik-postgresql": {
-    "internal_port": 5432,
-    "host_port": null,
-    "protocol": "TCP",
-    "url": null,
-    "status": "standby",
-    "profile": "standby",
-    "category": "core"
-  },
   "arcane": {
     "internal_port": 3552,
     "host_port": null,
@@ -79,7 +52,7 @@
     "host_port": 8097,
     "protocol": "HTTP",
     "url": "https://metal.vrg.rocks",
-    "status": "active",
+    "status": "standby",
     "category": "media"
   },
   "seerr": {
@@ -152,15 +125,6 @@
     "protocol": "HTTP",
     "url": "https://qui.vrg.rocks",
     "status": "active",
-    "category": "download"
-  },
-  "cross-seed": {
-    "internal_port": 2468,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://cs.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
     "category": "download"
   },
   "paperless-webserver": {
@@ -275,15 +239,6 @@
     "status": "active",
     "category": "utilities"
   },
-  "flaresolverr": {
-    "internal_port": 8191,
-    "host_port": null,
-    "protocol": "HTTP",
-    "url": "https://flaresolverr.vrg.rocks",
-    "status": "standby",
-    "profile": "standby",
-    "category": "media"
-  },
   "gatus": {
     "internal_port": 8080,
     "host_port": null,
@@ -304,7 +259,7 @@
   },
   "beszel-agent": {
     "internal_port": 45876,
-    "host_port": "45876",
+    "host_port": null,
     "protocol": "TCP",
     "url": null,
     "status": "standby",
@@ -425,7 +380,7 @@
     "protocol": "CLI / OAuth Redirect",
     "url": null,
     "status": "standby",
-    "profile": "ops, standby",
+    "profile": "ops",
     "category": "utilities"
   }
 }

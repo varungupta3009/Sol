@@ -9,8 +9,9 @@
 #   - Legacy Rclone Mirror (OneDrive:Sol) via --legacy-rclone
 #
 # Also recreates all media/cross-seed symlinks from symlinks_manifest.tsv,
-# restores atomic SQLite snapshots, imports Authentik & Paperless PostgreSQL
-# dumps, and restores the persistent Coder workspace volume.
+# restores atomic SQLite snapshots, imports Paperless, AirTrail & Coder
+# PostgreSQL dumps, restores the persistent Coder workspace volume, and
+# installs macOS LaunchAgents.
 #
 # Usage:
 #   ./scripts/restore.sh [--from-local] [--from-cloud] [--snapshot <id>]
@@ -114,8 +115,13 @@ if [ "$SKIP_PULL" = false ]; then
         fi
 
         EXT_REPO="${EXTERNAL_DRIVE_00:-/Volumes/PANOPTICON}/backups/sol-restic"
+        RESTIC_VOL_ARGS=(-v "${SOL_ROOT}:/userdata/sol")
+        if [ -d "${SOL_ROOT}/config/rclone" ]; then
+            RESTIC_VOL_ARGS+=(-v "${SOL_ROOT}/config/rclone:/root/.config/rclone:ro")
+        fi
         if [ "$FROM_LOCAL" = true ] || { [ "$FROM_CLOUD" = false ] && [ -d "${EXT_REPO}/data" ]; }; then
             REPO_URI="/repos/local-panopticon"
+            RESTIC_VOL_ARGS+=(-v "${EXT_REPO}:/repos/local-panopticon")
             echo "Selected Local Restic Repository: ${EXT_REPO}"
         else
             REPO_URI="rclone:OneDrive:Sol-Restic"
@@ -124,11 +130,13 @@ if [ "$SKIP_PULL" = false ]; then
 
         if [ "$DRY_RUN" = true ]; then
             echo "[DRY RUN] Listing snapshots in ${REPO_URI}:"
-            docker compose run --rm -e RESTIC_PASSWORD="$RESTIC_PASSWORD" --entrypoint restic backrest -r "$REPO_URI" snapshots
+            docker run --rm "${RESTIC_VOL_ARGS[@]}" -e RESTIC_PASSWORD="$RESTIC_PASSWORD" \
+                --entrypoint restic ghcr.io/garethgeorge/backrest:latest -r "$REPO_URI" snapshots
             exit 0
         fi
 
-        docker compose run --rm -e RESTIC_PASSWORD="$RESTIC_PASSWORD" --entrypoint restic backrest \
+        docker run --rm "${RESTIC_VOL_ARGS[@]}" -e RESTIC_PASSWORD="$RESTIC_PASSWORD" \
+            --entrypoint restic ghcr.io/garethgeorge/backrest:latest \
             -r "$REPO_URI" restore "$SNAPSHOT_ID" \
             --target /
         echo "✓ Restic snapshot (${SNAPSHOT_ID}) restored into ${SOL_ROOT}."
@@ -146,10 +154,10 @@ fi
 load_env "./.env"
 
 # ----------------------------------------------------------------
-# Step 2: Verify Essential Directories & Permissions
+# Step 2: Verify Essential Directories, Static Tools & LaunchAgents
 # ----------------------------------------------------------------
-echo "--- [2/5] Verifying essential directory structure & scripts ---"
-mkdir -p ./logs ./data/backups ./data/backups/sqlite ./data/media/preshows ./data/media/home-videos ./data/torrents ./data/paperless/consume ./data/paperless/scripts ./data/tinyauth ./data/lldap ./data/readeck ./data/pocketbase ./data/enclosed ./data/airtrail ./config/rclone ./config/backrest
+echo "--- [2/5] Verifying essential directory structure, static tools & LaunchAgents ---"
+mkdir -p ./logs ./data/backups ./data/backups/sqlite ./data/media/preshows ./data/media/home-videos ./data/torrents ./data/paperless/consume ./data/paperless/redis ./data/paperless/scripts ./data/tinyauth ./data/lldap ./data/readeck ./data/pocketbase ./data/enclosed ./data/airtrail ./config/rclone ./config/backrest
 
 if [ ! -f "./config/rclone/filter.txt" ] && [ -f "./config/rclone/filter.txt.example" ]; then
     cp ./config/rclone/filter.txt.example ./config/rclone/filter.txt
@@ -160,11 +168,23 @@ fi
 if [ ! -f "./config/backrest/config.json" ] && [ -f "./config/backrest/config.json.example" ]; then
     cp ./config/backrest/config.json.example ./config/backrest/config.json
 fi
-if [ -x "./scripts/sync_static_tools.sh" ] && [ ! -d "./web/tools" ]; then
+
+chmod +x ./scripts/*.sh ./scripts/*.py 2>/dev/null || true
+
+if [ -x "./scripts/sync_static_tools.sh" ]; then
     ./scripts/sync_static_tools.sh || true
 fi
 
-chmod +x ./scripts/*.sh ./scripts/*.py 2>/dev/null || true
+if [ -d "./scripts/launchd" ] && [ -d "$HOME/Library/LaunchAgents" ]; then
+    for plist in ./scripts/launchd/com.vrg.sol.*.plist; do
+        [ -f "$plist" ] || continue
+        plist_name="$(basename "$plist")"
+        cp "$plist" "$HOME/Library/LaunchAgents/$plist_name"
+        launchctl bootout "gui/$(id -u)/${plist_name%.plist}" 2>/dev/null || true
+        launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/$plist_name" 2>/dev/null || true
+        echo "✓ Installed & loaded LaunchAgent: ${plist_name}"
+    done
+fi
 
 # ----------------------------------------------------------------
 # Step 3: Recreate Media & Cross-Seed Symlinks
@@ -193,6 +213,9 @@ echo "--- [4/5] Restoring SQLite snapshots, PostgreSQL dumps & Coder home ---"
 if [ -d "./data/backups/sqlite" ]; then
     for snap in ./data/backups/sqlite/*; do
         [ -e "$snap" ] || continue
+        case "$snap" in
+            *-wal|*-shm|*-journal) continue ;;
+        esac
         snap_base="$(basename "$snap")"
         orig_rel="${snap_base//__/\/}"
         if [ ! -f "./${orig_rel}" ] || [ "$RESTORE_DBS" = true ]; then
@@ -205,7 +228,6 @@ if [ -d "./data/backups/sqlite" ]; then
 fi
 
 NEED_PAPERLESS_IMPORT=false
-
 if [ "$RESTORE_DBS" = true ]; then
     NEED_PAPERLESS_IMPORT=true
 elif [ "$START_STACK" = true ]; then
@@ -233,14 +255,58 @@ if [ -f "./data/backups/paperless_db.sql.gz" ] && [ "$NEED_PAPERLESS_IMPORT" = t
         gunzip -c ./data/backups/airtrail_db.sql.gz | docker exec -i paperless-db psql -U "${PAPERLESS_DB_USER:-paperless}" -d airtrail
         echo "✓ AirTrail PostgreSQL dump imported."
     fi
+    docker exec paperless-db vacuumdb -U "${PAPERLESS_DB_USER:-paperless}" --all --analyze-only >/dev/null 2>&1 || true
+fi
+
+NEED_CODER_IMPORT=false
+if [ "$RESTORE_DBS" = true ]; then
+    NEED_CODER_IMPORT=true
+elif [ "$START_STACK" = true ]; then
+    if [ ! -f "./config/coder/coderv2/postgres/data/PG_VERSION" ] && [ -f "./data/backups/coder_db.sql.gz" ]; then
+        NEED_CODER_IMPORT=true
+    fi
+fi
+
+if [ -f "./data/backups/coder_db.sql.gz" ] && [ "$NEED_CODER_IMPORT" = true ]; then
+    echo "Starting coder container for embedded PostgreSQL dump import..."
+    docker compose up -d coder
+    for _ in {1..30}; do
+        if [ -f "./config/coder/coderv2/postgres/port" ] && [ -f "./config/coder/coderv2/postgres/password" ]; then
+            CODER_PG_PORT="$(cat ./config/coder/coderv2/postgres/port 2>/dev/null || echo 43235)"
+            CODER_PG_PASS="$(cat ./config/coder/coderv2/postgres/password 2>/dev/null || echo "")"
+            if docker run --rm --network container:coder -e PGPASSWORD="$CODER_PG_PASS" postgres:17-alpine \
+                pg_isready -h ::1 -p "$CODER_PG_PORT" -U coder -d coder >/dev/null 2>&1; then
+                break
+            fi
+        fi
+        sleep 1
+    done
+    if [ -f "./config/coder/coderv2/postgres/port" ]; then
+        CODER_PG_PORT="$(cat ./config/coder/coderv2/postgres/port 2>/dev/null || echo 43235)"
+        CODER_PG_PASS="$(cat ./config/coder/coderv2/postgres/password 2>/dev/null || echo "")"
+        echo "Importing Coder embedded PostgreSQL database dump..."
+        gunzip -c ./data/backups/coder_db.sql.gz | grep -v '^SET transaction_timeout' \
+            | docker run --rm -i --network container:coder -e PGPASSWORD="$CODER_PG_PASS" postgres:17-alpine \
+                psql -h ::1 -p "$CODER_PG_PORT" -U coder -d coder
+        docker compose restart coder
+        echo "✓ Coder PostgreSQL dump imported."
+    else
+        echo "⚠ Warning: Coder embedded PostgreSQL did not initialize in time; skipping coder_db.sql.gz import."
+    fi
 fi
 
 if [ -f "./data/backups/coder_home.tar.gz" ] && [ "$RESTORE_DBS" = true ]; then
     CODER_VOL="$(docker volume ls --format '{{.Name}}' | grep '^coder-.*-home$' | head -n 1 || true)"
+    if [ -z "$CODER_VOL" ] && [ -f "./data/backups/coder_volume_name.txt" ]; then
+        CODER_VOL="$(tr -d '[:space:]' < ./data/backups/coder_volume_name.txt)"
+        if [ -n "$CODER_VOL" ]; then
+            docker volume create "$CODER_VOL" >/dev/null
+        fi
+    fi
     if [ -n "$CODER_VOL" ]; then
         echo "Restoring Coder workspace volume (${CODER_VOL})..."
         docker run --rm -v "${CODER_VOL}:/coder_home" -v "$(pwd)/data/backups:/backups:ro" redis:8-alpine \
-            tar -xzf /backups/coder_home.tar.gz -C /coder_home
+            tar -xzf /backups/coder_home.tar.gz --numeric-owner -C /coder_home
         echo "✓ Restored Coder workspace volume (${CODER_VOL})."
     fi
 fi

@@ -25,11 +25,10 @@ textarea {
 code,
 pre,
 .sol-mono,
-.monitor-site-response-time,
-.server-stats-item,
+.widget-type-monitor .widget-content > ul > div > div:nth-child(2),
+.server-stats,
 .docker-container-status,
-.markets-widget-price,
-.markets-widget-change,
+.market-values,
 .clock-time {
   font-family: var(--font-mono) !important;
   font-variant-numeric: tabular-nums;
@@ -92,7 +91,7 @@ pre,
 .sol-badge {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: var(--font-size-tiny);
+  font-size: var(--font-size-h6);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 0.15rem 0.55rem;

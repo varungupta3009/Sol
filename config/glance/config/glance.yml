@@ -19,7 +19,11 @@ branding:
 
 theme:
   custom-css-file: /assets/user.css
-  default-preset: sol-catppuccin-mocha
+  background-color: 240 21 15
+  contrast-multiplier: 1.2
+  primary-color: 267 84 81
+  positive-color: 115 54 76
+  negative-color: 347 87 68
   presets:
     sol-catppuccin-mocha:
       background-color: 240 21 15
@@ -150,6 +154,9 @@ pages:
                   - title: Prowlarr
                     url: https://prowlarr.vrg.rocks
                     icon: sh:prowlarr
+                  - title: Byparr
+                    url: https://byparr.vrg.rocks
+                    icon: sh:flaresolverr
                   - title: Bazarr
                     url: https://bazarr.vrg.rocks
                     icon: sh:bazarr
@@ -161,7 +168,7 @@ pages:
                     icon: sh:qbittorrent
                   - title: QUI
                     url: https://qui.vrg.rocks
-                    icon: sh:qbittorrent
+                    icon: sh:qui
 
               - title: Knowledge, Inventory & Web
                 color: 188 86 64
@@ -217,10 +224,10 @@ pages:
                     icon: sh:cyberchef
                   - title: BentoPDF
                     url: https://pdf.vrg.rocks
-                    icon: sh:stirling-pdf
+                    icon: sh:bentopdf
                   - title: MediaInfo Web
                     url: https://mi.vrg.rocks
-                    icon: sh:mediainfo
+                    icon: si:dolby
                   - title: OpenSpeedTest
                     url: https://speed.vrg.rocks
                     icon: sh:openspeedtest
@@ -235,7 +242,7 @@ pages:
                     icon: sh:ntfy
                   - title: Tinyauth SSO
                     url: https://auth.vrg.rocks
-                    icon: sh:tinyauth
+                    icon: di:tinyauth
                   - title: lldap Directory
                     url: https://ldap.vrg.rocks
                     icon: sh:lldap
@@ -244,7 +251,7 @@ pages:
                     icon: sh:arcane
                   - title: Backrest Backups
                     url: https://backrest.vrg.rocks
-                    icon: sh:restic
+                    icon: sh:backrest
                   - title: Router Gateway
                     url: https://router.vrg.rocks
                     icon: sh:openrouter
@@ -319,12 +326,12 @@ pages:
             sites:
               - title: Caddy Ingress
                 url: https://dash.vrg.rocks
-                check-url: http://caddy:80
+                check-url: https://auth.vrg.rocks/api/healthz
                 icon: sh:caddy
               - title: Tinyauth SSO
                 url: https://auth.vrg.rocks
                 check-url: http://tinyauth:3000/api/healthz
-                icon: sh:tinyauth
+                icon: di:tinyauth
               - title: Arcane Docker
                 url: https://arcane.vrg.rocks
                 check-url: http://arcane:3552
@@ -400,11 +407,12 @@ pages:
                   Set <code>JELLYFIN_API_KEY</code> in <code>.env</code> for live library counts and active stream telemetry.
                 </div>
               {{ else }}
+                {{ $authHeader := concat "MediaBrowser Token=\"" $apiKey "\"" }}
                 {{ $counts := newRequest "http://jellyfin:8096/Items/Counts"
-                    | withHeader "X-Emby-Token" $apiKey
+                    | withHeader "Authorization" $authHeader
                     | getResponse }}
                 {{ $sessions := newRequest "http://jellyfin:8096/Sessions"
-                    | withHeader "X-Emby-Token" $apiKey
+                    | withHeader "Authorization" $authHeader
                     | getResponse }}
                 {{ if eq $counts.Response.StatusCode 200 }}
                   <div class="sol-stat-grid">
@@ -421,6 +429,8 @@ pages:
                       <div class="sol-stat-label">Episodes</div>
                     </div>
                   </div>
+                {{ else }}
+                  <div class="sol-hint">Jellyfin API returned HTTP {{ $counts.Response.StatusCode }}</div>
                 {{ end }}
                 {{ if eq $sessions.Response.StatusCode 200 }}
                   {{ $activeStreams := $sessions.JSON.Array "#(NowPlayingItem.Name!=)#" }}
@@ -535,7 +545,7 @@ pages:
               {{ else }}
                 {{ $resp := newRequest "http://paperless-webserver:8000/api/statistics/"
                     | withHeader "Authorization" (concat "Token " $apiKey)
-                    | withHeader "Accept" "application/json; version=6"
+                    | withHeader "Accept" "application/json"
                     | getResponse }}
                 {{ if eq $resp.Response.StatusCode 200 }}
                   <div class="sol-stat-grid">
@@ -720,7 +730,7 @@ pages:
               - title: QUI
                 url: https://qui.vrg.rocks
                 check-url: http://qui:7476
-                icon: sh:qbittorrent
+                icon: sh:qui
 
           - type: monitor
             title: Core, Knowledge, Dev & Utility Mesh (16 Active Services)
@@ -729,12 +739,12 @@ pages:
             sites:
               - title: Caddy Ingress
                 url: https://dash.vrg.rocks
-                check-url: http://caddy:80
+                check-url: https://auth.vrg.rocks/api/healthz
                 icon: sh:caddy
               - title: Tinyauth SSO
                 url: https://auth.vrg.rocks
                 check-url: http://tinyauth:3000/api/healthz
-                icon: sh:tinyauth
+                icon: di:tinyauth
               - title: lldap Directory
                 url: https://ldap.vrg.rocks
                 check-url: http://lldap:17170/health
@@ -778,7 +788,7 @@ pages:
               - title: Backrest Backups
                 url: https://backrest.vrg.rocks
                 check-url: http://backrest:9898
-                icon: sh:restic
+                icon: sh:backrest
               - title: Enclosed Notes
                 url: https://send.vrg.rocks
                 check-url: http://enclosed:8787
@@ -834,10 +844,10 @@ pages:
                     icon: si:themoviedatabase
                   - title: Caps-a-Holic (4K UHD Frame Diffs)
                     url: https://caps-a-holic.com/
-                    icon: si:bluray
+                    icon: si:dolby
                   - title: Blu-ray.com 4K Calendar
                     url: https://www.blu-ray.com/movies/releasedates.php?4k=1
-                    icon: si:bluray
+                    icon: si:dolby
                   - title: American Cinematographer
                     url: https://theasc.com/
                     icon: si:sony
@@ -858,7 +868,7 @@ pages:
                     url: https://ncase.me/
                     icon: si:html5
                   - title: Bret Victor (Worrydream)
-                    url: http://worrydream.com/
+                    url: https://worrydream.com/
                     icon: si:apple
                   - title: Ahmad Shadeed (ishadeed)
                     url: https://ishadeed.com/
@@ -914,7 +924,7 @@ pages:
                     url: https://docs.flybywiresim.com/
                     icon: si:airbus
                   - title: SmartCockpit Airbus FCOM
-                    url: https://www.smartcockpit.com/aircrafts-models.html
+                    url: https://www.smartcockpit.com/
                     icon: si:airbus
 
           - type: twitch-channels
@@ -931,13 +941,18 @@ pages:
           - type: releases
             title: Stack & Media Upstream Releases
             cache: 1d
+            limit: 17
             token: ${GITHUB_TOKEN}
             show-source-icon: true
             collapse-after: 6
             repositories:
               - glanceapp/glance
               - caddyserver/caddy
-              - goauthentik/authentik
+              - tinyauthapp/tinyauth
+              - lldap/lldap
+              - getarcaneapp/arcane
+              - autobrr/qui
+              - garethgeorge/backrest
               - paperless-ngx/paperless-ngx
               - jellyfin/jellyfin
               - seerr-team/seerr
@@ -975,6 +990,7 @@ pages:
                     title: Jake Archibald
                   - url: https://simonwillison.net/atom/everything/
                     title: Simon Willison
+                    limit: 4
 
               - type: rss
                 title: Browser Internals & Stack
@@ -987,6 +1003,7 @@ pages:
                     title: V8 Engine Blog
                   - url: https://developer.chrome.com/static/blog/feed.xml
                     title: Chrome for Developers
+                    limit: 4
                   - url: https://web.dev/feed.xml
                     title: web.dev
                   - url: https://svelte.dev/blog/rss.xml
@@ -1005,14 +1022,17 @@ pages:
                 feeds:
                   - url: https://www.indiewire.com/feed/
                     title: IndieWire
+                    limit: 4
                   - url: https://selfh.st/rss/
                     title: selfh.st
+                    limit: 4
                   - url: https://lwn.net/headlines/rss
                     title: LWN.net
                   - url: https://www.phoronix.com/rss.php
                     title: Phoronix
                   - url: https://feeds.arstechnica.com/arstechnica/index
                     title: Ars Technica
+                    limit: 4
 
           - type: group
             widgets:

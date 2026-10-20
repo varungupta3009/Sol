@@ -83,12 +83,12 @@ services:
     environment:
       HBOX_LOG_LEVEL: info
       HBOX_LOG_FORMAT: text
-      HBOX_WEB_MAX_FILE_UPLOAD: 10
+      HBOX_WEB_MAX_UPLOAD_SIZE: "10"
       HBOX_OPTIONS_ALLOW_ANALYTICS: "false"
       HBOX_AUTH_API_KEY_PEPPER: ${HBOX_AUTH_API_KEY_PEPPER}
       HBOX_OPTIONS_HOSTNAME: inv.vrg.rocks
       HBOX_OPTIONS_TRUST_PROXY: "true"
-      HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "false"
+      HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "true"
       HBOX_OPTIONS_ALLOW_REGISTRATION: "false"
       HBOX_OIDC_ENABLED: "true"
       HBOX_OIDC_AUTO_REDIRECT: "true"
@@ -129,10 +129,16 @@ services:
       - ${DOCKER_CONFIG_DIR}/rclone:/rclone
       - ${DOCKER_BASE_DIR}:/userdata/sol
       - ${EXTERNAL_DRIVE_00}/backups/sol-restic:/repos/local-panopticon
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9898/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     labels:
       glance.id: backrest
       glance.name: Backrest
-      glance.icon: sh:restic
+      glance.icon: sh:backrest
       glance.url: https://backrest.vrg.rocks
       glance.description: Encrypted Restic Backup Engine
 
@@ -150,6 +156,12 @@ services:
       STORAGE_DRIVER_FS_LITE_PATH: /app/.data
     volumes:
       - ${DOCKER_DATA_DIR}/enclosed:/app/.data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8787/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       glance.id: enclosed
       glance.name: Enclosed
@@ -265,7 +277,7 @@ services:
   rclone:
     container_name: rclone
     image: rclone/rclone:latest
-    profiles: ["ops", "standby"]
+    profiles: ["ops"]
     restart: "no"
     logging: *default-logging
     user: "${PUID}:${PGID}"

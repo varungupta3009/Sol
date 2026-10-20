@@ -38,6 +38,12 @@ services:
     dns:
       - 1.1.1.1 # Cloudflare DNS for fast tracker announces
       - 9.9.9.9
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     labels:
       glance.id: qbittorrent
       glance.name: qBittorrent
@@ -71,36 +77,13 @@ services:
     labels:
       glance.id: qui
       glance.name: QUI
-      glance.icon: sh:qbittorrent
+      glance.icon: sh:qui
       glance.url: https://qui.vrg.rocks
-      glance.parent: qbittorrent
       glance.description: Modern Go Web UI, Cross-Seed & Automation Engine for qBittorrent
 
   # ----------------------------------------------------------------
   # Standby Download Helpers (Launch via: docker compose --profile standby up -d <service>)
   # ----------------------------------------------------------------
-  cross-seed:
-    container_name: cross-seed
-    image: ghcr.io/cross-seed/cross-seed:latest
-    profiles: ["standby"]
-    command: daemon
-    restart: unless-stopped
-    logging: *default-logging
-    user: "${PUID}:${PGID}"
-    volumes:
-      - ${DOCKER_CONFIG_DIR}/cross-seed:/config
-      - ${DOCKER_DATA_DIR}:/data
-      - ${EXTERNAL_DRIVE_00}:/external
-      # - ${EXTERNAL_DRIVE_01}:/ext01
-    dns:
-      - 1.1.1.1
-      - 9.9.9.9
-    labels:
-      glance.id: cross-seed
-      glance.name: Cross-Seed
-      glance.icon: sh:cross-seed
-      glance.url: https://cs.vrg.rocks
-      glance.description: Automated Cross-Seeding Daemon (Replaced by QUI)
   unpackerr:
     container_name: unpackerr
     image: golift/unpackerr:latest

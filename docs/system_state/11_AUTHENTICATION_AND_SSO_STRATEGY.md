@@ -1,40 +1,40 @@
-# Sol Authentication, Zero-Click SSO, OIDC & Unified LDAP Strategy (`Tinyauth v5.2.0` + `lldap`)
+# 11. Sol Authentication, Zero-Click SSO, OIDC & Unified LDAP Strategy (`Tinyauth v5.2.0` + `LLDAP`)
 
-**Status:** Active Production Standard (October 2026)
-**Primary Identity & OIDC Provider:** `tinyauth` (`ghcr.io/tinyauthapp/tinyauth:v5` v5.2.0 at `https://auth.vrg.rocks`, ~29.4 MiB RAM)
-**Unified LDAP Directory (Jellyfin & Seerr):** `lldap` (`lldap/lldap:stable` at `ldap://lldap:3890` and `https://ldap.vrg.rocks`, ~12 MiB RAM)
-**Authoritative Identity Manifest & Sync Engine:** [`config/auth/users.json.example`](../../config/auth/users.json.example) (live `config/auth/users.json` gitignored, backed up in Restic) + [`scripts/identity_sync.py`](../../scripts/identity_sync.py) + [`scripts/allowlist_user.sh`](../../scripts/allowlist_user.sh)
-**Retired Legacy Provider (Documented in Section 4):** `authentik-server` + `authentik-worker` + `authentik-postgresql` (`profiles: ["standby"]` in `compose/core.yml`, ~502 MiB RAM saved)
+> **Status:** Active Production Standard (Verified Live 2026-10-20)  
+> **Primary Identity & OIDC Provider:** `tinyauth` (`ghcr.io/tinyauthapp/tinyauth:v5` v5.2.0 at `https://auth.vrg.rocks`, `~29 MiB` RAM)  
+> **Unified LDAP Directory (Jellyfin, Seerr & User Source of Truth):** `lldap` (`ghcr.io/lldap/lldap:stable` at `ldap://lldap:3890` and `https://ldap.vrg.rocks`, `~12 MiB` RAM)  
+> **Authoritative Identity Sync Engine:** [`scripts/identity_sync.py`](../../scripts/identity_sync.py) + [`scripts/launchd/com.vrg.sol.identity-sync.plist`](../../scripts/launchd/com.vrg.sol.identity-sync.plist) + [`scripts/allowlist_user.sh`](../../scripts/allowlist_user.sh)  
+> **Exported Identity Snapshot:** [`config/auth/users.json.example`](../../config/auth/users.json.example) (live `config/auth/users.json` gitignored, backed up in Restic)  
+> **Retired Legacy Provider (Documented in Section 4):** `authentik-server` + `authentik-worker` + `authentik-postgresql` (purged from `compose/core.yml`, `~502 MiB` RAM saved)  
 
 ---
 
-## 1. Core Architectural Requirements
+## 1. Core Architectural Invariants
 
-Sol's authentication architecture enforces five strict invariants across all `*.vrg.rocks` endpoints:
+Sol's authentication architecture enforces five invariants across all `*.vrg.rocks` endpoints:
 
 1. **One Email Connects All Interfaces (`lldap` -> `users.json` One-Way Identity Spine):**
-   - **`lldap` (`https://ldap.vrg.rocks`, `data/lldap/users.db`) is the single authoritative user database.** Users and emails are added, edited, or removed exclusively in `lldap`.
-   - A macOS `launchd` `WatchPaths` agent (`/Users/vrg/Library/LaunchAgents/com.vrg.sol.identity-sync.plist`) watches `data/lldap/users.db` and `data/lldap/users.db-wal` and automatically runs `python3 scripts/identity_sync.py --apply` within 15 seconds of any change in `lldap`.
-   - `config/auth/users.json` (gitignored; template tracked in [`config/auth/users.json.example`](../../config/auth/users.json.example)) is a **one-way exported snapshot** generated from `lldap` (storing the exported user list alongside discovered `jellyfin_id` and `seerr_id` keys).
-   - Running `scripts/identity_sync.py` deterministically synchronizes every `lldap` user across all downstream targets:
-     - **lldap Group Enforcement**: Automatically adds any new `lldap` user to `jellyfin_users` via GraphQL.
-     - **Tinyauth forward-auth & OIDC** (`data/tinyauth/whitelist.txt`, `.env` `TINYAUTH_OAUTH_WHITELIST` + `TINYAUTH_ADMIN_EMAILS`, and pre-seeded `oidc_consents` in `data/tinyauth/tinyauth.db` across all 7 OIDC clients).
-     - **OIDC App Databases (`Paperless-ngx`, `AirTrail`, `Homebox`)**: Pre-provisions non-admin user accounts and links their deterministic Tinyauth OIDC `sub` UUIDs in `paperless` (`auth_user` + `socialaccount_socialaccount`), `airtrail` (`"user"`), and `homebox.db` (`users` + `user_groups`) so first-time OIDC logins succeed in 0 clicks without manual registration errors.
-     - **Jellyfin (`watch.vrg.rocks`)** (`LDAP-Auth.xml` with `( &(objectClass=person)(|(uid={0})(cn={0})(mail={0})(mailalias={0})) )` filter so users can log in on TV/mobile/web using their email, alias, or username; `SSO-Auth.xml` with `<DefaultProvider>Jellyfin.Plugin.LDAP_Auth.LdapAuthenticationProviderPlugin</DefaultProvider>`, `<DefaultUsernameClaim>email</DefaultUsernameClaim>`, `<SchemeOverride>https</SchemeOverride>`, and pre-seeded `<CanonicalLinks>` mapping every user's email and aliases to their existing Jellyfin GUID; plus `branding.xml` `<LoginDisclaimer>` rendering a 1-click **"Sign in with Google SSO"** button on the web login page).
-     - **Seerr (`request.vrg.rocks`)** (linked to the matching `jellyfinUserId` and `email` in `config/seerr/db/db.sqlite3` with `userType = 3` so "Sign in with Jellyfin" accepts the same email/username + LDAP password or Quick Connect and maps to the same account).
-     - **Copyparty (`files.vrg.rocks`)** (`idp-hm-usr` header mappings in `config/copyparty/copyparty.conf`).
+   - **`lldap` (`https://ldap.vrg.rocks`, `data/lldap/users.db`) is the single authoritative user database.** Users, display names, primary emails, and `mailalias` values are created, edited, or removed exclusively in `lldap`.
+   - **Zero-Write Immutable SQLite Polling & `<50 ms` SHA-256 Fast-Path:** The macOS `launchd` `WatchPaths` agent (`/Users/vrg/Library/LaunchAgents/com.vrg.sol.identity-sync.plist`, tracked in `scripts/launchd/com.vrg.sol.identity-sync.plist`) watches `data/lldap/users.db` and `data/lldap/users.db-wal`. To avoid a self-triggering write loop (where logging into LLDAP via HTTP API would write a new `jwt_storage` row to `users.db-wal` and re-trigger `WatchPaths` every 10 seconds), `scripts/identity_sync.py` reads `file:/Users/vrg/Documents/Sol/data/lldap/users.db?immutable=1` directly via read-only SQLite, decodes Rust `bincode` `user_attributes`, and computes a SHA-256 digest over LLDAP user/group/attribute state plus `.env` `st_mtime_ns` (`/tmp/sol_identity_sync.sha256`). When no user or `.env` state has changed, `identity_sync.py` exits `0` in **~45 ms** before loading heavy standard-library modules, performing zero database writes.
+   - **macOS TCC & Keychain Hardening:** `com.vrg.sol.identity-sync.plist` invokes `/opt/homebrew/bin/python3` via an inline `subprocess.call` wrapper without setting `WorkingDirectory` inside `~/Documents` (avoiding `kTCCServiceSystemPolicyDocumentsFolder` `Exit 126` blocks), and `identity_sync.py` prepends a no-op `docker-credential-osxkeychain` shim (`/tmp/sol_no_keychain`) to `PATH` plus an exclusive `fcntl.flock` lock on `/tmp/sol_identity_sync.lock`.
+   - **`config/auth/users.json` One-Way Export:** Whenever LLDAP state changes (or `--force` is passed), `identity_sync.py` exports the canonical user list to `config/auth/users.json` (preserving discovered `jellyfin_id` and `seerr_id` keys) and synchronizes every downstream service:
+     - **LLDAP Group & Token Hygiene:** Ensures every user belongs to `jellyfin_users` (`group_id=3`), `vrg` belongs to `jellyfin_admins` (`group_id=4`), and prunes stale headless `admin` sessions from `jwt_storage` and `jwt_refresh_storage`.
+     - **Tinyauth Whitelist & Admin-Scoped OIDC Consents:** Writes `data/tinyauth/whitelist.txt`, updates `TINYAUTH_OAUTH_WHITELIST` and `TINYAUTH_ADMIN_EMAILS` in `.env`, and pre-seeds `oidc_consents` in `data/tinyauth/tinyauth.db`. Consents for infrastructure clients **`arcane` and `coder` are scoped strictly to `role == "admin"` (`vrg`)**, while shared OIDC clients (`paperless`, `homebox`, `airtrail`, `readeck`, `jellyfin`) are pre-seeded for all allowlisted users (`29` total consent rows).
+     - **Downstream OIDC Databases (`Paperless-ngx`, `AirTrail`, `Homebox`, `Readeck`):** Pre-provisions user accounts and links deterministic Tinyauth OIDC `sub` UUIDs so first-time logins succeed in 0 clicks.
+     - **Jellyfin (`watch.vrg.rocks`) & Seerr (`request.vrg.rocks`):** Updates `LDAP-Auth.xml`, `SSO-Auth.xml` `<CanonicalLinks>`, `branding.xml`, and `config/seerr/db/db.sqlite3` (`userType = 3`, linked `jellyfinUserId`).
+     - **Copyparty (`files.vrg.rocks`):** Updates `idp-hm-usr` header mappings in `config/copyparty/copyparty.conf`.
 2. **Zero-Click Google SSO:**
-   - When signed into an allowlisted Google account in the browser, navigating to any `*.vrg.rocks` service authenticates and opens the application with **zero button clicks** (no provider selection screen, no OIDC consent prompt, and no secondary app login screen).
-   - Enforced at the IdP via `TINYAUTH_OAUTH_AUTOREDIRECT=google`, pre-seeded `oidc_consents` rows in `/data/tinyauth/tinyauth.db`, and per-container auto-redirect/external-auth flags.
-3. **Sole Hardcoded Admin (`VRG`):**
-   - `VRG` (`${TINYAUTH_ADMIN_EMAILS}`) is the only administrator across all infrastructure and application databases (`VRG`, superuser/owner, and member of `jellyfin_admins` in `lldap`).
-   - Admin-only forward-auth subdomains (`code`, `backrest`, `qui`, `radarr`, `sonarr`, `lidarr`, `prowlarr`, `bazarr`, `cs`, `byparr`, `pb`, `router`, `ldap`) are locked down at the Caddy/Tinyauth edge via `TINYAUTH_APPS_<APP>_OAUTH_WHITELIST` so non-admin allowlisted accounts cannot access infrastructure consoles.
+   - When signed into an allowlisted Google account in the browser, navigating to any `*.vrg.rocks` service authenticates and opens the application with **zero button clicks** (no provider selection screen, no OIDC consent screen, and no secondary app login prompt).
+   - Enforced at Tinyauth via `TINYAUTH_OAUTH_AUTOREDIRECT=google`, pre-seeded `oidc_consents` rows in `data/tinyauth/tinyauth.db`, and per-container auto-redirect/external-auth flags.
+3. **Sole Hardcoded Admin (`VRG`) Across All 17 Admin Consoles:**
+   - `VRG` (`${TINYAUTH_ADMIN_EMAILS}`) is the sole administrator across all infrastructure and application databases (`VRG`, superuser/owner, and member of `jellyfin_admins` in `lldap`).
+   - All **17** admin-only forward-auth subdomains (`code`, `backrest`, `qui`, `radarr`, `sonarr`, `lidarr`, `prowlarr`, `bazarr`, `cs`, `byparr`, `pb`, `router`, `ldap`, `ignis`, `mind`, `scan`, `aysynbm`) are locked down at the Tinyauth edge in `compose/core.yml` via `TINYAUTH_APPS_<APP>_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}` and `TINYAUTH_APPS_<APP>_USERS: nobody`.
 4. **Strict Email Allowlist & Approval Gate:**
-   - No user can authenticate through `auth.vrg.rocks` unless their email address is present in `lldap` (exported to `config/auth/users.json` and `/Users/vrg/Documents/Sol/data/tinyauth/whitelist.txt`).
-   - Any unapproved login attempt is rejected at the OAuth callback (`https://auth.vrg.rocks/unauthorized`) and logged via `TINYAUTH_LOG_STREAMS_AUDIT_ENABLED=true`.
-5. **Provider-Agnostic Caddy Forward-Auth Snippet & Native OIDC First:**
-   - `Caddyfile` defines a single provider-agnostic `(forward_auth)` snippet imported as `import forward_auth` across all protected routes. `login.vrg.rocks` and `tinyauth.vrg.rocks` permanently redirect (`301`) to `https://auth.vrg.rocks{uri}`.
-   - Every container that supports native OpenID Connect (OIDC), LDAP, or trusted reverse-proxy headers / external auth uses its native integration instead of double-login forward-auth.
+   - No user can authenticate through `auth.vrg.rocks` unless their email address is present in `lldap` (exported to `config/auth/users.json` and `data/tinyauth/whitelist.txt`).
+   - Unapproved login attempts are rejected at `https://auth.vrg.rocks/unauthorized` and logged via `TINYAUTH_LOG_STREAMS_AUDIT_ENABLED=true`.
+5. **Provider-Agnostic Caddy Forward-Auth & Native OIDC First:**
+   - `Caddyfile` defines a single `(forward_auth)` snippet imported across protected routes, while `login.vrg.rocks` and `tinyauth.vrg.rocks` permanently redirect (`301`) to `https://auth.vrg.rocks{uri}`.
+   - Containers that support native OIDC (`arcane`, `docs`/`paperless`, `inv`/`homebox`, `fly`/`airtrail`, `coder`, `links`/`readeck`, `watch`/`jellyfin`) use their native OIDC flow directly without redundant edge `forward_auth`.
 
 ---
 
@@ -42,52 +42,49 @@ Sol's authentication architecture enforces five strict invariants across all `*.
 
 ### Tier A: Native OpenID Connect (OIDC) Clients (`https://auth.vrg.rocks/.well-known/openid-configuration`)
 
-Tinyauth v5.2.0 runs a built-in OpenID Certified OIDC Provider backed by RS256 signing keys at `/data/tinyauth/oidc/key.pem`. It computes a deterministic, pairwise `sub` claim for each `(username, client_id)` pair using UUIDv5 (`uuid.uuid5(uuid.NAMESPACE_URL, f"{tinyauth_username}:{client_id}")`), where `tinyauth_username` is the user's email with `@` replaced by `_`. Note that `TINYAUTH_LDAP_*` is intentionally **not** set on Tinyauth so Google OAuth remains the sole Tinyauth login backend and `sub` UUIDs never fragment.
+Tinyauth v5.2.0 runs an OpenID Certified OIDC Provider backed by RS256 signing keys at `/data/tinyauth/oidc/key.pem`. It computes a deterministic pairwise `sub` claim for each `(username, client_id)` pair using UUIDv5 (`uuid.uuid5(uuid.NAMESPACE_URL, f"{tinyauth_username}:{client_id}")`), where `tinyauth_username` is the user's email with `@` replaced by `_`. `TINYAUTH_LDAP_*` is intentionally omitted on `tinyauth` so Google OAuth remains the sole Tinyauth login backend and `sub` UUIDs never fragment.
 
-| Service | Domain | OIDC Env / Config | Zero-Click Mechanism | Admin (`VRG`) Enforcement |
+| Service | Domain | OIDC Env / Config | Zero-Click Mechanism | Admin (`VRG`) & Role Enforcement |
 | :--- | :--- | :--- | :--- | :--- |
-| **Paperless-ngx** | `docs.vrg.rocks` | `PAPERLESS_SOCIALACCOUNT_PROVIDERS` (`provider_id: "tinyauth"`) | `PAPERLESS_REDIRECT_LOGIN_TO_SSO: "true"` + `PAPERLESS_DISABLE_REGULAR_LOGIN: "true"` | `auth_user.id=3` (`VRG`, `is_superuser=t`) linked in `socialaccount_socialaccount`. Standard user accounts are non-superuser. |
-| **Arcane** | `arcane.vrg.rocks` | `OIDC_ENABLED: "true"`, `OIDC_ISSUER_URL: https://auth.vrg.rocks` | `OIDC_AUTO_REDIRECT_TO_PROVIDER: "true"` + `authLocalEnabled=false` in `arcane.db` | `users.username='VRG'` (`roles=["admin"]`, `oidc_subject_id` bound to Tinyauth `sub`). |
-| **Homebox** | `inv.vrg.rocks` | `HBOX_OIDC_ENABLED: "true"`, `HBOX_OIDC_ISSUER_URL: https://auth.vrg.rocks` | `HBOX_OIDC_AUTO_REDIRECT: "true"` + `HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "false"` + `HBOX_OPTIONS_TRUST_PROXY: "true"` | `VRG` user (`is_superuser=1`). `HBOX_OPTIONS_ALLOW_REGISTRATION: "false"`. |
-| **AirTrail** | `fly.vrg.rocks` | `OAUTH_ENABLED: "true"`, `OAUTH_ISSUER_URL: https://auth.vrg.rocks`, callback `https://fly.vrg.rocks/login` | `OAUTH_AUTO_LOGIN: "true"` + `OAUTH_HIDE_PASSWORD_FORM: "true"` | `"user"` table pre-seeded with `VRG` (`is_owner=true, role_id=NULL`) and members (`is_owner=false, role_id='role-user'`). |
-| **Coder** | `coder.vrg.rocks` | `CODER_HTTP_ADDRESS: "0.0.0.0:7080"`, `CODER_OIDC_ISSUER_URL: https://auth.vrg.rocks`, `CODER_DISABLE_PASSWORD_AUTH: "true"` | Caddy `redir /login /api/v2/users/oidc/callback 302` | `VRG` (`rbac_roles={owner}`, `login_type='oidc'`). New OIDC users default to `member`. |
-| **Readeck** | `links.vrg.rocks` | `[[auth.oidc.providers]]` (`id = "tinyauth"`, `url = "https://auth.vrg.rocks"`, `issuer = "https://auth.vrg.rocks"`) in `data/readeck/config.toml` | Native OIDC provider (`https://auth.vrg.rocks`) + Tinyauth edge protection | `VRG` created with `-a` (admin) flag. |
-| **Jellyfin** | `watch.vrg.rocks` | `SSO-Auth.xml` (`google-sso` pointing to `https://auth.vrg.rocks`, `DefaultUsernameClaim=email`, `SchemeOverride=https`, `CanonicalLinks`) + `LDAP-Auth.xml` (`lldap:3890`) | Browser: 1-click Google SSO (`/sso/OID/start/google-sso`) or email/username + LDAP password; TV/Mobile Apps: email/username + LDAP password or Quick Connect | `VRG` (`IsAdministrator=1`, `jellyfin_admins`), standard users (`IsAdministrator=0`, `jellyfin_users`). |
+| **Paperless-ngx** | `docs.vrg.rocks`, `paperless.vrg.rocks` | `PAPERLESS_SOCIALACCOUNT_PROVIDERS` (`provider_id: "tinyauth"`) | `PAPERLESS_REDIRECT_LOGIN_TO_SSO: "true"` + `PAPERLESS_DISABLE_REGULAR_LOGIN: "true"` | `auth_user.id=3` (`VRG`, `is_superuser=t`) linked in `socialaccount_socialaccount`. Member accounts pre-seeded with `is_superuser=f`. |
+| **Arcane** | `arcane.vrg.rocks` | `OIDC_ENABLED: "true"`, `OIDC_ISSUER_URL: https://auth.vrg.rocks` | `OIDC_AUTO_REDIRECT_TO_PROVIDER: "true"` + `authLocalEnabled=false` in `arcane.db` | Admin-only `oidc_consents` in `tinyauth.db` (`vrg` only). `users.username='VRG'` (`roles=["admin"]`). |
+| **Homebox** | `inv.vrg.rocks` | `HBOX_OIDC_ENABLED: "true"`, `HBOX_OIDC_ISSUER_URL: https://auth.vrg.rocks` | `HBOX_OIDC_AUTO_REDIRECT: "true"` + `HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "true"` + `HBOX_OPTIONS_TRUST_PROXY: "true"` | `VRG` (`is_superuser=1`). Local login stays enabled at `/api/v1/users/login` so `scan.vrg.rocks` PWA can authenticate via API while browser navigation auto-redirects to OIDC. |
+| **AirTrail** | `fly.vrg.rocks` | `OAUTH_ENABLED: "true"`, `OAUTH_ISSUER_URL: https://auth.vrg.rocks` | `OAUTH_AUTO_LOGIN: "true"` + `OAUTH_HIDE_PASSWORD_FORM: "true"` | Single-owner invariant enforced by `identity_sync.py`: only `vrg` has `is_owner=true, role_id=NULL`. Additional admins receive `is_owner=false, role_id='role-administrator'`, and regular users receive `role_id='role-user'`. |
+| **Coder** | `coder.vrg.rocks` | `CODER_OIDC_ISSUER_URL: https://auth.vrg.rocks`, `CODER_OIDC_ALLOW_SIGNUPS: "false"`, `CODER_DISABLE_PASSWORD_AUTH: "true"` | Caddy `redir /login /api/v2/users/oidc/callback 302` | Signups disabled (`CODER_OIDC_ALLOW_SIGNUPS: "false"`) and `oidc_consents` restricted to `vrg` only (`rbac_roles={owner}`). |
+| **Readeck** | `links.vrg.rocks` | `[[auth.oidc.providers]]` (`url = "https://auth.vrg.rocks"`, `client_id = "readeck"`, `roles_claim = "groups"`, `admin_role = "jellyfin_admins"`) in `data/readeck/config.toml` | Native OIDC at `https://links.vrg.rocks/login` (edge `forward_auth` omitted so browser extension `/api/*` tokens work) | `VRG` (`"group"='admin'`, `ext_id=1780b004-...`) and members (`"group"='user'`, deterministic `uuid5(NAMESPACE_URL, "https://auth.vrg.rocks#<sub_uuid>")` `ext_id`) pre-seeded in `data/readeck/data/db.sqlite3`. Protected by `preserve_lldap_user_identity` `AFTER UPDATE ON "user"` SQLite trigger so OIDC logins cannot overwrite LLDAP usernames or demote `VRG`. |
+| **Jellyfin** | `watch.vrg.rocks`, `jellyfin.vrg.rocks` | `SSO-Auth.xml` (`google-sso` -> `https://auth.vrg.rocks`, `DefaultUsernameClaim=email`, `SchemeOverride=https`, `CanonicalLinks`) + `LDAP-Auth.xml` (`lldap:3890`) | Browser: 1-click Google SSO (`/sso/OID/start/google-sso`) or email/username + LDAP password. TV/Mobile: LDAP password or Quick Connect | `VRG` (`IsAdministrator=1`, `jellyfin_admins`), standard users (`IsAdministrator=0`, `jellyfin_users`). |
 
 ### Tier B: Unified LDAP (`lldap`) for Jellyfin & Seerr
 
-- **`lldap` (`lldap/lldap:stable`, `~12 MiB` RAM):**
-  - Listens on `::` port `3890` (LDAP, dual-stack IPv6/IPv4 for `sol_default`) and port `17170` (Web UI / GraphQL API at `https://ldap.vrg.rocks`, protected by `import forward_auth` + `TINYAUTH_APPS_LDAP_OAUTH_WHITELIST` for `VRG` only).
-  - Base DN: `dc=vrg,dc=rocks`. Users live under `ou=people,dc=vrg,dc=rocks` with custom attribute `mailalias` (`STRING`, `isList: true`, `isVisible: true`) and groups `jellyfin_users` and `jellyfin_admins`.
+- **`lldap` (`ghcr.io/lldap/lldap:stable`, `~12 MiB` RAM):**
+  - Listens on `::` port `3890` (LDAP) and port `17170` (Web UI / GraphQL API at `https://ldap.vrg.rocks`, gated by `import forward_auth` + `TINYAUTH_APPS_LDAP_OAUTH_WHITELIST` for `VRG` only).
+  - Base DN: `dc=vrg,dc=rocks`. Users live under `ou=people,dc=vrg,dc=rocks` with custom attribute `mailalias` (`STRING`, `isList: true`, `isVisible: true`) and groups `jellyfin_users` (`id=3`) and `jellyfin_admins` (`id=4`).
 - **Jellyfin (`watch.vrg.rocks`):**
   - `LDAP-Auth` (`v22.0.0.0`) binds to `lldap:3890` and searches `( &(objectClass=person)(|(uid={0})(cn={0})(mail={0})(mailalias={0})) )` with `<LdapUsernameAttribute>cn</LdapUsernameAttribute>` and `<LdapUidAttribute>entryUUID</LdapUidAttribute>`.
-  - Every Jellyfin user has `AuthenticationProviderId = Jellyfin.Plugin.LDAP_Auth.LdapAuthenticationProviderPlugin`, allowing login by primary email, alias, or username.
-  - `SSO-Auth` (`v4.0.0.3`) sets `<DefaultProvider>Jellyfin.Plugin.LDAP_Auth.LdapAuthenticationProviderPlugin</DefaultProvider>`, `<SchemeOverride>https</SchemeOverride>`, and `<CanonicalLinks>` mapping each email/alias to the existing Jellyfin user GUID so OIDC logins never overwrite `AuthenticationProviderId` or create duplicate accounts.
+  - `SSO-Auth` (`v4.0.0.3`) maps every user's primary email and `mailalias` via `<CanonicalLinks>` to their existing Jellyfin GUID so OIDC logins map to the same account without duplicating users.
 - **Seerr (`request.vrg.rocks`):**
-  - Uses "Sign in with Jellyfin" (`POST /api/v1/auth/jellyfin`), which forwards credentials to Jellyfin `POST /Users/AuthenticateByName` (validated by `lldap`) and matches the returned Jellyfin GUID to `user.jellyfinUserId` in `config/seerr/db/db.sqlite3`.
+  - Authenticates against Jellyfin (`POST /api/v1/auth/jellyfin` or Quick Connect `/api/v1/auth/jellyfin/quickconnect/initiate`) and maps to `user.jellyfinUserId` in `config/seerr/db/db.sqlite3`.
 
 ### Tier C: Trusted-Header & External Auth Behind Tinyauth Forward-Auth
 
-These containers do not need a secondary password prompt because they either read `Remote-Email` / `Remote-User` injected by Caddy's `(forward_auth)` snippet or set their internal auth mode to `External` / `none`:
-
 | Service | Domain | Native Integration Setting | Edge ACL Policy |
 | :--- | :--- | :--- | :--- |
-| **Copyparty** | `files.vrg.rocks` | `idp-h-usr: Remote-Email` + `idp-hm-usr` mappings in `config/copyparty/copyparty.conf` (auto-managed by `identity_sync.py`) | Allowlisted users (`VRG` gets `rw` on `/` and `/priv`; members get `r` on `/`). |
-| **QUI** | `qui.vrg.rocks` | `QUI__AUTH_DISABLED: "true"` + `QUI__I_ACKNOWLEDGE_THIS_IS_A_BAD_IDEA: "true"` + `QUI__AUTH_DISABLED_ALLOWED_CIDRS: "0.0.0.0/0,::/0"` | Admin-only (`TINYAUTH_APPS_QUI_OAUTH_WHITELIST`). |
+| **Copyparty** | `files.vrg.rocks`, `copyparty.vrg.rocks` | `rproxy: -1`, `xf-proto-fb: https`, `idp-h-usr: Remote-Email`, and `idp-hm-usr` mappings in `config/copyparty/copyparty.conf` (auto-managed by `identity_sync.py`, with `noidx` excluding `.Spotlight-V100`, `.fseventsd`, `.Trashes`, `.DS_Store`, `._*`, and `backups`) | Allowlisted users (`vrg` gets `rwmda` on `/` and `/priv`, members get `r` on `/`). |
+| **QUI** | `qui.vrg.rocks` | `QUI__AUTH_DISABLED: "true"` + `QUI__I_ACKNOWLEDGE_THIS_IS_A_BAD_IDEA: "true"` | Admin-only (`TINYAUTH_APPS_QUI_OAUTH_WHITELIST`). |
 | **code-server** | `code.vrg.rocks` | `AUTH: none` in `compose/coding.yml` | Admin-only (`TINYAUTH_APPS_CODE_OAUTH_WHITELIST`). |
 | **Backrest** | `backrest.vrg.rocks` | `"auth": { "disabled": true }` in `config/backrest/config.json` | Admin-only (`TINYAUTH_APPS_BACKREST_OAUTH_WHITELIST`). |
 | **Radarr / Sonarr / Lidarr / Prowlarr** | `{radarr,sonarr,lidarr,prowlarr}.vrg.rocks` | `<AuthenticationMethod>External</AuthenticationMethod>` in `config/*/config.xml` (API keys remain enforced for `/api/*`) | Admin-only (`TINYAUTH_APPS_<ARR>_OAUTH_WHITELIST`). |
 | **Bazarr** | `bazarr.vrg.rocks` | `auth.type: null` in `config/bazarr/config/config.yaml` (API key remains enforced) | Admin-only (`TINYAUTH_APPS_BAZARR_OAUTH_WHITELIST`). |
 
-### Tier D: Stateless Apps, Shared Apps & Mobile-Direct Exceptions
+### Tier D: Stateless Apps, Shared Apps & Selective Method/Path Gates
 
-- **Stateless Web & Dashboard Apps (`dash`, `ignis`, `mind`, `fam`, `scan`, `tools`, `chef`, `pdf`, `speed`, `draw`, `mi`):** Protected by `import forward_auth` in `Caddyfile`. Open in 0 clicks for allowlisted users.
-- **Admin Infrastructure Endpoints (`router`, `byparr`, `pb`, `ldap`):** Protected by `import forward_auth` + `TINYAUTH_APPS_<APP>_OAUTH_WHITELIST` restricting access strictly to `VRG`.
-- **Intentional Mobile/Public Exceptions (No Browser Forward-Auth):**
-  - `qb.vrg.rocks` (`qbittorrent`): Uses qBittorrent native auth so the Android mobile client (`qBitController`) can connect without browser OAuth redirects (`qui.vrg.rocks` is the 0-click web UI).
-  - `ntfy.vrg.rocks` (`ntfy`): Accessed directly by the iOS/Android `ntfy` mobile push daemon.
-  - `send.vrg.rocks` (`enclosed`): Client-side zero-knowledge E2EE note drop (`PUBLIC_IS_AUTHENTICATION_REQUIRED: "false"`).
-  - `aysynbm.vrg.rocks`: Public static utility.
+- **Admin-Locked Static & Vault Apps (`ignis`, `mind`, `scan`, `aysynbm`):** Protected by `import forward_auth` in `Caddyfile` AND locked to `VRG` in `compose/core.yml` via `TINYAUTH_APPS_{IGNIS,MIND,SCAN,AYSYNBM}_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}`.
+- **Shared Allowlisted Web & Static Apps (`dash`, `fam`, `tools`, `chef`, `pdf`, `speed`, `draw`, `mi`):** Protected by `import forward_auth` in `Caddyfile`. Open in 0 clicks for all allowlisted users in `whitelist.txt`.
+- **Admin Infrastructure Endpoints (`router`, `byparr`, `pb`, `ldap`):** Protected by `import forward_auth` + `TINYAUTH_APPS_{ROUTER,BYPARR,PB,LDAP}_OAUTH_WHITELIST` restricting access strictly to `VRG`. `pb.vrg.rocks` redirects `/` (`302`) to `/_/`.
+- **Selective Method/Path Gates & Mobile-Direct Exceptions:**
+  - `send.vrg.rocks` (`enclosed`): Note creation (`/` and `/api/notes[/]`) is gated by `import forward_auth` (`max_size 60MB`), while recipient view routes (`/@*` and `/api/notes/<id>`) remain public so recipients can decrypt shared client-side E2EE notes without an account.
+  - `ntfy.vrg.rocks` (`ntfy`): Unauthenticated external `POST`/`PUT` requests (`not header Authorization *`) are gated by `import forward_auth`, while mobile client subscriptions (`GET`/WebSocket) and token-authenticated publishes pass directly to `ntfy:80`.
+  - `qb.vrg.rocks` (`qbittorrent`): Uses qBittorrent native auth so the Android mobile client (`qBitController`) connects directly without SSO redirects (`qui.vrg.rocks` provides the 0-click web UI).
 
 ---
 
@@ -100,36 +97,30 @@ Live user records reside in `data/lldap/users.db` and export automatically to th
 | UID (`lldap`) | Display Name (`cn` / Jellyfin) | Primary Email (`mail`) | Email Aliases (`mailalias`) | Role | Jellyfin GUID | Seerr ID |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `vrg` | `VRG` | `<admin-email>` | `<admin-alias-email>` | `admin` | `<admin-jellyfin-guid>` | `1` |
-| `member1..N` | `<DisplayName>` | `<member-email>` | — | `user` | `<member-jellyfin-guid>` | `2..N` |
+| `member1..N` | `<DisplayName>` | `<member-email>` | - | `user` | `<member-jellyfin-guid>` | `2..N` |
 
 ### Approving, Editing, or Revoking Users (`lldap` -> `users.json` One-Way Sync)
 
-- **Add, Edit, or Remove Users in `lldap` (`https://ldap.vrg.rocks`):**
-  - Open `https://ldap.vrg.rocks` and create, edit, or delete users (`mail`, `mailalias`, `displayName`, and optional password).
-  - Within 15 seconds, the `com.vrg.sol.identity-sync` `launchd` `WatchPaths` agent automatically runs `python3 scripts/identity_sync.py --apply`, which exports the updated user list to `config/auth/users.json` and syncs Tinyauth, OIDC apps, Jellyfin, Seerr, and Copyparty.
-- **Passwordless Users on Jellyfin & Seerr:**
-  - If a user is created in `lldap` with only an email and no password (`password_hash = NULL`), direct LDAP password binds will be rejected by `lldap` until a password is set.
-  - However, passwordless users can still log into both **Jellyfin (`watch.vrg.rocks`)** and **Seerr (`request.vrg.rocks`)** immediately without any password:
-    1. **Jellyfin Web (`watch.vrg.rocks`):** Click **"Sign in with Google SSO"** on the login page (`SSO-Auth.xml` maps their email via `<CanonicalLinks>` to their pre-provisioned Jellyfin user).
-    2. **Jellyfin TV & Mobile Apps:** Use **Quick Connect** on the TV/mobile app and approve the 6-digit code from their signed-in `watch.vrg.rocks` browser session (`User Icon -> Quick Connect`).
-    3. **Seerr (`request.vrg.rocks`):** Click **"Use Quick Connect"** on the Seerr login page (`/api/v1/auth/jellyfin/quickconnect/initiate`) and approve the 6-digit code in `watch.vrg.rocks`.
+1. **Edit Users in LLDAP (`https://ldap.vrg.rocks`):** Create, edit, or delete users (`mail`, `mailalias`, `displayName`, and optional password) in the LLDAP web console.
+2. **Automatic `<50 ms` WatchPaths Sync:** Within 15 seconds of any change to `data/lldap/users.db` or `users.db-wal`, `com.vrg.sol.identity-sync.plist` triggers `scripts/identity_sync.py --apply`. Because `identity_sync.py` reads `users.db?immutable=1` without logging into LLDAP's HTTP API, it never mutates `users.db-wal` during normal checks and exits in `~45 ms` when unchanged.
+3. **Passwordless Users on Jellyfin & Seerr:** Users created in `lldap` without an LDAP password can still sign into `watch.vrg.rocks` via **"Sign in with Google SSO"** (mapped via `SSO-Auth.xml` `<CanonicalLinks>`) and sign into TV/mobile Jellyfin apps and `request.vrg.rocks` (`Seerr`) using **Quick Connect**.
 
 ```bash
 # List the exported config/auth/users.json snapshot
 ./scripts/allowlist_user.sh list
 
-# Manually dry-run or trigger the one-way lldap -> users.json -> apps sync
+# Manually dry-run or force a full reconciliation across all apps
 ./scripts/allowlist_user.sh sync
-./scripts/allowlist_user.sh sync --apply
+python3 ./scripts/identity_sync.py --apply --force
 ```
 
 ---
 
-## 4. Legacy Authentik Architecture & Theoretical Reconstruction Blueprint
+## 4. Legacy Authentik Architecture & Reconstruction Blueprint
 
-Authentik (`2026.5.3`) was retired in October 2026 in favor of `tinyauth:v5` + `lldap`, saving `~502 MiB` of idle RAM and eliminating background worker CPU polling. Its container definitions remain available under `profiles: ["standby"]` in [`compose/core.yml`](../../compose/core.yml), while its `224 MB` local PostgreSQL cluster (`data/authentik`) and `13 MB` SQL dump (`data/backups/authentik_db.sql.gz`) were removed after recording the exact configuration below.
+Authentik (`2026.5.3`) was retired in October 2026 in favor of `tinyauth:v5` + `lldap`, saving `~502 MiB` of idle RAM and eliminating background worker CPU polling. Its container definitions (`authentik-postgresql`, `authentik-server`, `authentik-worker`), `224 MB` PostgreSQL cluster (`data/authentik`), and `13 MB` SQL dump (`data/backups/authentik_db.sql.gz`) were purged after recording the reconstruction specification below.
 
-### 4.1 Container Topology (`compose/core.yml` under `profiles: ["standby"]`)
+### 4.1 Retired Container Topology
 
 - **`authentik-postgresql`**: `postgres:16-alpine`, database `${PG_DB:-authentik}`, user `${PG_USER:-authentik}`, password `${PG_PASS}`.
 - **`authentik-server`**: `ghcr.io/goauthentik/server:2026.5.3` (`command: server`), bound to `127.0.0.1:9000:9000` and `127.0.0.1:9443:9443`, `AUTHENTIK_WEB__WORKERS: 2`, `AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}`.
@@ -137,44 +128,24 @@ Authentik (`2026.5.3`) was retired in October 2026 in favor of `tinyauth:v5` + `
 
 ### 4.2 Upstream Google OAuth Source & Silent Redirect Flow
 
-To achieve zero-click silent redirect straight to `accounts.google.com` without rendering an Authentik login form:
+1. **OAuth Source (`authentik_sources_oauth_oauthsource`):** `Google` / `google` (`enabled = true`, `promoted = true`, `provider_type = google`, `pkce = S256`, `user_matching_mode = email_link`), Redirect URI `https://auth.vrg.rocks/source/oauth/callback/google/`.
+2. **Identification Stage (`default-authentication-identification`):** `user_fields: {}` (empty array) with `Google` (`promoted = true`) as the sole source, causing `default-authentication-flow` to return an immediate `HTTP 302` redirect to `https://accounts.google.com/o/oauth2/v2/auth`.
+3. **User Login Stage (`default-authentication-login`):** `session_duration: seconds=0`, `remember_device: days=30`.
+4. **Authorization Flow:** Bound to `default-provider-authorization-implicit-consent` (0 stages, skipping per-app consent prompts).
 
-1. **OAuth Source (`authentik_sources_oauth_oauthsource`):**
-   - **Name / Slug:** `Google` / `google` (`enabled = true`, `promoted = true`)
-   - **Provider Type:** `google` (`pkce = S256`, `authorization_code_auth_method = basic_auth`)
-   - **User Matching Mode:** `email_link` (links OAuth logins to existing Authentik users by email)
-   - **Authentication Flow:** `default-source-authentication`
-   - **Enrollment Flow:** `default-source-enrollment`
-   - **Consumer Key / Secret:** `${GOOGLE_OAUTH_CLIENT_ID}` / `${GOOGLE_OAUTH_CLIENT_SECRET}`
-   - **Google Cloud Authorized Redirect URI:** `https://auth.vrg.rocks/source/oauth/callback/google/`
-2. **Identification Stage (`default-authentication-identification`):**
-   - **`user_fields`:** `{}` (empty array, disabling the username/password input box)
-   - **Sources:** `Google` (with `promoted = true` on the Google source)
-   - **Effect:** Because `user_fields` is empty and `Google` is promoted, hitting `default-authentication-flow` immediately returns an `HTTP 302` redirect to `https://accounts.google.com/o/oauth2/v2/auth`.
-3. **User Login Stage (`default-authentication-login`):**
-   - **`session_duration`:** `seconds=0`
-   - **`remember_device`:** `days=30` (`enable_remember_me = true`)
-4. **Authorization Flow:**
-   - All providers bound to `default-provider-authorization-implicit-consent` (0 stages, skipping per-app consent screens).
-
-### 4.3 Applications, Providers & Embedded Outpost
+### 4.3 Legacy Applications, Providers & Caddy Snippet
 
 | Application (`slug`) | Provider Name (`id`) | Type & Mode | Key Parameters & Redirect URIs |
 | :--- | :--- | :--- | :--- |
-| **`Sol` (`sol`)** | `Caddy` (`id=3`) | `ProxyProvider` (`forward_domain`) | `external_host: https://auth.vrg.rocks`, `cookie_domain: vrg.rocks`, `access_token_validity: hours=24`, `refresh_token_validity: days=30`, `intercept_header_auth: true`. Bound to `authentik Embedded Outpost` (`type=proxy`, `authentik_host=https://auth.vrg.rocks/`). Policy binding: `Admins` group on application `Sol`. |
-| **`Paperless-ngx` (`paperless-ngx`)** | `Provider for Paperless-ngx` (`id=7`) | `OAuth2Provider` (`confidential`) | `sub_mode: hashed_user_id`, `issuer_mode: per_provider`, `include_claims_in_id_token: true`, `access_code_validity: minutes=1`, `access_token_validity: minutes=5`, `refresh_token_validity: days=30`. Scopes: `openid`, `email`, `profile`. Strict Redirect URI: `https://docs.vrg.rocks/accounts/oidc/authentik/login/callback/`. Discovery URL: `https://auth.vrg.rocks/application/o/paperless-ngx/.well-known/openid-configuration`. |
-| **`Arcane` (`arcane`)** | `Provider for Arcane` (`id=9`) | `OAuth2Provider` (`confidential`) | `sub_mode: hashed_user_id`, `issuer_mode: per_provider`, `include_claims_in_id_token: true`, `access_code_validity: minutes=1`, `access_token_validity: minutes=5`, `refresh_token_validity: days=30`. Scopes: `openid`, `profile`, custom `Arcane Email Scope`. Strict Redirect URI: `https://arcane.vrg.rocks/auth/oidc/callback`. Issuer URL: `https://auth.vrg.rocks/application/o/arcane`. |
-| **`Jellyfin` (`jellyfin`)** | `Provider for Jellyfin` (`id=5`) | `LDAPProvider` (unused) | `base_dn: dc=company,dc=com`, `bind_mode: cached`, `search_mode: cached` (never connected to an LDAP outpost). |
-
-### 4.4 Legacy Caddy Forward-Auth Snippet (`Caddyfile`)
+| **`Sol` (`sol`)** | `Caddy` (`id=3`) | `ProxyProvider` (`forward_domain`) | `external_host: https://auth.vrg.rocks`, `cookie_domain: vrg.rocks`, `access_token_validity: hours=24`, `refresh_token_validity: days=30`, `intercept_header_auth: true`. Bound to `authentik Embedded Outpost`. |
+| **`Paperless-ngx` (`paperless-ngx`)** | `Provider for Paperless-ngx` (`id=7`) | `OAuth2Provider` (`confidential`) | `sub_mode: hashed_user_id`, `issuer_mode: per_provider`. Redirect URI: `https://docs.vrg.rocks/accounts/oidc/authentik/login/callback/`. |
+| **`Arcane` (`arcane`)** | `Provider for Arcane` (`id=9`) | `OAuth2Provider` (`confidential`) | `sub_mode: hashed_user_id`, `issuer_mode: per_provider`. Redirect URI: `https://arcane.vrg.rocks/auth/oidc/callback`. |
 
 ```caddyfile
-(forward_auth) {
-	reverse_proxy /outpost.goauthentik.io/* http://authentik-server:9000
-	forward_auth http://authentik-server:9000 {
-		uri /outpost.goauthentik.io/auth/caddy
-		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
-		trusted_proxies private_ranges
-	}
-}
+# Standby Authentik forward_auth body (preserved as a comment in Caddyfile):
+# forward_auth authentik-server:9000 {
+# 	uri /outpost.goauthentik.io/auth/caddy
+# 	copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+# 	trusted_proxies private_ranges
+# }
 ```

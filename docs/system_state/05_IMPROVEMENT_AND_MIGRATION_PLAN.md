@@ -1,195 +1,120 @@
 # 05. System Refactoring & Modular Architecture Migration Plan
 
-> **Host Context:** Apple Silicon M1 Pro macOS (Single-Node Host running OrbStack / Docker)  
+> **Host Context:** Apple Silicon M1 Pro macOS (`dash.vrg.rocks`, 16 GB Unified Memory, OrbStack / Docker Engine)  
 > **Workspace Root:** `/Users/vrg/Documents/Sol`  
-> **Refactoring Date:** August 2026 (Phase 1 modularization), October 2026 (Phase 2 profiles, hardening & backup integrity)  
-> **Safety Guarantee:** Non-destructive migration with dedicated pre-refactor backup at `_backup_pre_refactor/`.  
-> **Last Synced to Ground Truth:** 2026-10-17  
+> **Refactoring Timeline:** August 2026 (Phase 1 Modularization) → October 17–19, 2026 (Phase 2 Profiles, Tinyauth v5 + LLDAP Cutover, Backrest + Restic DR, Wave 1 & 2 Fleet Expansion, PANOPTICON Zero-Copy Symlink Pipeline) → October 20, 2026 (Phase 3 31-Agent Swarm Audit & Full-Stack Hardening)  
+> **Last Synced to Ground Truth:** 2026-10-20  
 
 ---
 
-## 1. Executive Summary & Goals
+## 1. Executive Summary & Evolution Milestones
 
-This document records the architectural refactoring of the **Sol** home server. Phase 1 removed technical debt, split a monolithic 922-line compose file into single-responsibility domain stacks, centralized secrets, and cleaned up root directory clutter for an Apple Silicon M1 Pro macOS host. Phase 2 replaced commented-out YAML with Compose profiles, hardened edge authentication, and made backups crash-consistent.
+This document records the multi-phase architectural refactoring of the **Sol** home server (`vrg.rocks`), transforming it from a monolithic 922-line Compose file with fragmented secrets and heavyweight Python/Java daemons into a modular, zero-trust, crash-consistent 29-container active stack (`1.63 GiB` total RAM, `29/29` `(healthy)`).
 
-### Phase 1 Milestones (August 2026)
-1. **Docker Compose V2 `include:` Architecture:** Replaced the monolithic `docker-compose.yml` with 8 modular domain files under `compose/`.
-2. **Zero-Friction Container DNS:** Retained 100% container-to-container name resolution (`http://radarr:7878`, `http://authentik-server:9000`, `http://glance:8080`, `http://caddy`) across the unified `sol_default` project bridge network without external network workarounds.
-3. **Dedicated Paperless Stack:** Extracted `paperless-webserver`, `paperless-broker`, `paperless-db`, and AI/OCR helpers into a dedicated compose file (`compose/paperless.yml`).
-4. **Environment & Secrets Hygiene:** Segregated `.env` and `.env.example` into prefixed, app-specific sections and moved inline hardcoded secrets (`arcane` encryption keys) out of YAML.
-5. **Zero-Leak Environment Mapping:** Replaced blanket `env_file:` dumps with explicit container-level `environment:` blocks, so no service sees unrelated secrets.
-6. **Retired Redundant Files:** Archived `paperless.env`, `bitwarden.env`, and legacy compose files into `docs/archive/`.
-7. **Static Web & Script Separation:** Grouped static frontends into `web/` (`web/fam`, `web/scan`, `web/aysynbm`) and automation tasks into `scripts/` (`scripts/backup.sh`, `scripts/restore.sh`, `scripts/setup_jellyfin_metal.py`, `scripts/test_cross_seed.sh`).
-8. **Master Port Registry Update:** Refreshed `ports.json` with active, standby, and legacy service allocations, internal ports, host ports, protocols, and FQDNs.
+### Phase 1 Milestones (August 2026 — Modularization & Secret Hygiene)
+1. **Docker Compose V2 `include:` Architecture:** Split the monolithic `docker-compose.yml` into 8 single-responsibility domain files under `compose/`.
+2. **Zero-Friction Container DNS:** Retained 100% container-to-container name resolution (`http://radarr:7878`, `http://tinyauth:3000`, `http://lldap:3890`, `http://glance:8080`, `http://caddy`) across the unified `sol_default` project bridge network.
+3. **Dedicated Paperless Stack:** Extracted `paperless-webserver`, `paperless-broker`, `paperless-db`, and standby converters (`paperless-gotenberg`, `paperless-tika`, `paperless-ai`) into `compose/paperless.yml`.
+4. **Zero-Leak Environment Mapping:** Replaced blanket `env_file:` imports with explicit container-level `environment:` blocks so no container receives unrelated tokens.
+5. **Retired Redundant Root Files:** Archived `paperless.env`, `bitwarden.env`, and legacy compose files into `docs/archive/`.
+6. **Static Web & Script Separation:** Organized static frontends into `web/` and operational tooling into `scripts/`.
 
-### Phase 2 Milestones (October 2026)
-1. **Compose Profiles Replace Commented YAML:** 26 standby/ops containers now carry `profiles: ["standby"]` (or `profiles: ["ops", "standby"]` for `rclone`). `docker compose up -d` starts the 24 active containers. `docker compose --profile standby up -d <service>` starts one standby service.
-2. **Caddy Standby Vhosts Commented:** 18 standby vhosts are commented out until their `--profile standby` container starts. 27 site blocks stay active.
-3. **Byparr Replaces FlareSolverr:** `byparr` (`ghcr.io/thephaseless/byparr:latest`, port `8191`, network alias `flaresolverr`) is the active Cloudflare Turnstile solver. `flaresolverr` is preserved under `profiles: ["standby"]`.
-4. **Edge Auth Hardening:** `dash.vrg.rocks`, `code.vrg.rocks`, `router.vrg.rocks`, `byparr.vrg.rocks`, and `flaresolverr.vrg.rocks` enforce `import forward_auth`. `qb.vrg.rocks` keeps qBittorrent Native Auth for the Android client. `metal.vrg.rocks` routes native Jellyfin Metal.
-5. **Homebox to Standby:** Moved to `profiles: ["standby"]` pending local SQLite database repair. CORS restricted to `Origin https://scan.vrg.rocks`.
-6. **Authentik Hardening:** `authentik-server` binds `127.0.0.1:9000` and `127.0.0.1:9443` and sets `AUTHENTIK_WEB__WORKERS: 2`. `authentik-worker` runs without `user: root` and without `/var/run/docker.sock`.
-7. **Paperless Tuning:** `paperless-webserver` passes `PAPERLESS_DBNAME`, `PAPERLESS_DBUSER`, `PAPERLESS_DBPASS`, `PAPERLESS_TASK_WORKERS: 2`, `PAPERLESS_THREADS_PER_WORKER: 2`. `paperless-broker` moves to `redis:8-alpine`. `paperless-db` stays on Debian `postgres:17` (`glibc`).
-8. **Backup Integrity:** `config/rclone/filter.txt.example` excludes live PostgreSQL clusters and SQLite `-wal`/`-shm` files. `scripts/backup.sh` takes atomic SQLite `.backup` snapshots and archives with `--backup-dir`. `scripts/restore.sh` imports dumps with `psql`.
-9. **Download Mount Staging:** `qbittorrent` and `cross-seed` add `${DOCKER_DATA_DIR}:/data` next to `${DOCKER_DATA_DIR}/torrents:/downloads` for a zero-downtime move to unified `/data/torrents`.
-10. **Coder & Script Safety:** `coder/default.tf` removed. `coder/main.tf` downloads prebuilt `jj` `v0.28.2` musl binaries. `scripts/setup_jellyfin_metal.py` guards `shutil.rmtree(CONFIG_DIR)` behind `--reset`. `scripts/test_cross_seed.sh` runs as `-u "${PUID:-501}:${PGID:-20}"`. Shell scripts load `.env` with a safe `load_env` parser and use Bash 3.2 `set -u` safe array expansion.
+### Phase 2 Milestones (October 17–19, 2026 — Identity Cutover, Wave 1 & 2 Expansion, Zero-Copy ExFAT & Restic Backups)
+1. **Tinyauth v5 + LLDAP Identity Cutover (`~10 MiB` RAM vs `~900 MiB` Authentik):** Replaced the 3-container Authentik stack (`authentik-server`, `authentik-worker`, `authentik-postgresql`) with **Tinyauth v5** (`ghcr.io/tinyauthapp/tinyauth:v5`, `v5.2.0`, forward-auth + 7 built-in RS256 OIDC clients) and **LLDAP** (`ghcr.io/lldap/lldap:stable`, `v0.6.2`, Rust LDAP directory at `600 KiB` RAM), synchronized automatically across all downstream apps via `scripts/identity_sync.py`.
+2. **Wave 1 Static Browser Apps (`0 MiB` Container RAM):** Deployed 6 self-hosted static SPAs served directly from `caddy` via `scripts/sync_static_tools.sh`: `tools.vrg.rocks` (IT-Tools), `chef.vrg.rocks` (CyberChef), `pdf.vrg.rocks` (BentoPDF), `speed.vrg.rocks` (OpenSpeedTest), `draw.vrg.rocks` (Excalidraw), and `mi.vrg.rocks` (Mission Impossible dossier), alongside `mind.vrg.rocks` (Quartz), `fam.vrg.rocks` (Family Data Vault), `scan.vrg.rocks` (Homebox Scanner PWA), and `aysynbm.vrg.rocks`.
+3. **Wave 2 Lightweight Container Expansion:** Added `qui` (`v1.32.0`, replacing Node.js `cross-seed` and implementing 26 tracker rules + 10 native FUP seeding automation rules), `backrest` (`v1.14.1` Restic UI/scheduler), `readeck` (`v0.22.3` bookmark/article archiver), `enclosed` (`v1.16.0` zero-knowledge encrypted notes), `airtrail` (`v3.13.0` flight log sharing `paperless-db`), `pocketbase` (`v0.40.5` realtime Go + SQLite backend), and promoted repaired `homebox` (`v0.26.2` unified entities schema) to active production.
+4. **PostgreSQL 17 Alpine Migration (`paperless-db`):** Migrated `paperless-db` from Debian `postgres:17` (`glibc`) to `postgres:17-alpine` (`musl`) via `pg_dump`/`pg_restore`, hosting both `paperless` and `airtrail` databases in `24.2 MiB` RAM.
+5. **PANOPTICON ExFAT Zero-Copy Relative Symlink Pipeline:** Built `scripts/torrent_finished.py` (qBittorrent completion hook) and `scripts/arr_symlink_dedupe.sh` (Radarr/Sonarr custom script) to create relative symlinks (`../../../torrents/...`) on `/Volumes/PANOPTICON` (`ExFAT`), achieving zero-copy media imports without ExFAT hardlink support and eliminating `/downloads` in favor of unified `/data` and `/external`.
+6. **Two-Tier Encrypted Restic Backup Architecture (`Backrest`):** Replaced raw `rclone sync` with encrypted Restic repositories on both `/Volumes/PANOPTICON/backups/sol-restic` (`03:00` & `15:00` IST) and `rclone:OneDrive:Sol-Restic` (`03:30` IST), preceded by `scripts/stage_db_backups.sh` (`02:45` & `14:45` IST).
+
+### Phase 3 Milestones (October 20, 2026 — 31-Agent Swarm Audit & Full-Stack Hardening)
+1. **100% Container Healthcheck Coverage (`29/29` Healthy):** Added verified native Docker `healthcheck` definitions to all previously unmonitored active services (`caddy`, `arcane`, `glance`, `jellyfin`, `radarr`, `sonarr`, `lidarr`, `prowlarr`, `bazarr`, `qbittorrent`, `ignis`, `code-server`, `coder`, `backrest`, `enclosed`) and replaced `byparr`'s heavy upstream `/health` check (which spawned Firefox against `google.com` every 15m, causing `36.1 GB` Block I/O reads in 13h) with a lightweight `/openapi.json` check + `shm_size: 1gb` + `/tmp` `tmpfs` + `BLOCK_MEDIA: "true"`.
+2. **Retired Service & Directory Purge:** Removed decommissioned `authentik-postgresql`, `authentik-server`, `authentik-worker`, `flaresolverr`, and `cross-seed` blocks from `compose/*.yml` and `ports.json`, and deleted 18 retired leftover `config/` and `data/` directories on `dash.vrg.rocks`.
+3. **Edge ACL & OIDC Lockdown:** Added `TINYAUTH_APPS_{IGNIS,MIND,SCAN,AYSYNBM}` admin whitelists in `compose/core.yml`, set `CODER_OIDC_ALLOW_SIGNUPS: "false"`, restricted `arcane` and `coder` OIDC consent pre-seeding in `scripts/identity_sync.py` strictly to `admin` users, fixed `(static_site)` directive ordering in `Caddyfile` (`route { try_files ...; file_server }` after `forward_auth`), and gated external `POST`/`PUT` publishes on `ntfy.vrg.rocks` and note creation on `send.vrg.rocks`.
+4. **TCC-Free Pre-Backup Staging & Bare-Metal DR Fixes:** Fixed macOS TCC (`Exit 126` on `~/Documents` and removable volume hangs on `/Volumes/PANOPTICON`) in `com.vrg.sol.db-stage.plist` and `scripts/stage_db_backups.sh` (producing 29 clean WAL-free SQLite `.db` snapshots with zero `-wal`/`-shm` sidecars), materialized `web/fam` (`vault.enc`) into a real directory, and fixed `scripts/restore.sh` to run Restic via `docker run` before `.env` exists and restore `coder_db.sql.gz` + `coder_home.tar.gz`.
+5. **Immutable `<50ms` Identity Sync Fast-Path:** Rewrote `scripts/identity_sync.py` to read `data/lldap/users.db?immutable=1` directly (eliminating the `WatchPaths` self-triggering JWT login write loop) with a SHA-256 fast-path exit (`45.5 ms`), Readeck OIDC user pre-seeding + `preserve_lldap_user_identity` trigger, and AirTrail single-owner safety.
+6. **Coder `sol-workspace` Activation & Jellyfin `tmpfs` Fix:** Set `group_add: ["0"]` and `CODER_CLUSTER_HOST: "127.0.0.1"` on `coder` and pushed `/Sol/coder/main.tf` (`sol-workspace` active); fixed `jellyfin` `/tmp/jellyfin` `tmpfs` permissions (`uid=501,gid=20,mode=0755`), `Optimistic` SQLite locking, and moved `The Ba***ds of Business (1995).mp4` to `Home Videos`.
 
 ---
 
-## 2. Before & After Architecture Comparison
+## 2. Current Directory & Stack Topology (`/Users/vrg/Documents/Sol`)
 
-### Before (Monolithic & Cluttered)
-```
+```text
 /Users/vrg/Documents/Sol/
-├── .env, paperless.env, bitwarden.env    # Fragmented secrets across 3+ files
-├── docker-compose.yml                    # 922 lines (25 active + 18 commented services mixed)
-├── authentik-compose.yml                 # Redundant compose file in root
-├── docker-compose-coder.yml              # Redundant compose file in root
-├── docker-compose-backup.yml             # Outdated compose file in root
-├── docker-compose-archive.yml            # Outdated compose file in root
-├── Caddyfile, Caddyfile.txt              # Live and historic configs in root
-├── scan/, vault/, aysynbm/               # Static web apps sitting flat in root
-├── backup.sh, test_cross_seed.sh         # Shell scripts sitting flat in root
-├── config/                               # Runtime configurations
-└── data/                                 # Persistent data and databases
-```
-
-### After (Modular, Profiled & Declarative)
-```
-/Users/vrg/Documents/Sol/
-├── .env                                  # Unified, app-segregated secrets & parameters
-├── .env.example                          # Sanitized template for version control
+├── .env                                  # Unified, app-segregated secrets & parameters (chmod 600)
+├── .env.example                          # Sanitized template tracked in Git
 ├── docker-compose.yml                    # Root Compose orchestrator (name: sol) with native 'include:'
-├── Caddyfile                             # Live ingress rules, Authentik forward-auth, 18 commented standby vhosts
-├── ports.json                            # Authoritative master port & routing registry (status + profile)
+├── Caddyfile                             # 33 active site blocks, 12 commented standby vhosts, hardened snippets
+├── ports.json                            # Authoritative registry (46 entries: 29 active containers, 16 standby/ops, 1 native standby)
 ├── Sol.code-workspace
 │
-├── compose/                              # MODULAR DOMAIN STACKS ([..] = profiles: ["standby"])
-│   ├── core.yml                          # Ingress & Identity (Caddy, Authentik, Arcane)
-│   ├── monitoring.yml                    # Dashboards & Metrics (Glance, [Gatus, Dozzle, Beszel, Beszel-Agent, Dockge, Uptime Kuma, Homarr])
-│   ├── media.yml                         # Media & *arr Suite (Jellyfin, Seerr, Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, Byparr, [FlareSolverr, Recyclarr, Wizarr])
-│   ├── download.yml                      # Ingestion (qBittorrent, Cross-Seed, [Unpackerr, qbit_manage, Flood])
-│   ├── paperless.yml                     # Dedicated Document Stack (Web, Broker, DB, [Gotenberg, Tika, AI])
-│   ├── knowledge.yml                     # Digital Notes & Reading (Ignis, [LeafWiki, Kavita, Calibre, Calibre-Web])
-│   ├── coding.yml                        # Developer Environments (code-server, Coder)
-│   └── utilities.yml                     # Logistics & Storage (Copyparty, ntfy, [Homebox, Vaultwarden, n8n, Home Assistant, Rclone, Rclone GUI])
+├── compose/                              # 8 MODULAR DOMAIN STACKS (29 Active + 15 Standby + 1 Ops = 45 Services)
+│   ├── core.yml                          # Caddy, Tinyauth v5, LLDAP, Arcane (4 active)
+│   ├── monitoring.yml                    # Glance, [Gatus, Dozzle, Beszel, Beszel-Agent] (1 active, 4 standby)
+│   ├── media.yml                         # Jellyfin, Seerr, Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, Byparr, [Recyclarr, Wizarr] (8 active, 2 standby)
+│   ├── download.yml                      # qBittorrent, QUI, [Unpackerr] (2 active, 1 standby)
+│   ├── paperless.yml                     # Paperless Webserver, Broker (Redis 8), DB (PG 17 Alpine), [Gotenberg, Tika, AI] (3 active, 3 standby)
+│   ├── knowledge.yml                     # Ignis, Readeck, [LeafWiki, Kavita] (2 active, 2 standby)
+│   ├── coding.yml                        # code-server, Coder, PocketBase (3 active)
+│   └── utilities.yml                     # Copyparty, ntfy, Homebox, Backrest, Enclosed, AirTrail, [Vaultwarden, n8n, Home Assistant], [Rclone (ops)] (6 active, 3 standby, 1 ops)
 │
-├── web/                                  # STATIC FRONTENDS & APPS
-│   ├── mind/                             # Quartz Digital Garden build (/mind) -> quartz/public
-│   ├── fam/                              # Family Data Vault static app (/fam)
+├── web/                                  # 9 STATIC WEB APPS (+ quartz/public -> /mind = 10 Zero-RAM Sites)
+│   ├── fam/                              # Family Data Vault static build + encrypted vault.enc (/fam)
 │   ├── scan/                             # Homebox Mobile Barcode Scanner PWA (/scan)
-│   └── aysynbm/                          # Async Bookmark Manager (/aysynbm)
+│   ├── aysynbm/                          # Async Bookmark Manager (/aysynbm)
+│   ├── tools/                            # IT-Tools developer suite (/tools)
+│   ├── chef/                             # CyberChef GCHQ data swiss-army knife (/chef)
+│   ├── pdf/                              # BentoPDF client-side WebAssembly PDF toolkit (/pdf)
+│   ├── speed/                            # OpenSpeedTest LAN/WAN HTML5 speed test (/speed)
+│   ├── draw/                             # Excalidraw virtual whiteboard (/draw)
+│   └── mi/                               # Mission Impossible briefing experience (/mi)
 │
-├── scripts/                              # MAINTENANCE & AUTOMATION
-│   ├── backup.sh                         # PG dumps + SQLite .backup snapshots + versioned OneDrive rclone sync
-│   ├── restore.sh                        # Cloud pull, SQLite snapshot restore, psql dump import, stack start
-│   ├── setup_jellyfin_metal.py           # Native Jellyfin Metal launcher (destructive reset only with --reset)
-│   └── test_cross_seed.sh                # Filesystem & cross-seed permission diagnostic (unprivileged UID:GID)
+├── scripts/                              # OPERATIONAL AUTOMATION & LAUNCHAGENTS
+│   ├── stage_db_backups.sh               # Pre-backup PG dumps (Paperless, AirTrail, Coder), 29 clean SQLite snapshots, symlink manifest
+│   ├── backup.sh                         # Manual Restic wrapper (local PANOPTICON + OneDrive cloud)
+│   ├── restore.sh                        # Bare-metal & selective Restic restore, SQLite + PG + Coder volume recovery, LaunchAgent bootstrap
+│   ├── identity_sync.py                  # LLDAP -> Tinyauth, Jellyfin, Seerr, Paperless, AirTrail, Homebox, Readeck, Copyparty (<50ms fast-path)
+│   ├── allowlist_user.sh                 # Operator CLI wrapper for users.json & identity_sync.py
+│   ├── torrent_finished.py               # qBittorrent completion hook (zero-copy relative symlinks on ExFAT + Radarr/Sonarr/Jellyfin/ntfy notify)
+│   ├── arr_symlink_dedupe.sh             # Radarr/Sonarr OnImport/OnUpgrade custom script (idempotent relative symlink replacement)
+│   ├── sync_static_tools.sh              # Idempotent release downloader for Wave 1 static web bundles
+│   ├── setup_jellyfin_metal.py           # Standby native macOS Jellyfin Metal launcher (VideoToolbox port 8097)
+│   ├── launchd/                          # Tracked macOS LaunchAgents (com.vrg.sol.db-stage.plist, com.vrg.sol.identity-sync.plist)
+│   └── archive/                          # Historical one-off migration scripts (migrate_panopticon_live.py, merge_overseerr_history.py, test_cross_seed.sh)
 │
-├── coder/                                # Coder v2 Terraform (main.tf only, default.tf removed)
-├── config/                               # PERSISTENT CONFIGURATIONS (Paths 100% Intact)
-│   └── rclone/filter.txt.example         # Tracked backup filter template
-├── data/                                 # PERSISTENT DATA & DATABASES (Paths 100% Intact)
-│   └── backups/sqlite/                   # Atomic SQLite snapshots
-├── logs/                                 # AUDIT & BACKUP LOG ARCHIVES
-│
-├── docs/
-│   ├── system_state/                     # 00-09 Architectural Documentation
-│   ├── FLASH_LOCAL_VERIFICATION_RUNBOOK.md
-│   └── archive/                          # Archived historic compose files, paperless.env & logs
-│
-└── _backup_pre_refactor/                 # Pre-refactoring safety rollback snapshot
+├── coder/                                # Coder v2 Terraform template (main.tf -> active 'sol-workspace' template)
+├── config/                               # Persistent service configurations (23 active/standby directories)
+│   └── backrest/excludes.txt.example     # Tracked Restic backup exclusion template
+├── data/                                 # Persistent service data, media, torrents & staged backups
+│   └── backups/                          # paperless_db.sql.gz, airtrail_db.sql.gz, coder_db.sql.gz, coder_home.tar.gz, sqlite/ (29 DBs), symlinks_manifest.tsv
+└── logs/                                 # Operational logs (db_stage.log, identity_sync.log)
 ```
 
 ---
 
-## 3. Detailed Component Breakdown
+## 3. Domain Compose Stacks Breakdown (`compose/`)
 
-### 3.1 Domain Compose Stacks (`compose/`)
-
-| Stack File | Active Services | Standby / Ops Services (`profiles:`) | Purpose |
+| Stack File | Active Containers (`29` Total, All `(healthy)`) | Standby / Ops Containers (`16` Total) | Purpose |
 | :--- | :--- | :--- | :--- |
-| **`core.yml`** | `caddy`, `authentik-postgresql`, `authentik-server`, `authentik-worker`, `arcane` (5) | None | Core edge routing, authentication, and Docker management. |
-| **`monitoring.yml`** | `glance` (1) | `gatus`, `dozzle`, `beszel`, `beszel-agent`, `dockge`, `uptime-kuma`, `homarr` (7) | System health overview, metrics, and homelab dashboards. |
-| **`media.yml`** | `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr` (8) | `flaresolverr`, `recyclarr`, `wizarr` (3) | Video/music streaming, automated metadata ingestion, challenge solving, and requests. |
-| **`download.yml`** | `qbittorrent`, `cross-seed` (2) | `unpackerr`, `qbit_manage`, `flood` (3) | High-throughput BitTorrent client and cross-seed daemon. |
-| **`paperless.yml`** | `paperless-webserver`, `paperless-broker`, `paperless-db` (3) | `paperless-gotenberg`, `paperless-tika`, `paperless-ai` (3) | Document OCR, indexing, and archival engine. |
-| **`knowledge.yml`** | `ignis` (1) | `leafwiki`, `kavita`, `calibre`, `calibre-web` (4) | Obsidian note synchronization, digital gardens, and e-books. |
-| **`coding.yml`** | `code-server`, `coder` (2) | None | Web IDEs and on-demand Terraform container workspaces. |
-| **`utilities.yml`** | `copyparty`, `ntfy` (2) | `homebox`, `vaultwarden`, `n8n`, `homeassistant`, `rclone` (`ops`, `standby`), `rclone-gui` (6) | Multi-user file sharing, push notifications, inventory (standby), and backup workers. |
-| **Total** | **24** | **26** | Plus native macOS `jellyfin-metal` on port `8097`. |
+| **`core.yml`** | `caddy`, `tinyauth`, `lldap`, `arcane` (`4`) | None (`0`) | Edge TLS/HTTP3 proxy, 10 static sites, Google OAuth forward-auth + OIDC provider, Rust LDAP directory, and Docker manager. |
+| **`monitoring.yml`** | `glance` (`1`) | `gatus`, `dozzle`, `beszel`, `beszel-agent` (`4` `standby`) | Unified 3-page dashboard (`dash.vrg.rocks`) and on-demand telemetry/log viewers. |
+| **`media.yml`** | `jellyfin`, `seerr`, `radarr`, `sonarr`, `bazarr`, `lidarr`, `prowlarr`, `byparr` (`8`) | `recyclarr`, `wizarr` (`2` `standby`) | Media streaming, request management, PVR automation, subtitles, indexer proxy, and Cloudflare Turnstile solver. |
+| **`download.yml`** | `qbittorrent`, `qui` (`2`) | `unpackerr` (`1` `standby`) | BitTorrent engine (`:42069`), Go web UI, cross-seeding, and 10 native FUP seeding automation rules. |
+| **`paperless.yml`** | `paperless-webserver`, `paperless-broker`, `paperless-db` (`3`) | `paperless-gotenberg`, `paperless-tika`, `paperless-ai` (`3` `standby`) | Document OCR (`eng+hin+kan+pan`), Redis 8 task queue (`256mb` cap), and shared PostgreSQL 17 Alpine database. |
+| **`knowledge.yml`** | `ignis`, `readeck` (`2`) | `leafwiki`, `kavita` (`2` `standby`) | Obsidian vault synchronization (`ignis.vrg.rocks`) and read-later article archiver (`links.vrg.rocks`). |
+| **`coding.yml`** | `code-server`, `coder`, `pocketbase` (`3`) | None (`0`) | Browser VS Code IDE, Terraform CDE platform (`sol-workspace`), and Go + SQLite backend (`pb.vrg.rocks`). |
+| **`utilities.yml`** | `copyparty`, `ntfy`, `homebox`, `backrest`, `enclosed`, `airtrail` (`6`) | `vaultwarden`, `n8n`, `homeassistant` (`3` `standby`), `rclone` (`1` `ops`) | File server/WebDAV, push notifications, asset inventory, Restic backup scheduler, encrypted notes, and flight log. |
+| **Total** | **29 Active (`1.63 GiB` RAM)** | **15 `standby` + 1 `ops` (`16`)** | Plus 1 standby native macOS app (`jellyfin-metal` on port `8097`). |
 
-### 3.2 Profile Mechanics
+---
+
+## 4. Profile & Recovery Mechanics
 
 | Command | Effect |
 | :--- | :--- |
-| `docker compose up -d` | Starts the 24 active containers. Profiled services are ignored. |
-| `docker compose --profile standby up -d <service>` | Starts one standby service. |
-| `docker compose --profile ops run --rm rclone <args>` | One-shot rclone task (used by `scripts/backup.sh` fallback). |
-| `docker compose --profile standby config` | Validates all 50 service definitions, including standby. |
-| `docker compose config` | Validates the active set (used by `scripts/restore.sh`). |
-
-### 3.3 Scripts & Terraform Changes
-
-| File | Change | Safety Effect |
-| :--- | :--- | :--- |
-| `scripts/backup.sh` | Adds safe `load_env`, `.tmp` dump then `mv`, SQLite `.backup` snapshots to `data/backups/sqlite/`, `--backup-dir OneDrive:Sol-archive/<TIMESTAMP>`, `filter.txt.example` fallback, `--profile ops` container fallback | Crash-consistent DB state in the cloud, point-in-time recovery of overwritten files |
-| `scripts/restore.sh` | Adds `--dry-run`, `--skip-cloud-pull`, `--restore-dbs`, `--start-stack`, SQLite snapshot restore, real `psql` dump import, Bash 3.2 safe arrays | Cold-start recovery without manual SQL steps |
-| `scripts/setup_jellyfin_metal.py` | `shutil.rmtree(CONFIG_DIR)` only with `--reset`. Default relaunches and preserves `jellyfin.db` | No accidental loss of users, API keys, or watch history |
-| `scripts/test_cross_seed.sh` | `docker exec -u "${PUID:-501}:${PGID:-20}"` instead of root, adds unified `/data` hardlink test | Results match the daemon's real permissions |
-| `coder/default.tf` | Removed | Eliminates duplicate Terraform resource definitions |
-| `coder/main.tf` | Prebuilt `jj` `v0.28.2` musl tarball from GitHub releases, `apt-get install -y curl unzip git tar` | Faster workspace start, no Rust toolchain or `cargo install` |
-
----
-
-## 4. Technical Answers & Investigation Findings
-
-### Paperless-AI Environment Variable Resolution
-* **Question:** Can Paperless-AI environment variables lie outside its directory (`data/paperless-ai/.env`)?
-* **Findings:** **Yes.**
-  1. `clusterzx/paperless-ai` reads standard container environment variables (`process.env`).
-  2. Defining variables centrally in `.env` (or through `compose/paperless.yml`) passes them into the container process on startup.
-  3. Paperless-AI generates `/app/data/.env` as a local cache if variables are omitted. Passing environment variables through compose overrides that cache and keeps configuration central.
-
-### Environment Variable Security & Isolation
-* With blanket `env_file:` imports removed across `authentik` and `paperless`, each service receives only the parameters mapped under its `environment:` block.
-* Unrelated system tokens (for example `BESZEL_AGENT_TOKEN`, `ARCANE_JWT_SECRET`) never reach other containers' environments.
-* Host scripts no longer `source ./.env` directly. The `load_env` parser exports only keys that match `^[A-Za-z_][A-Za-z0-9_]*$`, strips surrounding quotes, and strips inline comments only on unquoted values. `.env.example` quotes `PAPERLESS_OCR_LANGUAGES="hin kan pan"` and single-quotes the `PAPERLESS_SOCIALACCOUNT_PROVIDERS` JSON to match.
-
-### Cross-Stack Container Networking
-* All compose stacks are included into the root `docker-compose.yml` (project `name: sol`), so Docker assigns every service to the common network `sol_default`. Profiled services join the same network when started.
-* Internal DNS hostnames (`authentik-server:9000`, `radarr:7878`, `sonarr:8989`, `glance:8080`, `ntfy:80`, `flaresolverr:8191` via `byparr` alias) resolve across stack boundaries.
-
-### Paperless Database Image Decision
-* `paperless-db` stays on Debian `postgres:17` (`glibc`). Moving the existing `data/paperless/db` cluster to `postgres:17-alpine` (`musl`) risks a collation mismatch on text indexes.
-* The Alpine move is documented as an optional local trial: `pg_dump` from Debian, start a fresh Alpine cluster, `pg_restore`, then reindex. See `TODO.md` and `docs/FLASH_LOCAL_VERIFICATION_RUNBOOK.md`.
-
----
-
-## 5. Rollback & Disaster Recovery Procedures
-
-If a rollback is required, a full snapshot of the pre-refactor configuration is saved in `_backup_pre_refactor/`.
-
-### Rollback Commands
-To revert all configuration files to their pre-refactored state:
-```bash
-# 1. Navigate to Sol root
-cd /Users/vrg/Documents/Sol
-
-# 2. Restore all pre-refactor files
-cp -a _backup_pre_refactor/.env .
-cp -a _backup_pre_refactor/docker-compose.yml .
-cp -a _backup_pre_refactor/paperless.env .
-cp -a _backup_pre_refactor/Caddyfile .
-cp -a _backup_pre_refactor/ports.json .
-cp -a _backup_pre_refactor/backup.sh .
-cp -a _backup_pre_refactor/test_cross_seed.sh .
-```
-*(Note: Phase 1 did not modify or move any files in `./data` or `./config`, so application databases and state remain 100% intact.)*
-
-### Phase 2 Rollback Notes
-* **Profiles:** To run a standby service permanently, delete its `profiles:` line. To return to the old model, comment the whole block instead (not recommended, because commented YAML escapes `docker compose config` validation).
-* **Byparr:** `docker compose stop byparr && docker compose --profile standby up -d flaresolverr`. Prowlarr settings need no change.
-* **Authentik loopback:** Remove the `127.0.0.1:` prefix in `compose/core.yml` to re-expose `9000` and `9443` on all interfaces.
-* **Download mounts:** Removing `${DOCKER_DATA_DIR}:/data` from `qbittorrent` and `cross-seed` is safe while all save paths still use `/downloads`.
-* **Cloud archive:** Any file overwritten or deleted by a backup run can be recovered from `OneDrive:Sol-archive/<TIMESTAMP>`.
+| `docker compose up -d` | Starts and reconciles all **29** active containers. Profiled `standby` and `ops` services remain stopped (`0 B` RAM). |
+| `docker compose --profile standby up -d <service>` | Starts a specific standby container on demand (e.g., `dozzle`, `gatus`, `vaultwarden`). |
+| `docker compose --profile ops run --rm rclone <args>` | Runs a one-shot containerized `rclone` operation under the `ops` profile. |
+| `python3 scripts/identity_sync.py` | Verifies LLDAP state via SHA-256 digest in `<50ms` (`--force` reconciles all 8 downstream apps). |
+| `/bin/bash scripts/stage_db_backups.sh` | Stages `paperless_db.sql.gz`, `airtrail_db.sql.gz`, `coder_db.sql.gz`, `coder_home.tar.gz`, 29 clean SQLite `.db` files, and `symlinks_manifest.tsv`. |
+| `./scripts/restore.sh --restore-dbs --start-stack` | End-to-end disaster recovery from PANOPTICON or OneDrive Restic snapshots, restoring SQLite DBs, PostgreSQL dumps, Coder workspace volume, ExFAT symlinks, static web apps, and LaunchAgents. |

@@ -39,6 +39,12 @@ services:
       - ${DOCKER_BASE_DIR}/web/speed:/speed:ro
       - ${DOCKER_BASE_DIR}/web/draw:/draw:ro
       - ${DOCKER_BASE_DIR}/web/mi:/mi:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       glance.id: caddy
       glance.name: Caddy
@@ -137,12 +143,20 @@ services:
       TINYAUTH_APPS_LDAP_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
       TINYAUTH_APPS_ROUTER_CONFIG_DOMAIN: router.vrg.rocks
       TINYAUTH_APPS_ROUTER_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
+      TINYAUTH_APPS_IGNIS_CONFIG_DOMAIN: ignis.vrg.rocks
+      TINYAUTH_APPS_IGNIS_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
+      TINYAUTH_APPS_MIND_CONFIG_DOMAIN: mind.vrg.rocks
+      TINYAUTH_APPS_MIND_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
+      TINYAUTH_APPS_SCAN_CONFIG_DOMAIN: scan.vrg.rocks
+      TINYAUTH_APPS_SCAN_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
+      TINYAUTH_APPS_AYSYNBM_CONFIG_DOMAIN: aysynbm.vrg.rocks
+      TINYAUTH_APPS_AYSYNBM_OAUTH_WHITELIST: ${TINYAUTH_ADMIN_EMAILS:?}
     volumes:
       - ${DOCKER_DATA_DIR}/tinyauth:/data
     labels:
       glance.id: tinyauth
       glance.name: Tinyauth
-      glance.icon: sh:tinyauth
+      glance.icon: di:tinyauth
       glance.url: https://auth.vrg.rocks
       glance.description: Forward-Auth & OIDC Provider
 
@@ -153,7 +167,7 @@ services:
   lldap:
     container_name: lldap
     # Upstream :stable tracks official releases (:latest is bleeding-edge main branch)
-    image: ghcr.io/lldap/lldap:stable
+    image: ghcr.io/lldap/lldap:${LLDAP_TAG:-stable}
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -174,7 +188,6 @@ services:
       glance.name: LLDAP
       glance.icon: sh:lldap
       glance.url: https://ldap.vrg.rocks
-      glance.parent: tinyauth
       glance.description: Lightweight Rust LDAP Directory (~5 MiB RAM)
 
   # ----------------------------------------------------------------
@@ -204,105 +217,15 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${DOCKER_DATA_DIR}/arcane:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3552/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     labels:
       glance.id: arcane
       glance.name: Arcane
       glance.icon: sh:arcane
       glance.url: https://arcane.vrg.rocks
       glance.description: Modern Docker Management
-
-  # ----------------------------------------------------------------
-  # Standby Authentik Stack (Preserved intact; replaced by Tinyauth v5)
-  # Launch via: docker compose --profile standby up -d authentik-postgresql authentik-server authentik-worker
-  # ----------------------------------------------------------------
-  authentik-postgresql:
-    container_name: authentik-postgresql
-    image: docker.io/library/postgres:16-alpine
-    profiles: ["standby"]
-    restart: unless-stopped
-    logging: *default-logging
-    command:
-      - "postgres"
-      - "-c"
-      - "shared_buffers=256MB"
-      - "-c"
-      - "work_mem=16MB"
-      - "-c"
-      - "effective_cache_size=1GB"
-      - "-c"
-      - "maintenance_work_mem=64MB"
-      - "-c"
-      - "wal_buffers=16MB"
-      - "-c"
-      - "checkpoint_completion_target=0.9"
-    environment:
-      POSTGRES_DB: ${PG_DB:-authentik}
-      POSTGRES_USER: ${PG_USER:-authentik}
-      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
-    volumes:
-      - ${DOCKER_DATA_DIR}/authentik:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    labels:
-      glance.name: PostgreSQL
-      glance.parent: authentik
-
-  authentik-server:
-    container_name: authentik-server
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.5.3}
-    profiles: ["standby"]
-    command: server
-    restart: unless-stopped
-    logging: *default-logging
-    shm_size: 512mb
-    depends_on:
-      authentik-postgresql:
-        condition: service_healthy
-    environment:
-      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql
-      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
-      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-      AUTHENTIK_WEB__WORKERS: 2
-    volumes:
-      - ${DOCKER_CONFIG_DIR}/authentik/data:/data
-      - ${DOCKER_CONFIG_DIR}/authentik/custom-templates:/templates
-    ports:
-      - "127.0.0.1:${COMPOSE_PORT_HTTP:-9000}:9000"
-      - "127.0.0.1:${COMPOSE_PORT_HTTPS:-9443}:9443"
-    labels:
-      glance.id: authentik
-      glance.name: Authentik
-      glance.icon: sh:authentik
-      glance.url: https://auth.vrg.rocks
-      glance.description: Identity & SSO Provider (Standby)
-
-  authentik-worker:
-    container_name: authentik-worker
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.5.3}
-    profiles: ["standby"]
-    command: worker
-    restart: unless-stopped
-    logging: *default-logging
-    shm_size: 512mb
-    depends_on:
-      authentik-postgresql:
-        condition: service_healthy
-    environment:
-      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql
-      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
-      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-    volumes:
-      - ${DOCKER_CONFIG_DIR}/authentik/data:/data
-      - ${DOCKER_CONFIG_DIR}/authentik/certs:/certs
-      - ${DOCKER_CONFIG_DIR}/authentik/custom-templates:/templates
-    labels:
-      glance.name: Worker
-      glance.parent: authentik
